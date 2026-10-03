@@ -8,6 +8,7 @@ from src.modules.missions.infra.tables import MissionTable
 from src.modules.ops.domain.dtos import QueueStatus
 from src.modules.publishing.infra.tables import (
     PrivateReplyTable,
+    PublicationChartTable,
     PublicationTable,
 )
 from src.modules.rick.infra.tables import AIBudgetTable
@@ -23,6 +24,16 @@ class QueueStatusReader(MySQLReader):
     async def read(self, day: date) -> QueueStatus:
         result = await self.uow.execute(
             select(
+                select(func.count())
+                .select_from(PublicationChartTable)
+                .where(col(PublicationChartTable.status) == "queued")
+                .scalar_subquery()
+                .label("queued_charts"),
+                select(func.count())
+                .select_from(PublicationChartTable)
+                .where(col(PublicationChartTable.status) == "unknown")
+                .scalar_subquery()
+                .label("unknown_charts"),
                 select(func.count())
                 .select_from(MissionTable)
                 .where(col(MissionTable.status) == "queued")

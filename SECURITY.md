@@ -9,7 +9,10 @@ container has no database credentials or model key. Python containers run as
 an unprivileged user, drop capabilities and deny privilege escalation.
 
 Every webhook has an independent secret compared in constant time. Only private
-messages and callbacks from allowlisted administrator IDs reach command logic.
+messages and administrative callbacks from allowlisted administrator IDs reach
+command logic. Price-page callbacks from channel readers are a narrow exception:
+the API checks a sent publication's bot role, channel, message and page before
+returning its frozen public text. They cannot approve, publish or change settings.
 Callbacks retain the originating bot and draft revision. Internal service calls
 use a long random bearer key and validate the owner where applicable.
 
@@ -39,6 +42,9 @@ attribute access. Market publication requires persisted, complete quotes within
 the configured age policy
 and an unchanged deterministic draft body. Model request costs and channel
 delivery slots have separate transactional reservations.
+Chart delivery accepts bounded PNG bytes over authenticated internal transport,
+without fetching image URLs. Photo sends have separate persisted states; an
+ambiguous send is never automatically repeated.
 
 ## Operational controls and residual risks
 
@@ -54,7 +60,7 @@ delivery slots have separate transactional reservations.
   Resolve it using provider/Telegram evidence or an explicit owner decision.
 - Logs intentionally avoid raw provider bodies, credentials and HTTP access
   URLs. Review new logging integrations before enabling request tracing.
-- There is no public-user access, payment integration, high availability,
+- There is no public administrative access, payment integration, high availability,
   guaranteed source accuracy or demonstrated production penetration test.
 
 ## Reporting a vulnerability

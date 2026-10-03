@@ -18,6 +18,7 @@ from src.modules.pricing.candle.domain.models import (
     SourceCandleModel,
 )
 from src.modules.pricing.candle.domain.results import (
+    CandleBatchResult,
     CandleResult,
     SourceCandleResult,
 )
@@ -311,6 +312,30 @@ class CandleService:
         meta = await self.meta.build(charted)
         result = CandleResult(data=chart, meta=meta)
         return result
+
+    async def get_all_candles(self, param: ParamDTO) -> CandleBatchResult:
+        days = self.window.days(param)
+        self._check_span(days)
+        timeframe = self.window.timeframe(days)
+        from_ts = int(param.from_datetime.timestamp())
+        to_ts = int(param.to_datetime.timestamp())
+        rows = await self.repo.get_all_by_timeframe(timeframe, from_ts, to_ts)
+        grouped: dict[int, list[CandleReadModel]] = {}
+        for row in rows:
+            grouped.setdefault(row.asset_id, []).append(
+                CandleReadModel.from_obj(row)
+            )
+        data = {
+            asset_id: CandleChartModel(
+                timeframe=timeframe,
+                candles=candles,
+                from_timestamp=from_ts,
+                to_timestamp=to_ts,
+            )
+            for asset_id, candles in grouped.items()
+        }
+        meta = await self.meta.build(list(grouped))
+        return CandleBatchResult(data=data, meta=meta)
 
 
 class SourceCandleService:

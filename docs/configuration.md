@@ -6,10 +6,10 @@
 | --- | --- | --- |
 | `portal.policy` | `global` | Channel, time zone, quiet hours, quotas and deadlines |
 | `ai.model` | `global` | Mode, model, price ceilings, token/tool/reaction limits and budget |
-| `market.policy` | `global` | Backend, report mode, instruments, allowed hosts and freshness |
+| `market.policy` | `global` | Backend, report mode, instruments, freshness and asset charts |
 | `market.engine` | `global` | Source timeouts, scheduler defaults, aggregation, outliers and cache age |
 | `automation.policy` | `global` | Owner, enabled rules, anchored intervals, topics and prompts |
-| `presentation` | `global` | Reactions, labels, item emojis and post length |
+| `presentation` | `global` | Reactions, labels, item emojis, pagination and post length |
 | `voice` | `rick`, `morty` | System prompt and persona response templates |
 | `post.style` | `news`, `tech`, `market`, `music`, `notice` | Publisher identity, heading, separators, footer and hashtags |
 | `market.quote` | `gold`, `usd`, `silver` | Endpoint, JSON paths, currency, basis, purity and labels |
@@ -127,3 +127,39 @@ Source-report outliers use the editable engine threshold per native instrument.
 USDT emoji and hashtag. Source credentials and enabled state remain in native
 pricing records. A successful HTTP response alone does not establish rate accuracy;
 verify the provider's units and parser contract before enabling it.
+
+## Price pages and asset charts
+
+Enable `presentation.market_pagination_enabled` for source reports. Each page
+contains one instrument and at most `market_sources_per_page` providers (default
+four). `previous_page_label`, `next_page_label` and `page_label` control the inline
+buttons; the counter accepts `{page}` and `{total}`. Buy/sell emojis, labels,
+asset emojis, hashtags, headings, separators and footers remain database settings.
+Pages are frozen when scheduling: navigating an older report preserves its rates
+and timestamps. The private draft previews page one with a page counter; the
+associated immutable source snapshot retains every accepted reading, even when
+the complete report exceeds one Telegram message. The bot verifies the report,
+bot role, channel and message ID
+before editing it. Administrative callbacks still require a private admin chat.
+
+Enable `market.policy.charts.enabled` to send one image per native calculated
+asset after the parent price report is confirmed sent. `window` accepts `daily`,
+`weekly` or `monthly`. Dimensions, background/foreground/up/down colors, captions,
+plot labels and per-asset `asset_labels`/`asset_symbols` are editable in this record.
+Seeded chart titles use English for reliable rendering; Telegram captions use the
+asset title and emoji/hashtag configured in the database.
+
+Charts use closed candles from the native calculated-asset history. Their line
+shows the same candles' close values; OHLC shows open/high/low/close. Values are
+converted from rial to toman. Missing periods remain gaps, and assets without
+history display an empty chart. Enable the asset's native calculation schedule
+to accumulate observations; new assets cannot supply historical prices from
+before collection began. These candles describe calculated rates, not trades.
+
+Rendering runs in a worker thread, outside database transactions and the event
+loop. Images are bounded to 256 KiB and sent as PNG bytes, without external image
+hosting. Four child deliveries count as part of their parent report, rather than
+four extra reports against the daily report quota. Photo statuses are exposed at
+`GET /internal/publications/{id}/charts`; ambiguous sends require an explicit
+owner decision at `POST /internal/publications/charts/{id}/resolve` with either
+`message_id` or `resend: true`. Automatic recovery never repeats an unknown send.

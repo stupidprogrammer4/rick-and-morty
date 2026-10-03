@@ -51,6 +51,13 @@ class InteractionStyle(BaseModel):
 
 
 class PresentationSettings(BaseModel):
+    market_pagination_enabled: bool = False
+    market_sources_per_page: int = Field(default=4, ge=1, le=20)
+    previous_page_label: str = Field(default="◀️ قبلی", max_length=40)
+    next_page_label: str = Field(default="بعدی ▶️", max_length=40)
+    page_label: str = Field(default="📑 {page}/{total}", max_length=80)
+    market_buy_emoji: str = Field(default="🟢", max_length=16)
+    market_sell_emoji: str = Field(default="🔴", max_length=16)
     interactions: InteractionStyle
     item_emojis: list[str] = Field(min_length=1)
     summary_label: str

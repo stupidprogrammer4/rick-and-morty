@@ -35,6 +35,9 @@ OWNER = 140001
 
 class ExternalTelegramHandler(BaseHTTPRequestHandler):
     messages = []
+    photos = []
+    photo_attempts = []
+    photo_delivery_status = "sent"
     delivery_status = "sent"
 
     def do_POST(self):
@@ -45,6 +48,17 @@ class ExternalTelegramHandler(BaseHTTPRequestHandler):
             response = {
                 "status": status,
                 "message_id": len(self.messages) if status == "sent" else None,
+            }
+        elif self.path == "/internal/photos":
+            type(self).photo_attempts.append(body)
+            status = type(self).photo_delivery_status
+            if status == "sent":
+                type(self).photos.append(body)
+            response = {
+                "status": status,
+                "message_id": 100 + len(self.photos)
+                if status == "sent"
+                else None,
             }
         else:
             response = {"ok": True}
@@ -182,6 +196,9 @@ def portal(tmp_path, monkeypatch):
 
     runner.run(create_database())
     ExternalTelegramHandler.messages = []
+    ExternalTelegramHandler.photos = []
+    ExternalTelegramHandler.photo_attempts = []
+    ExternalTelegramHandler.photo_delivery_status = "sent"
     ExternalTelegramHandler.delivery_status = "sent"
     gateway = ThreadingHTTPServer(("127.0.0.1", 0), ExternalTelegramHandler)
     thread = threading.Thread(target=gateway.serve_forever, daemon=True)

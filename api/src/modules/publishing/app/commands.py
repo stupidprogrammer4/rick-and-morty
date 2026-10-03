@@ -7,6 +7,7 @@ from papilio.infra.db.transaction import transaction
 from portal_contracts.configuration import PortalConfiguration
 from portal_contracts.content import (
     PublicationOut,
+    PublicationPages,
     PublicationResolution,
     PublishRequest,
 )
@@ -19,7 +20,10 @@ from src.modules.publishing.app.policy import PublicationPolicy
 from src.modules.publishing.app.renderer import PostRenderer
 from src.modules.publishing.domain.models import PublicationModel
 from src.modules.publishing.infra.mysql import PublicationRepository
-from src.modules.publishing.interfaces import ITelegramGateway
+from src.modules.publishing.interfaces import (
+    IPublicationChartCommands,
+    ITelegramGateway,
+)
 from src.shared.dates import as_utc, utc_now
 from src.shared.errors import conflict, missing
 
@@ -34,6 +38,7 @@ class PublicationCommands:
         settings: PortalConfiguration,
         renderer: PostRenderer,
         market: IMarketPublicationQuery,
+        charts: IPublicationChartCommands,
     ):
         self.repo = repo
         self.drafts = drafts
@@ -42,6 +47,7 @@ class PublicationCommands:
         self.settings = settings
         self.renderer = renderer
         self.market = market
+        self.charts = charts
         self.policy = PublicationPolicy(settings.portal)
 
     async def schedule(
@@ -71,8 +77,17 @@ class PublicationCommands:
                 return PublicationOut.model_validate(
                     existing, from_attributes=True
                 )
+            pages = (
+                await self.market.render_pages(draft)
+                if draft.category == "market"
+                else None
+            )
+            frozen_pages = pages.model_dump_json() if pages else None
+            if frozen_pages is not None and len(frozen_pages.encode()) > 60000:
+                raise ValueError("Publication pages exceed the storage limit")
             row = await self.repo.create(
                 PublicationModel(
+                    pages=frozen_pages,
                     owner_id=owner_id,
                     draft_id=draft_id,
                     revision=data.revision,
@@ -86,6 +101,8 @@ class PublicationCommands:
                     ),
                 )
             )
+            if draft.category == "market":
+                await self.charts.schedule(row)
             result = PublicationOut.model_validate(row, from_attributes=True)
         return result
 
@@ -136,9 +153,18 @@ class PublicationCommands:
             if count >= self.settings.portal.daily_post_cap:
                 return
             row.budget_day = day
+            pages = (
+                PublicationPages.model_validate_json(row.pages)
+                if row.pages
+                else None
+            )
             try:
-                row.payload = self.renderer.render(
-                    draft.title, draft.text, draft.category
+                row.payload = (
+                    pages.items[0].text
+                    if pages
+                    else self.renderer.render(
+                        draft.title, draft.text, draft.category
+                    )
                 )
             except ValueError:
                 row.status = "failed"
@@ -154,6 +180,7 @@ class PublicationCommands:
                 chat_id=row.channel_id,
                 text=row.payload,
                 publication_id=row.id,
+                navigation=pages.navigation(row.id, 0) if pages else None,
             )
         if self.settings.portal.dry_run:
             async with transaction():

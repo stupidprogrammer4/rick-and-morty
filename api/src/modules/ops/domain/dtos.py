@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 
 class QueueStatus(BaseModel):
+    queued_charts: int
+    unknown_charts: int
     queued_missions: int
     running_missions: int
     queued_publications: int

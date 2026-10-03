@@ -1,12 +1,19 @@
 from datetime import datetime
 
 from papilio.infra.db.table import BaseTable
-from sqlalchemy import Column, DateTime, ForeignKeyConstraint, Index
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlmodel import Field
 
 from src.modules.publishing.domain.models import (
     PrivateReplyModel,
+    PublicationChartModel,
     PublicationModel,
 )
 from src.shared.dates import utc_now
@@ -37,4 +44,11 @@ class PrivateReplyTable(PrivateReplyModel, BaseTable, table=True):
     )
     __table_args__ = (
         Index("ix_private_replies_due", "status", "scheduled_at", "id"),
+    )
+
+
+class PublicationChartTable(PublicationChartModel, BaseTable, table=True):
+    __table_args__ = (
+        UniqueConstraint("publication_id", "asset_id"),
+        Index("ix_publication_charts_due", "status", "scheduled_at", "id"),
     )

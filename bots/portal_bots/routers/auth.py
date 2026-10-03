@@ -1,3 +1,5 @@
+import re
+
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 
@@ -15,6 +17,16 @@ class PrivateAdminMiddleware(BaseMiddleware):
             if isinstance(event, (Message, CallbackQuery))
             else None
         )
+        if (
+            isinstance(event, CallbackQuery)
+            and isinstance(message, Message)
+            and message.chat.type == "channel"
+            and user is not None
+            and not user.is_bot
+            and re.fullmatch(r"prices:[1-9][0-9]*:[0-9]+", event.data or "")
+        ):
+            result = await handler(event, data)
+            return result
         if (
             not isinstance(message, Message)
             or message.chat.type != "private"

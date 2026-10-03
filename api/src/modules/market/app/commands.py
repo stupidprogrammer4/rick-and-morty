@@ -4,11 +4,12 @@ from datetime import datetime
 from papilio.infra.db.transaction import transaction
 
 from portal_contracts.configuration import PortalConfiguration
-from portal_contracts.content import DraftCreate, DraftOut
+from portal_contracts.content import DraftCreate, DraftOut, PublicationPages
 from portal_contracts.enums import BotRole, Category
 from portal_contracts.presentation import PortalPresentation
 from src.modules.content.domain.models import DraftModel
 from src.modules.content.interfaces import IDraftService
+from src.modules.market.app.pages import MarketPageRenderer
 from src.modules.market.app.renderer import MarketReportRenderer
 from src.modules.market.domain.dtos import MarketSnapshot, validate_freshness
 from src.modules.market.domain.models import MarketSnapshotModel
@@ -26,12 +27,14 @@ class MarketDraftCommands:
         renderer: MarketReportRenderer,
         settings: PortalConfiguration,
         presentation: PortalPresentation,
+        pages: MarketPageRenderer,
     ):
         self.snapshots = snapshots
         self.drafts = drafts
         self.renderer = renderer
         self.settings = settings
         self.presentation = presentation
+        self.pages = pages
 
     async def from_snapshot(
         self, mission: MissionModel, snapshot: MarketSnapshot
@@ -43,7 +46,11 @@ class MarketDraftCommands:
             policy.max_age_seconds,
             policy.future_skew_seconds,
         )
-        text = self.renderer.render(snapshot)
+        text = (
+            self.pages.preview(self.pages.render(snapshot))
+            if self.presentation.market_pagination_enabled
+            else self.renderer.render(snapshot)
+        )
         async with transaction():
             record = await self.snapshots.create(
                 MarketSnapshotModel(
@@ -73,10 +80,27 @@ class MarketDraftCommands:
 
 class MarketPublicationQuery:
     def __init__(
-        self, snapshots: IMarketSnapshotService, settings: PortalConfiguration
+        self,
+        snapshots: IMarketSnapshotService,
+        settings: PortalConfiguration,
+        pages: MarketPageRenderer,
+        presentation: PortalPresentation,
     ):
         self.snapshots = snapshots
         self.settings = settings
+        self.pages = pages
+        self.presentation = presentation
+
+    async def render_pages(self, draft: DraftModel) -> PublicationPages | None:
+        if not self.presentation.market_pagination_enabled:
+            return None
+        if draft.market_snapshot_id is None:
+            raise conflict("قیمت ثبت‌شده برای صفحه‌بندی موجود نیست.")
+        record = await self.snapshots.get(
+            draft.market_snapshot_id, draft.owner_id
+        )
+        snapshot = MarketSnapshot.model_validate_json(record.payload)
+        return self.pages.render(snapshot)
 
     async def validate(self, draft: DraftModel, now: datetime) -> None:
         if draft.market_snapshot_id is None:

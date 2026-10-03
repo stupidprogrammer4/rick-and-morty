@@ -1,6 +1,7 @@
+import base64
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from portal_contracts.enums import BotRole
 
@@ -15,6 +16,21 @@ class ReactionEmoji(StrEnum):
     CODE = "👨‍💻"
 
 
+class PublicationNavigation(BaseModel):
+    publication_id: int = Field(gt=0)
+    page: int = Field(ge=0)
+    total: int = Field(ge=1, le=100)
+    previous_label: str
+    next_label: str
+    page_label: str
+
+    @model_validator(mode="after")
+    def page_exists(self):
+        if self.page >= self.total:
+            raise ValueError("Page is outside the publication")
+        return self
+
+
 class TelegramDelivery(BaseModel):
     role: BotRole
     chat_id: int
@@ -22,6 +38,31 @@ class TelegramDelivery(BaseModel):
     publication_id: int | None = None
     draft_id: int | None = None
     revision: int | None = None
+    navigation: PublicationNavigation | None = None
+
+
+class TelegramPhotoDelivery(BaseModel):
+    role: BotRole
+    chat_id: int
+    publication_id: int = Field(gt=0)
+    chart_id: int = Field(gt=0)
+    reply_to_message_id: int = Field(gt=0)
+    caption: str = Field(max_length=1024)
+    png_base64: str = Field(max_length=350000)
+
+    @field_validator("png_base64")
+    @classmethod
+    def valid_png(cls, value: str) -> str:
+        try:
+            image = base64.b64decode(value, validate=True)
+        except ValueError as exc:
+            raise ValueError("Invalid base64 image") from exc
+        if (
+            not image.startswith(b"\x89PNG\r\n\x1a\n")
+            or len(image) > 256 * 1024
+        ):
+            raise ValueError("Only a bounded PNG chart is allowed")
+        return value
 
 
 class DeliveryResult(BaseModel):

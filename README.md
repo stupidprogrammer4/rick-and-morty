@@ -5,6 +5,10 @@ verified market reports and scheduled channel posts. Rick is sarcastic and
 analytical; Morty is nervous, friendly and practical. Their system prompts,
 responses, reactions and channel presentation are editable database records.
 
+Price reports support inline page navigation, asset-specific emojis and tags,
+linked providers and separate buy/sell rates. Each calculated asset can include
+a PNG with its closing-price line and OHLC history alongside the hourly report.
+
 ## Components
 
 | Directory | Responsibility |
@@ -73,7 +77,9 @@ for these tokens while webhooks are active.
 | `/prompt [text]` | Read or update the receiving persona's system prompt |
 
 Responses and draft notifications return through the originating bot. Every
-command is restricted to allowlisted administrators in private chats.
+administrative command is restricted to allowlisted administrators in private
+chats. Channel readers can use price-page buttons; those buttons can only edit
+the matching published report.
 
 ## Configuration and OpenRouter
 

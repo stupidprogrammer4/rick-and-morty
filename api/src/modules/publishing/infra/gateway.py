@@ -4,6 +4,7 @@ from portal_contracts.telegram import (
     DeliveryResult,
     ReactionRequest,
     TelegramDelivery,
+    TelegramPhotoDelivery,
     TypingRequest,
 )
 from src.config.settings import PortalAppSettings
@@ -29,6 +30,25 @@ class TelegramGateway:
             result = DeliveryResult.model_validate(response.json())
         except (httpx.HTTPError, ValueError):
             result = DeliveryResult(status="unknown", reason="gateway_unknown")
+        return result
+
+    async def send_photo(self, data: TelegramPhotoDelivery) -> DeliveryResult:
+        try:
+            response = await self.client.post(
+                self.settings.portal.gateway_url + "/internal/photos",
+                json=data.model_dump(mode="json"),
+                headers={
+                    "Authorization": "Bearer "
+                    + self.settings.security.service_key.get_secret_value()
+                },
+                timeout=25,
+            )
+            response.raise_for_status()
+            result = DeliveryResult.model_validate(response.json())
+        except (httpx.HTTPError, ValueError):
+            result = DeliveryResult(
+                status="unknown", reason="photo_gateway_unknown"
+            )
         return result
 
     async def react(self, data: ReactionRequest) -> None:

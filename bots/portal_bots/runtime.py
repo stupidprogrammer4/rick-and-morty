@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 from hmac import compare_digest
 
@@ -12,13 +13,20 @@ from aiogram.exceptions import (
     TelegramRetryAfter,
     TelegramUnauthorizedError,
 )
-from aiogram.types import LinkPreviewOptions, ReactionTypeEmoji, Update
+from aiogram.types import (
+    BufferedInputFile,
+    LinkPreviewOptions,
+    ReactionTypeEmoji,
+    ReplyParameters,
+    Update,
+)
 from aiohttp import web
 from pydantic import ValidationError
 
+from portal_bots.app.pages import page_keyboard
 from portal_bots.config.settings import BotSettings
 from portal_bots.infra.backend import BackendClient, BackendUnavailable
-from portal_bots.routers import drafts, missions, ops
+from portal_bots.routers import drafts, missions, ops, pages
 from portal_bots.routers import settings as settings_router
 from portal_bots.routers.auth import PrivateAdminMiddleware
 from portal_bots.routers.drafts import draft_keyboard
@@ -30,6 +38,7 @@ from portal_contracts.telegram import (
     DeliveryResult,
     ReactionRequest,
     TelegramDelivery,
+    TelegramPhotoDelivery,
     TypingRequest,
 )
 
@@ -65,7 +74,11 @@ class BotRuntime:
             PresentationMiddleware()
         )
         self.dispatcher.include_routers(
-            ops.router, settings_router.router, drafts.router, missions.router
+            pages.router,
+            ops.router,
+            settings_router.router,
+            drafts.router,
+            missions.router,
         )
 
     async def startup(self, app: web.Application):
@@ -115,6 +128,7 @@ class BotRuntime:
                 role=role,
                 backend=self.backend,
                 update_id=update.update_id,
+                portal_admin_id=min(self.settings.admin_ids),
             )
         except BackendUnavailable:
             raise web.HTTPServiceUnavailable() from None
@@ -129,22 +143,29 @@ class BotRuntime:
         ):
             raise web.HTTPUnauthorized()
 
-    async def send(self, request: web.Request):
-        self.authenticate(request)
-        data = TelegramDelivery.model_validate(await request.json())
-        if data.publication_id is not None:
+    async def authorize_delivery(
+        self, chat_id: int, publication_id: int | None
+    ):
+        if publication_id is not None:
             raw = await self.backend.request(
                 "GET", "/configuration/bot", min(self.settings.admin_ids)
             )
             configuration = BotConfiguration.model_validate(raw)
-            if data.chat_id != configuration.channel_id or data.chat_id == 0:
+            if chat_id != configuration.channel_id or chat_id == 0:
                 raise web.HTTPForbidden()
-        elif data.chat_id not in self.settings.admin_ids:
+        elif chat_id not in self.settings.admin_ids:
             raise web.HTTPForbidden()
+
+    async def send(self, request: web.Request):
+        self.authenticate(request)
+        data = TelegramDelivery.model_validate(await request.json())
+        await self.authorize_delivery(data.chat_id, data.publication_id)
         bot = self.bots[data.role]
         keyboard = None
         if data.draft_id is not None and data.revision is not None:
             keyboard = draft_keyboard(data.draft_id, data.revision, data.role)
+        if data.navigation is not None:
+            keyboard = page_keyboard(data.navigation)
         try:
             message = await bot.send_message(
                 data.chat_id,
@@ -170,6 +191,46 @@ class BotRuntime:
         except (TelegramNetworkError, TimeoutError):
             result = DeliveryResult(
                 status="unknown", reason="telegram_delivery_unknown"
+            )
+        return web.json_response(result.model_dump())
+
+    async def send_photo(self, request: web.Request):
+        self.authenticate(request)
+        try:
+            data = TelegramPhotoDelivery.model_validate(await request.json())
+        except ValueError:
+            raise web.HTTPBadRequest() from None
+        await self.authorize_delivery(data.chat_id, data.publication_id)
+        try:
+            message = await self.bots[data.role].send_photo(
+                chat_id=data.chat_id,
+                photo=BufferedInputFile(
+                    base64.b64decode(data.png_base64),
+                    filename=f"asset-chart-{data.chart_id}.png",
+                ),
+                caption=data.caption,
+                reply_parameters=ReplyParameters(
+                    message_id=data.reply_to_message_id
+                ),
+            )
+            result = DeliveryResult(
+                status="sent", message_id=message.message_id
+            )
+        except TelegramRetryAfter as exc:
+            result = DeliveryResult(
+                status="rate_limited",
+                retry_after=exc.retry_after,
+                reason="telegram_rate_limit",
+            )
+        except (
+            TelegramBadRequest,
+            TelegramForbiddenError,
+            TelegramUnauthorizedError,
+        ) as exc:
+            result = DeliveryResult(status="failed", reason=type(exc).__name__)
+        except (TelegramNetworkError, TimeoutError):
+            result = DeliveryResult(
+                status="unknown", reason="telegram_photo_delivery_unknown"
             )
         return web.json_response(result.model_dump())
 
@@ -204,6 +265,7 @@ class BotRuntime:
         app = web.Application(client_max_size=512 * 1024)
         app.router.add_post("/telegram/{role:rick|morty}", self.webhook)
         app.router.add_post("/internal/messages", self.send)
+        app.router.add_post("/internal/photos", self.send_photo)
         app.router.add_post("/internal/reactions", self.react)
         app.router.add_post("/internal/typing", self.typing)
         app.router.add_get("/health/live", self.health)

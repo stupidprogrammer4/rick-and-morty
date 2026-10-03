@@ -2,6 +2,8 @@ from papilio_tasks.apps.schedulers.backends.redis import RedisScheduler
 
 from src.modules.publishing.interfaces import (
     IPrivateReplyService,
+    IPublicationChartCommands,
+    IPublicationChartRecovery,
     IPublicationCommands,
     IPublicationRecovery,
     IReplyRecovery,
@@ -38,6 +40,24 @@ class RecoverReplies(RedisScheduler):
     schedule = [{"interval": 5}]
 
     def __init__(self, recovery: IReplyRecovery):
+        self.recovery = recovery
+
+    async def run(self) -> None:
+        await self.recovery.enqueue_pending()
+
+
+class DispatchChart(RedisScheduler):
+    def __init__(self, commands: IPublicationChartCommands):
+        self.commands = commands
+
+    async def run(self, chart_id: int) -> None:
+        await self.commands.dispatch(chart_id)
+
+
+class RecoverCharts(RedisScheduler):
+    schedule = [{"interval": 5}]
+
+    def __init__(self, recovery: IPublicationChartRecovery):
         self.recovery = recovery
 
     async def run(self) -> None:

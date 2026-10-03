@@ -12,6 +12,12 @@ class CandleResult:
 
 
 @dataclass
+class CandleBatchResult:
+    data: dict[int, CandleChartModel]
+    meta: AssetsMetaModel
+
+
+@dataclass
 class SourceCandleResult:
     data: CandleChartModel
     meta: SourcesMetaModel

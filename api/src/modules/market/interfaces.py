@@ -2,7 +2,7 @@ from collections.abc import Awaitable
 from datetime import datetime
 from typing import Protocol
 
-from portal_contracts.content import DraftOut
+from portal_contracts.content import DraftOut, PublicationPages
 from src.modules.content.domain.models import DraftModel
 from src.modules.market.domain.dtos import MarketSnapshot
 from src.modules.market.domain.models import MarketSnapshotModel
@@ -32,4 +32,7 @@ class IMarketDraftCommands(Protocol):
 
 
 class IMarketPublicationQuery(Protocol):
+    def render_pages(
+        self, draft: DraftModel
+    ) -> Awaitable[PublicationPages | None]: ...
     async def validate(self, draft: DraftModel, now: datetime) -> None: ...

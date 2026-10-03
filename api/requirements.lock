@@ -10,14 +10,19 @@ annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 attrs==26.1.0
+beautifulsoup4==4.15.0
 certifi==2026.7.22
 cffi==2.1.1
 click==8.5.0
+contourpy==1.4.0
 cryptography==50.0.2
+cycler==0.12.1
+defusedxml==0.7.1
 dishka==1.10.1
 dnspython==2.8.0
 email-validator==2.3.0
 fastapi==0.136.3
+fonttools==4.66.1
 frozenlist==1.8.0
 greenlet==3.5.6
 h11==0.16.0
@@ -30,18 +35,23 @@ idna==3.20
 jinja2==3.1.6
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
+kiwisolver==1.5.1
 mako==1.4.1
 markdown-it-py==4.2.0
 markupsafe==3.0.3
+matplotlib==3.11.2
 mcp==2.2.0
 mcp-types==2.2.0
 mdurl==0.1.2
 multidict==6.9.0
+numpy==2.5.3
 opentelemetry-api==1.45.0
 orjson==3.12.0
 packaging==26.3
 papilio[db,mcp,server] @ https://codeload.github.com/stupidprogrammer4/papilio/tar.gz/e026dbc9aa335ab4f6cc79f7ff2aecb198bd93ad
 papilio-tasks[scheduler,scheduler-redis] @ https://codeload.github.com/stupidprogrammer4/papilio-tasks/tar.gz/bca239763eab5c0d176b5ac8af9e878edb6997a7
+persiantools==5.5.1
+pillow==12.3.0
 propcache==0.5.4
 pycparser==3.0
 pycron==3.3.0
@@ -50,6 +60,8 @@ pydantic-core==2.41.5
 pygments==2.21.0
 pyjwt[crypto]==2.15.1
 pymysql==1.1.2
+pyparsing==3.3.3
+python-dateutil==2.9.0.post0
 python-dotenv==1.2.4
 python-multipart==0.0.32
 pyyaml==6.0.3
@@ -58,6 +70,8 @@ referencing==0.37.0
 rich==14.3.4
 rpds-py==2026.6.3
 shellingham==1.5.4
+six==1.17.0
+soupsieve==2.10
 sqlalchemy==2.0.54
 sqlmodel==0.0.42
 sse-starlette==3.4.11
@@ -76,7 +90,3 @@ watchfiles==1.1.1
 websockets==17.1
 yarl==1.25.1
 pip==26.2.1
-beautifulsoup4==4.15.0
-defusedxml==0.7.1
-persiantools==5.5.1
-soupsieve==2.10

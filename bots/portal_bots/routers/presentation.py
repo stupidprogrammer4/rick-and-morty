@@ -7,6 +7,11 @@ from portal_contracts.configuration import BotConfiguration
 
 class PresentationMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
+        if isinstance(event, CallbackQuery) and (event.data or "").startswith(
+            "prices:"
+        ):
+            result = await handler(event, data)
+            return result
         if (
             isinstance(event, (Message, CallbackQuery))
             and event.from_user is not None

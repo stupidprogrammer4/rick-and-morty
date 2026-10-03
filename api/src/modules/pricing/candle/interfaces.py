@@ -6,6 +6,7 @@ from src.modules.pricing.calculator.domain.models import AssetPriceModel
 from src.modules.pricing.candle.domain.dtos import ParamDTO, SourceParamDTO
 from src.modules.pricing.candle.domain.enums import TimeFrame
 from src.modules.pricing.candle.domain.results import (
+    CandleBatchResult,
     CandleResult,
     SourceCandleResult,
 )
@@ -42,6 +43,9 @@ class ISourceCandleService(Protocol):
 
 
 class ICandleService(Protocol):
+    def get_all_candles(
+        self, param: ParamDTO
+    ) -> Awaitable[CandleBatchResult]: ...
     def build_timeframe_from_rolled(self, tf: TimeFrame) -> Awaitable[int]: ...
 
     def build_from_cache(self) -> Awaitable[int]: ...

@@ -5,6 +5,7 @@ from src.modules.market.app.commands import (
     MarketDraftCommands,
     MarketPublicationQuery,
 )
+from src.modules.market.app.pages import MarketPageRenderer
 from src.modules.market.app.queries import MarketQuery
 from src.modules.market.app.renderer import MarketReportRenderer
 from src.modules.market.app.services import MarketSnapshotService
@@ -48,6 +49,7 @@ class MarketProvider(Provider):
         MarketSnapshotService, provides=IMarketSnapshotService
     )
     renderer = provide(MarketReportRenderer)
+    pages = provide(MarketPageRenderer)
     draft_commands = provide(
         MarketDraftCommands, provides=IMarketDraftCommands
     )

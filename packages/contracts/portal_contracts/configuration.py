@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
+from portal_contracts.charts import AssetChartPolicy
 from portal_contracts.presentation import PortalPresentation
 
 
@@ -105,6 +106,7 @@ class MarketInstrument(BaseModel):
 
 
 class MarketPolicy(BaseModel):
+    charts: AssetChartPolicy = Field(default_factory=AssetChartPolicy)
     backend: Literal["talamala", "auryx"] = "talamala"
     report_mode: Literal["aggregate", "sources"] = "aggregate"
     instruments: dict[str, MarketInstrument] = Field(default_factory=dict)
