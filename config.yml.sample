@@ -1,0 +1,42 @@
+app:
+  modules: [src.modules]
+  settings: src.config.settings.PortalAppSettings
+fastapi:
+  title: Rick & Morty Portal
+  description: Private content operations for Pouya
+  version: 0.1.0
+run:
+  entrypoint: src.apps.api:app
+  mode: prod
+  host: 0.0.0.0
+  port: 8000
+  workers: 1
+db:
+  dsn: mysql+aiomysql://portal:replace@mysql:3306/portal
+  test_dsn: mysql+aiomysql://portal:replace@127.0.0.1:3306/portal_test
+  pool_size: 5
+  max_overflow: 5
+  pool_timeout: 10
+  pool_recycle: 1800
+storage:
+  path: data/storage
+  temp_dir: data/tmp
+  max_file_size: 1048576
+  allowed_extensions: []
+logging:
+  level: INFO
+  format: json
+  service: portal-api
+security:
+  # Environment overrides; invalid defaults fail startup.
+  service_key: replace
+  admin_ids: []
+portal:
+  dry_run: true
+  gateway_url: http://bots:8080
+tasks:
+  url: redis://redis:6379/0
+  queue_name: portal:jobs
+  schedule_prefix: portal:schedules
+  consumer_group: portal-workers
+  result_prefix: portal:results

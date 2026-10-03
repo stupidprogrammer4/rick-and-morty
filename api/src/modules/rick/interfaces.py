@@ -1,0 +1,40 @@
+from collections.abc import Awaitable
+from typing import Any, Protocol
+
+from portal_contracts.content import DraftOut
+from portal_contracts.telegram import ReactionEmoji
+from src.modules.missions.domain.models import MissionModel
+from src.modules.news.domain.dtos import ArticleEvidence, NewsDraft
+from src.modules.rick.domain.dtos import AgentHistory, AgentOutcome, LLMReply
+
+
+class ILLMClient(Protocol):
+    def complete(
+        self, history: AgentHistory, tools: list[dict[str, Any]]
+    ) -> Awaitable[LLMReply]: ...
+
+
+class IRickAgent(Protocol):
+    def step(
+        self, mission: MissionModel, *, tools_enabled: bool = True
+    ) -> Awaitable[AgentOutcome]: ...
+
+
+class IModelSmokeCommands(Protocol):
+    async def run(self, owner_id: int, bot_id: int) -> str: ...
+
+
+class IAgentToolCommands(Protocol):
+    async def authorize(self) -> MissionModel: ...
+
+    async def collect_news(self, topic: str) -> list[ArticleEvidence]: ...
+
+    async def search_news(self) -> list[ArticleEvidence]: ...
+
+    async def read_article(self, article_id: int) -> ArticleEvidence: ...
+
+    async def get_market_prices(self) -> str: ...
+
+    async def react_to_message(self, emoji: ReactionEmoji) -> str: ...
+
+    async def create_post_draft(self, draft: NewsDraft) -> DraftOut: ...

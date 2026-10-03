@@ -1,0 +1,17 @@
+import os
+
+from dotenv import load_dotenv
+from papilio.core.config import get_settings
+from papilio_tasks.apps.schedulers.redis import create_app
+
+from src.config.providers import task_providers
+from src.config.settings import PortalAppSettings
+
+load_dotenv(os.getenv("PORTAL_ENV_FILE", ".env"))
+settings = get_settings(PortalAppSettings)
+app = create_app(
+    settings.tasks,
+    providers=task_providers(settings),
+    modules=settings.app.modules,
+)
+broker, scheduler = app.broker, app.scheduler
