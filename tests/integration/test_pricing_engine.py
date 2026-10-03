@@ -503,7 +503,7 @@ def test_native_supplier_batch_preserves_quote_versions(portal):
     assert portal.run(read()) == current
 
 
-async def prepare_source_report(portal):
+async def prepare_source_report(portal, *, full=False):
     import httpx
     from sqlalchemy import update
 
@@ -521,6 +521,12 @@ async def prepare_source_report(portal):
     market = snapshot.configuration.market.model_dump(mode="json")
     market["report_mode"] = "sources"
     await portal.change("market.policy", SettingScope.GLOBAL, market)
+    if full:
+        presentation = snapshot.presentation.model_dump(
+            mode="json", exclude={"voices", "posts"}
+        )
+        presentation["maximum_post_characters"] = 4000
+        await portal.change("presentation", SettingScope.GLOBAL, presentation)
     now = datetime.now(UTC)
     async with portal.request() as scope:
         uow = await scope.get(MySQLUnitOfWork)
@@ -531,6 +537,15 @@ async def prepare_source_report(portal):
             SourceCode.GOLDPRICE_DEV,
             SourceCode.TALINE,
         ]
+        additional = [
+            SourceCode.ALANCHAND,
+            SourceCode.MILIGOLD,
+            SourceCode.TALASEA,
+            SourceCode.TECHNOGOLD,
+            SourceCode.WALLGOLD,
+        ]
+        if full:
+            codes.extend(additional)
         async with transaction():
             await uow.execute(
                 update(SourceTable)
@@ -597,18 +612,41 @@ async def prepare_source_report(portal):
                 )
             )
         )
+        if full:
+            from src.modules.pricing.engine.domain.quotes import (
+                GlobalSourceQuote,
+            )
+
+            irans.extend(
+                IranSourceQuote.from_buying_selling(
+                    code, SymbolCode.GOLD18_GRAM, 101_000_000, 103_000_000
+                )
+                for code in additional
+            )
+            globals_ = [
+                GlobalSourceQuote.from_mid(
+                    SourceCode.GOLD_API, SymbolCode.XAU_OUNCE, "4141.52"
+                ),
+                GlobalSourceQuote.from_mid(
+                    SourceCode.GOLD_API, SymbolCode.XAG_OUNCE, "60.52"
+                ),
+                GlobalSourceQuote.from_mid(
+                    SourceCode.GOLDPRICE_DEV, SymbolCode.XAU_OUNCE, "4140.50"
+                ),
+            ]
         await (await scope.get(ICacheFlusherService)).flush_results(
             cfg,
             SourceQuote(
                 irans=irans, globals=globals_, suppliers=[], bubbles=[]
             ),
         )
-        async with transaction():
-            await uow.execute(
-                update(SourceTable)
-                .where(SourceTable.code == SourceCode.TALINE)
-                .values(is_active=False)
-            )
+        if not full:
+            async with transaction():
+                await uow.execute(
+                    update(SourceTable)
+                    .where(SourceTable.code == SourceCode.TALINE)
+                    .values(is_active=False)
+                )
 
 
 def test_native_source_report_preserves_rates_units_and_accepted_sources(
@@ -674,7 +712,13 @@ def test_native_scheduler_publishes_all_source_rates_once(portal):
     portal.environment["PORTAL_DRY_RUN"] = "false"
 
     async def prepare():
-        await prepare_source_report(portal)
+        await prepare_source_report(portal, full=True)
+        async with portal.request() as scope:
+            market = await scope.get(IMarketQuery)
+            rates = await market.snapshot()
+            assert len(rates.quotes) == 16
+            assert len({row.source_code for row in rates.quotes}) == 12
+            assert 1700 < len(await market.report()) < 3500
         snapshot = await portal.snapshot()
         policy = snapshot.configuration.automation.model_dump(mode="json")
         policy["owner_id"] = OWNER
@@ -683,8 +727,9 @@ def test_native_scheduler_publishes_all_source_rates_once(portal):
             starts_at=(datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
         )
         await portal.change("automation.policy", SettingScope.GLOBAL, policy)
+        return {row.source_name for row in rates.quotes}
 
-    portal.run(prepare())
+    expected_sources = portal.run(prepare())
     portal.start_workers()
 
     async def read():
@@ -705,6 +750,8 @@ def test_native_scheduler_publishes_all_source_rates_once(portal):
     assert payload["role"] == "morty"
     assert "گلدیکا" in payload["text"] and "دیجی‌کالا" in payload["text"]
     assert "والکس" in payload["text"] and "#تتر" in payload["text"]
+    assert all(name in payload["text"] for name in expected_sources)
+    assert len(payload["text"]) <= 4000
     assert "نرخ 200,000" in payload["text"]
     assert (
         "خرید 199,900" in payload["text"] and "فروش 200,100" in payload["text"]

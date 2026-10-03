@@ -8,14 +8,14 @@ from portal_contracts.enums import BotRole, Category
 class DraftCreate(BaseModel):
     category: Category
     title: str = Field(min_length=1, max_length=160)
-    text: str = Field(min_length=1, max_length=1700)
+    text: str = Field(min_length=1, max_length=4000)
     publisher_bot: BotRole
 
 
 class DraftEdit(BaseModel):
     revision: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=160)
-    text: str = Field(min_length=1, max_length=1700)
+    text: str = Field(min_length=1, max_length=4000)
 
 
 class DraftDecision(BaseModel):
