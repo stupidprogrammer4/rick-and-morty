@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir --no-deps ./packages/contracts ./api \
     && useradd --create-home --uid 10001 portal
 COPY config.yml.sample /app/config.yml
 RUN mkdir -p /app/data && chown portal:portal /app/data
+RUN python -m pip check && python -m pip uninstall -y setuptools pip
 USER portal
 LABEL org.opencontainers.image.source="https://github.com/stupidprogrammer4/rick-and-morty"
 CMD ["uvicorn", "src.apps.api:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

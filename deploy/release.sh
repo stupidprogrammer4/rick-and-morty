@@ -68,8 +68,8 @@ test -s "$backup_file"
 "${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api worker scheduler bots
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18010/health/live >/dev/null
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18011/health/live >/dev/null
-"${compose[@]}" exec -T api python -m src.cli.live_check
-"${compose[@]}" exec -T bots python -m portal_bots.webhooks
+"${compose[@]}" run --rm --no-deps worker python -m src.cli.live_check
+"${compose[@]}" run --rm --no-deps bots python -m portal_bots.webhooks
 ln -sfn "$release_directory" "$root_directory/current.next"
 mv -Tf "$root_directory/current.next" "$root_directory/current"
 printf 'Release %s is healthy; webhooks registered. Database backup retained.\n' "$revision"

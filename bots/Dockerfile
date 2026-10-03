@@ -7,6 +7,7 @@ COPY packages/contracts /app/packages/contracts
 COPY bots /app/bots
 RUN pip install --no-cache-dir --no-deps ./packages/contracts ./bots \
     && useradd --create-home --uid 10001 portal
+RUN python -m pip check && python -m pip uninstall -y setuptools pip
 USER portal
 LABEL org.opencontainers.image.source="https://github.com/stupidprogrammer4/rick-and-morty"
 CMD ["python", "-m", "portal_bots"]

@@ -56,8 +56,8 @@ Build/push API and bot images to GHCR with a full commit tag. Record immutable
 digests in an images file:
 
 ```text
-PORTAL_API_IMAGE=ghcr.io/owner/repository-api@sha256:<digest>
-PORTAL_BOTS_IMAGE=ghcr.io/owner/repository-bots@sha256:<digest>
+PORTAL_API_IMAGE=ghcr.io/owner/repository/api@sha256:<digest>
+PORTAL_BOTS_IMAGE=ghcr.io/owner/repository/bots@sha256:<digest>
 ```
 
 After ingress is provisioned, `tools/deploy.py --source /path/to/committed/repo
@@ -90,11 +90,11 @@ Run the paid model smoke test once after deployment:
 
 ```bash
 cd /opt/portal/current
-docker compose -p portal --env-file .env.runtime exec -T api python -m src.cli.live_check --paid-model-smoke
+docker compose -p portal --env-file .env.runtime run --rm --no-deps worker python -m src.cli.live_check --paid-model-smoke
 ```
 
 Check the price provider separately with `python -m src.cli.live_check --market`
-inside the API container. A temporary market outage does not stop webhook/chat
+in a temporary worker container. A temporary market outage does not stop webhook/chat
 startup; market workflows still require valid fresh quotes. Include the server
 override (`-f compose.yml -f compose.server.yml`) in Compose commands when it
 is installed.
@@ -108,6 +108,9 @@ Verify a real approved publication and its persisted message ID.
 
 The GitHub workflow verifies formatting, types, publication contents, secrets,
 dependencies, native MySQL/Redis/MCP/worker workflows, Compose and both images.
+Image builds validate dependencies before removing package managers and build
+tools from the runtime filesystem. Diagnostic and webhook registration commands
+run in separate temporary containers to preserve service memory headroom.
 Main deployments run only after verification and push immutable GHCR images.
 Full action commits are pinned and dependabot tracks action/package updates.
 

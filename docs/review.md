@@ -78,11 +78,13 @@ The regression suite also covers authorization, concurrency, unknown-delivery
 resolution and a large Unicode checkpoint. External Telegram is controlled in
 integration tests; those results do not prove live Telegram or model responses.
 Both production images built from clean pinned dependencies and passed
-`pip check`. Formatting and type checks also passed.
+`pip check` during construction. Runtime images remove pip and setuptools;
+the image scanner found vulnerable vendored build-tool packages, which were
+not needed to execute the application. Formatting and type checks also passed.
 
 The VPS has 2 GiB RAM and existing services. Deployment uses an isolated portal
 schema/user in its existing MySQL server, small independent connection pools,
-a 64 MiB Redis limit and two worker tasks. A dedicated 1 GiB swap file covers
+a 64 MiB Redis limit and two worker tasks. Dedicated swap space covers
 memory peaks. Native API startup measured approximately 126 MiB locally; this
 is not a full worker/MCP load test. Existing TLS and ingress were inspected,
 and the original service health route still responds after adding webhook paths.
