@@ -58,7 +58,7 @@ for these tokens while webhooks are active.
 | `/ask rick text`, `/ask morty text` | A bounded assistant mission |
 | `/team text`, `/news python ai` | Collected article evidence and a news draft |
 | `/summarize https://...` | Read an allowed source and draft its summary |
-| `/prices` | Fetch all three fresh quotes and prepare a market draft |
+| `/prices` | Fetch accepted market rates and prepare a source or aggregate report |
 | `/jobs [page]`, `/job id`, `/cancel id` | Inspect or cancel owned missions |
 | `/drafts [page]`, `/draft id` | Inspect draft content and its revision |
 | `/approve id [revision]`, `/reject id [revision]` | Decide on a specific revision |

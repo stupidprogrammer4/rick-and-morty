@@ -24,6 +24,7 @@ class SymbolConverterService:
         AssetCode.GOLD18: SymbolCode.GOLD18_GRAM,
         AssetCode.SILVER999: SymbolCode.SILVER_GRAM,
         AssetCode.USD: SymbolCode.USD_RIAL,
+        AssetCode.USDT: SymbolCode.USDT_RIAL,
     }
 
     def __init__(

@@ -1,12 +1,24 @@
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
+from pydantic import AwareDatetime, TypeAdapter
 
 from src.modules.pricing.engine.domain.quotes import (
     ErrorQuote,
     HTTPErrorQuote,
 )
 from src.modules.pricing.sources.domain.enums import ErrorType
+
+_aware_time = TypeAdapter(AwareDatetime)
+
+
+def source_timestamp(value: str, timezone: str | None = None) -> datetime:
+    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if stamp.utcoffset() is None and timezone is not None:
+        stamp = stamp.replace(tzinfo=ZoneInfo(timezone))
+    return _aware_time.validate_python(stamp)
 
 
 def _body(resp: httpx.Response | None) -> HTTPErrorQuote | None:

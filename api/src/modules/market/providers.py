@@ -8,6 +8,7 @@ from src.modules.market.app.commands import (
 from src.modules.market.app.queries import MarketQuery
 from src.modules.market.app.renderer import MarketReportRenderer
 from src.modules.market.app.services import MarketSnapshotService
+from src.modules.market.app.source_quotes import SourceMarketPriceProvider
 from src.modules.market.infra.auryx import AuryxPriceProvider
 from src.modules.market.infra.mysql import MarketSnapshotRepository
 from src.modules.market.infra.site import OwnerSitePriceProvider
@@ -24,6 +25,7 @@ class MarketProvider(Provider):
     scope = Scope.REQUEST
     talamala_prices = provide(OwnerSitePriceProvider)
     auryx_prices = provide(AuryxPriceProvider)
+    source_prices = provide(SourceMarketPriceProvider)
 
     @provide
     def prices(
@@ -31,7 +33,13 @@ class MarketProvider(Provider):
         settings: PortalConfiguration,
         talamala: OwnerSitePriceProvider,
         auryx: AuryxPriceProvider,
+        sources: SourceMarketPriceProvider,
     ) -> IPriceProvider:
+        if (
+            settings.market.backend == "auryx"
+            and settings.market.report_mode == "sources"
+        ):
+            return sources
         return auryx if settings.market.backend == "auryx" else talamala
 
     market = provide(MarketQuery, provides=IMarketQuery)

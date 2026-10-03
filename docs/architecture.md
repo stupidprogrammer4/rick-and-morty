@@ -13,7 +13,7 @@ flowchart LR
   W --> D
   W --> M[Native MCP stdio tools]
   W --> O[OpenRouter]
-  W --> X[News and Talamala APIs]
+  W --> X[News and configured market providers]
   W --> B
   B --> T
 ```
@@ -38,7 +38,7 @@ use the same discovered tasks and Redis settings.
 | `configuration` | Definition/value CRUD, scoped schemas, sources, seed and snapshots |
 | `missions` | Admission, duplicate updates, owner concurrency, execution, cancellation and recovery |
 | `news` | Source fetching, article reading and persisted evidence |
-| `market` | Typed quotes, complete fresh snapshots and linked deterministic drafts |
+| `market` | Typed source/aggregate snapshots and linked deterministic drafts |
 | `rick` | Both persona prompts, model checkpoints, budgets, MCP tools |
 | `content` | Draft revisions and human decisions |
 | `publishing` | Shared quota, scheduling, rendering, delivery and ambiguous results |

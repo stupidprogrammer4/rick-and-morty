@@ -129,12 +129,12 @@ def test_native_market_seed_and_aggregation_preserve_configuration(portal):
             assert sum(row.is_active for row in sources) == 3
             assert (
                 await uow.execute(select(func.count()).select_from(AssetTable))
-            ).scalar_one() == 3
+            ).scalar_one() == 4
             assert (
                 await uow.execute(
                     select(func.count()).select_from(SymbolTable)
                 )
-            ).scalar_one() == 6
+            ).scalar_one() == 7
 
     portal.run(workflow())
 
@@ -352,6 +352,7 @@ def test_pricing_configuration_creation_and_switch_removal_keep_owner(portal):
             assert {row.asset_id for row in metals} == {
                 by_code["gold18"],
                 by_code["silver999"],
+                by_code["usdt"],
             }
             source_configs = await scope.get(ISourceConfigService)
             tgju = await source_configs.create_default(by_source["tgju"])
@@ -397,7 +398,7 @@ def test_pricing_configuration_creation_and_switch_removal_keep_owner(portal):
                 )
         async with portal.request() as scope:
             configs = await scope.get(IAssetConfigService)
-            assert len(await configs.get_all()) == 3
+            assert len(await configs.get_all()) == 4
             source_configs = await scope.get(ISourceConfigService)
             assert len(await source_configs.get_all()) == 3
             switches = await scope.get(IAssetSwitchService)
@@ -500,3 +501,262 @@ def test_native_supplier_batch_preserves_quote_versions(portal):
 
     portal.run(replay())
     assert portal.run(read()) == current
+
+
+async def prepare_source_report(portal):
+    import httpx
+    from sqlalchemy import update
+
+    from src.modules.pricing.engine.app.crawlers.global_market import (
+        GoldApiXauFetcher,
+        GoldPriceDevFetcher,
+    )
+    from src.modules.pricing.engine.app.crawlers.iran_market import (
+        DigikalaFetcher,
+        WallexFetcher,
+    )
+
+    await prepare_market(portal)
+    snapshot = await portal.snapshot()
+    market = snapshot.configuration.market.model_dump(mode="json")
+    market["report_mode"] = "sources"
+    await portal.change("market.policy", SettingScope.GLOBAL, market)
+    now = datetime.now(UTC)
+    async with portal.request() as scope:
+        uow = await scope.get(MySQLUnitOfWork)
+        codes = [
+            SourceCode.DIGIKALA,
+            SourceCode.WALLEX,
+            SourceCode.GOLD_API,
+            SourceCode.GOLDPRICE_DEV,
+            SourceCode.TALINE,
+        ]
+        async with transaction():
+            await uow.execute(
+                update(SourceTable)
+                .where(SourceTable.code.in_(codes))
+                .values(is_active=True)
+            )
+            await uow.execute(update(SourceConfigTable).values(fetchers={}))
+        cfg = await (await scope.get(ICFGReaderService)).read_context()
+        digikala = DigikalaFetcher(
+            None, configuration={"parameters": {"fee": 0.005}}
+        )
+        irans = list(
+            digikala._parse(
+                httpx.Response(
+                    200,
+                    json={
+                        "gold18": {"price": 102000},
+                        "silver999": {"price": 5100},
+                    },
+                )
+            )
+        )
+        irans.extend(
+            WallexFetcher(None)._parse(
+                httpx.Response(
+                    200,
+                    json={
+                        "result": {
+                            "ask": [{"price": "200100"}],
+                            "bid": [{"price": "199900"}],
+                        },
+                    },
+                )
+            )
+        )
+        irans.append(
+            IranSourceQuote.from_buying_selling(
+                SourceCode.TALINE,
+                SymbolCode.GOLD18_GRAM,
+                102_000_000,
+                102_000_000,
+            )
+        )
+        globals_ = list(
+            GoldApiXauFetcher(None)._parse(
+                httpx.Response(
+                    200,
+                    json={
+                        "price": "4141.52",
+                        "updatedAt": now.isoformat(),
+                    },
+                )
+            )
+        )
+        globals_.extend(
+            GoldPriceDevFetcher(None)._parse(
+                httpx.Response(
+                    200,
+                    json={
+                        "price": "4140.50",
+                        "is_stale": False,
+                        "computed_at": (now - timedelta(days=2)).isoformat(),
+                    },
+                )
+            )
+        )
+        await (await scope.get(ICacheFlusherService)).flush_results(
+            cfg,
+            SourceQuote(
+                irans=irans, globals=globals_, suppliers=[], bubbles=[]
+            ),
+        )
+        async with transaction():
+            await uow.execute(
+                update(SourceTable)
+                .where(SourceTable.code == SourceCode.TALINE)
+                .values(is_active=False)
+            )
+
+
+def test_native_source_report_preserves_rates_units_and_accepted_sources(
+    portal,
+):
+    from decimal import Decimal
+
+    from src.modules.publishing.app.renderer import PostRenderer
+
+    portal.run(prepare_source_report(portal))
+
+    async def consume():
+        async with portal.request() as scope:
+            market = await scope.get(IMarketQuery)
+            snapshot = await market.snapshot()
+            assert snapshot.mode == "sources"
+            rows = {
+                (q.symbol, q.basis, q.source_code): q for q in snapshot.quotes
+            }
+            assert {q.source_code for q in snapshot.quotes} == {
+                "tgju",
+                "goldika",
+                "digikala",
+                "wallex",
+                "gold_api",
+            }
+            assert rows["gold", "per_gram", "tgju"].amount == 100_000_000
+            assert rows["gold", "per_gram", "goldika"].amount == 102_000_000
+            assert (
+                rows["gold", "per_gram", "digikala"].buy_amount == 101_490_000
+            )
+            assert rows["silver", "per_gram", "digikala"].amount == 5_100_000
+            assert rows[
+                "gold", "per_troy_ounce", "gold_api"
+            ].amount == Decimal("4141.52")
+            assert rows["gold", "per_troy_ounce", "gold_api"].currency == "USD"
+            assert (
+                rows["gold", "per_troy_ounce", "gold_api"].timestamp_kind
+                == "source"
+            )
+            assert rows["usdt", "per_usdt", "wallex"].buy_amount == 1_999_000
+            assert rows["usdt", "per_usdt", "wallex"].sell_amount == 2_001_000
+            assert rows["usd", "per_usd", "tgju"].amount == 2_000_000
+            assert not any(
+                q.symbol == "usd" and q.source_code == "wallex"
+                for q in snapshot.quotes
+            )
+            text = await market.report()
+            assert "خرید 199,900" in text and "فروش 200,100" in text
+            assert "#تتر" in text and "💚🪙" in text
+            assert "4,141.52" in text and "اونس جهانی" in text
+            assert "ملی‌گلد" not in text and "تلاین" not in text
+            renderer = await scope.get(PostRenderer)
+            assert (
+                len(renderer.render("Market sources", text, "market")) <= 4000
+            )
+
+    portal.run(consume())
+
+
+def test_native_scheduler_publishes_all_source_rates_once(portal):
+    portal.settings.portal.dry_run = False
+    portal.environment["PORTAL_DRY_RUN"] = "false"
+
+    async def prepare():
+        await prepare_source_report(portal)
+        snapshot = await portal.snapshot()
+        policy = snapshot.configuration.automation.model_dump(mode="json")
+        policy["owner_id"] = OWNER
+        policy["prices"].update(
+            enabled=True,
+            starts_at=(datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
+        )
+        await portal.change("automation.policy", SettingScope.GLOBAL, policy)
+
+    portal.run(prepare())
+    portal.start_workers()
+
+    async def read():
+        async with portal.request() as scope:
+            uow = await scope.get(MySQLUnitOfWork)
+            rows = (
+                (await uow.execute(select(PublicationTable))).scalars().all()
+            )
+            return [(row.id, row.status) for row in rows]
+
+    sent = portal.until(
+        read, lambda rows: len(rows) == 1 and rows[0][1] == "sent", timeout=85
+    )
+    assert len(sent) == 1
+    from tests.integration.conftest import ExternalTelegramHandler
+
+    payload = next(iter(ExternalTelegramHandler.messages))
+    assert payload["role"] == "morty"
+    assert "گلدیکا" in payload["text"] and "دیجی‌کالا" in payload["text"]
+    assert "والکس" in payload["text"] and "#تتر" in payload["text"]
+    assert "نرخ 200,000" in payload["text"]
+    assert (
+        "خرید 199,900" in payload["text"] and "فروش 200,100" in payload["text"]
+    )
+
+    async def replay():
+        async with portal.request() as scope:
+            await (await scope.get(IScheduledMissionCommands)).tick()
+        async with portal.request() as scope:
+            uow = await scope.get(MySQLUnitOfWork)
+            assert (
+                await uow.execute(
+                    select(func.count()).select_from(PublicationTable)
+                )
+            ).scalar_one() == 1
+
+    portal.run(replay())
+
+
+def test_native_partial_source_report_excludes_future_rates(
+    portal,
+):
+    from dataclasses import replace
+
+    from sqlalchemy import update
+
+    portal.run(prepare_source_report(portal))
+
+    async def future_quote():
+        async with portal.request() as scope:
+            cfg = await (await scope.get(ICFGReaderService)).read_context()
+            quote = replace(
+                IranSourceQuote.from_buying_selling(
+                    SourceCode.TGJU, SymbolCode.USD_RIAL, 2_000_000, 2_000_000
+                ),
+                quoted_at=datetime.now(UTC) + timedelta(hours=1),
+            )
+            await (await scope.get(ICacheFlusherService)).flush_results(
+                cfg,
+                SourceQuote(
+                    irans=[quote], globals=[], suppliers=[], bubbles=[]
+                ),
+            )
+        async with portal.request() as scope:
+            snapshot = await (await scope.get(IMarketQuery)).snapshot()
+            assert not any(q.symbol == "usd" for q in snapshot.quotes)
+            assert any(q.symbol == "usdt" for q in snapshot.quotes)
+            uow = await scope.get(MySQLUnitOfWork)
+            async with transaction():
+                await uow.execute(update(SourceTable).values(is_active=False))
+        async with portal.request() as scope:
+            with pytest.raises(ValueError, match="هیچ منبع"):
+                await (await scope.get(IMarketQuery)).snapshot()
+
+    portal.run(future_quote())

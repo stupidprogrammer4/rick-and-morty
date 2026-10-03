@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `portal.policy` | `global` | Channel, time zone, quiet hours, quotas and deadlines |
 | `ai.model` | `global` | Mode, model, price ceilings, token/tool/reaction limits and budget |
-| `market.policy` | `global` | Backend, enabled flag, allowed hosts and quote freshness |
+| `market.policy` | `global` | Backend, report mode, instruments, allowed hosts and freshness |
 | `market.engine` | `global` | Source timeouts, scheduler defaults, aggregation, outliers and cache age |
 | `automation.policy` | `global` | Owner, enabled rules, anchored intervals, topics and prompts |
 | `presentation` | `global` | Reactions, labels, item emojis and post length |
@@ -86,7 +86,8 @@ admitted, with a unique mission key preventing duplicates. Explicitly enabled ru
 authorize their own drafts through the ordinary publication workflow; manual drafts
 still require approval. Pause, daily quota and quiet hours apply to both. A cap of
 30 accommodates this cadence; equal quiet boundaries disable the quiet window.
-Source failure, absent evidence or invalid quotes prevents publication.
+Absent evidence or invalid required quotes prevents publication. Source reports
+retain the other accepted providers when one source fails.
 
 `post.style/news` and `post.style/market` own category hashtags. The presentation
 record's `asset_styles` maps each asset to its own emoji and hashtag.
@@ -99,7 +100,7 @@ bubbles, supplier login adapters, candles, ticker history and statistics. Store
 product pricing is outside this application. Persistence uses native Papilio MySQL
 and background work uses native Papilio Tasks Redis. Sources and engine defaults
 live in database records; the idempotent pricing seed preserves edited records and
-creates 18 disabled sources, three assets, six symbols and a bubble.
+creates 18 disabled sources, four assets, seven symbols and a bubble.
 
 Protected `/internal/pricing` routes expose CRUD, paging, source readings, conversion
 and charts. Supplier prices enter through the protected supplier-price endpoint
@@ -111,5 +112,18 @@ TGJU source timestamps are preserved; adapters lacking them mark receipt time
 instead. Re-fetching an unchanged rate does not refresh its original timestamp.
 `market.engine.max_quote_age_seconds` and `market.policy.max_age_seconds` bound age
 up to 24 hours. Reports accepting latest declared rates display original times.
-Wallex's USDT/toman pair must not be presented as USD. Every required asset must
-have an accepted positive quote before a market report can be published.
+Wallex has its own `usdt` asset and `usdt_rial` symbol; it never enters USD aggregation.
+
+`market.policy.report_mode` selects `aggregate` or `sources`. Aggregate reports
+require the original three assets. Source reports publish every accepted reading
+from active providers, grouped by the configured `instruments` mapping (native
+symbol to label, asset, basis, purity and market). They retain each provider's
+buy/sell rates, name, URL and source or receipt timestamp. Global ounces remain in
+USD, separately from local grams. Invalid, closed, expired, future or outlier rates
+are excluded; a failing provider does not hide the others. Empty reports fail.
+Source-report outliers use the editable engine threshold per native instrument.
+
+`presentation` owns buy/sell/unit labels and source emoji, including the independent
+USDT emoji and hashtag. Source credentials and enabled state remain in native
+pricing records. A successful HTTP response alone does not establish rate accuracy;
+verify the provider's units and parser contract before enabling it.

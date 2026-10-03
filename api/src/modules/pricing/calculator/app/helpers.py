@@ -351,6 +351,7 @@ class SymbolConverter:
         SymbolCode.SILVER_GRAM: CurrencyType.RIAL,
         SymbolCode.XAG_OUNCE: CurrencyType.USD,
         SymbolCode.USD_RIAL: CurrencyType.RIAL,
+        SymbolCode.USDT_RIAL: CurrencyType.RIAL,
     }
     metals: Mapping[SymbolCode, AssetCode] = {
         SymbolCode.GOLD18_GRAM: AssetCode.GOLD18,

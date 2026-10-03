@@ -177,7 +177,8 @@
             "milli.gold"
           ],
           "parameters": {
-            "fee": 0.005
+            "fee": 0.005,
+            "source_timezone": "Asia/Tehran"
           }
         }
       },
@@ -410,6 +411,18 @@
           "priority": 0
         }
       ]
+    },
+    {
+      "code": "usdt",
+      "title": "تتر",
+      "description": "نرخ بازار تتر؛ مستقل از دلار نقدی",
+      "primary_color": "#26a17b",
+      "switches": [
+        {
+          "switch": "iran_market",
+          "priority": 0
+        }
+      ]
     }
   ],
   "symbols": [
@@ -460,6 +473,14 @@
       "asset": "usd",
       "currency": "rial",
       "primary_color": "#4a3aa7"
+    },
+    {
+      "code": "usdt_rial",
+      "title": "تتر به ریال",
+      "description": "هر واحد تتر به ریال",
+      "asset": "usdt",
+      "currency": "rial",
+      "primary_color": "#26a17b"
     }
   ],
   "bubbles": [

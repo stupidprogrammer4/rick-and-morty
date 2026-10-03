@@ -51,7 +51,7 @@
     {
       "key": "market.policy",
       "scope": "global",
-      "value": "{\"enabled\":true,\"allowed_hosts\":[\"api.talamala.ir\"],\"max_age_seconds\":900,\"future_skew_seconds\":120,\"backend\":\"talamala\"}"
+      "value": "{\"enabled\":true,\"allowed_hosts\":[\"api.talamala.ir\"],\"max_age_seconds\":900,\"future_skew_seconds\":120,\"backend\":\"talamala\",\"report_mode\":\"aggregate\",\"instruments\":{\"gold18_gram\":{\"symbol\":\"gold\",\"label\":\"طلای ۱۸ عیار، هر گرم\",\"basis\":\"per_gram\",\"purity\":\"750\"},\"silver_gram\":{\"symbol\":\"silver\",\"label\":\"نقره ۹۹۹، هر گرم\",\"basis\":\"per_gram\",\"purity\":\"999\"},\"usd_rial\":{\"symbol\":\"usd\",\"label\":\"دلار آمریکا، هر دلار\",\"basis\":\"per_usd\",\"market\":\"declared_usd\"},\"usdt_rial\":{\"symbol\":\"usdt\",\"label\":\"تتر، هر USDT؛ مستقل از دلار نقدی\",\"basis\":\"per_usdt\",\"market\":\"USDT_IRR\"},\"xau_ounce\":{\"symbol\":\"gold\",\"label\":\"اونس جهانی طلا\",\"basis\":\"per_troy_ounce\",\"purity\":\"999.9\"},\"xag_ounce\":{\"symbol\":\"silver\",\"label\":\"اونس جهانی نقره\",\"basis\":\"per_troy_ounce\",\"purity\":\"999\"},\"gold18_mazane\":{\"symbol\":\"gold\",\"label\":\"مثقال آب‌شده ۱۷ عیار\",\"basis\":\"per_mesghal\",\"purity\":\"705\"}}}"
     },
     {
       "key": "voice",
@@ -91,7 +91,7 @@
     {
       "key": "presentation",
       "scope": "global",
-      "value": "{\"interactions\":{\"accepted\":\"👀\",\"thinking\":\"🤔\",\"success\":\"🔥\",\"failure\":\"😢\"},\"item_emojis\":[\"🐍\",\"🤖\",\"⚡\",\"🧬\",\"🛠️\",\"🌌\"],\"summary_label\":\"💬\",\"source_label\":\"🔗 منبع\",\"editorial_label\":\"🧠 برداشت ریک\",\"market_heading\":\"📊💰 مورتی | رادار بازار\",\"quote_time_label\":\"🕒 زمان قیمت\",\"maximum_post_characters\":1800,\"asset_styles\":{\"gold\":{\"emoji\":\"🟡✨\",\"hashtag\":\"#طلا_۱۸_عیار\"},\"usd\":{\"emoji\":\"💵💸\",\"hashtag\":\"#دلار\"},\"silver\":{\"emoji\":\"⚪💎\",\"hashtag\":\"#نقره_۹۹۹\"}},\"fetch_time_label\":\"🕒 زمان دریافت\"}"
+      "value": "{\"interactions\":{\"accepted\":\"👀\",\"thinking\":\"🤔\",\"success\":\"🔥\",\"failure\":\"😢\"},\"item_emojis\":[\"🐍\",\"🤖\",\"⚡\",\"🧬\",\"🛠️\",\"🌌\"],\"summary_label\":\"💬\",\"source_label\":\"🔗 منبع\",\"editorial_label\":\"🧠 برداشت ریک\",\"market_heading\":\"📊💰 مورتی | رادار بازار\",\"quote_time_label\":\"🕒 زمان قیمت\",\"maximum_post_characters\":1800,\"asset_styles\":{\"gold\":{\"emoji\":\"🟡✨\",\"hashtag\":\"#طلا_۱۸_عیار\"},\"usd\":{\"emoji\":\"💵💸\",\"hashtag\":\"#دلار\"},\"silver\":{\"emoji\":\"⚪💎\",\"hashtag\":\"#نقره_۹۹۹\"},\"usdt\":{\"emoji\":\"💚🪙\",\"hashtag\":\"#تتر\"}},\"fetch_time_label\":\"🕒 زمان دریافت\",\"market_buy_label\":\"خرید\",\"market_sell_label\":\"فروش\",\"market_single_label\":\"نرخ\",\"market_toman_label\":\"تومان\",\"market_usd_label\":\"دلار\",\"market_source_emoji\":\"🔹\"}"
     },
     {
       "key": "market.quote",

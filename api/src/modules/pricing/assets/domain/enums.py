@@ -5,6 +5,7 @@ class AssetCode(FaStrEnum):
     GOLD18 = ("gold18", "طلای ۱۸ عیار")
     SILVER999 = ("silver999", "نقره ۹۹۹")
     USD = ("usd", "دلار")
+    USDT = ("usdt", "تتر")
 
 
 class AggregationType(FaStrEnum):

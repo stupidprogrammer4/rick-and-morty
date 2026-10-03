@@ -59,6 +59,12 @@ class PresentationSettings(BaseModel):
     market_heading: str
     fetch_time_label: str = "🕒 زمان دریافت"
     quote_time_label: str
+    market_buy_label: str = "خرید"
+    market_sell_label: str = "فروش"
+    market_single_label: str = "نرخ"
+    market_toman_label: str = "تومان"
+    market_usd_label: str = "دلار"
+    market_source_emoji: str = "🔹"
     maximum_post_characters: int = Field(ge=200, le=4000)
     asset_styles: dict[str, "AssetStyle"] = Field(default_factory=dict)
 

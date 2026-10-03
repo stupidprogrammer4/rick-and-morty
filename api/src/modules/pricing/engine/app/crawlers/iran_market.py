@@ -9,7 +9,10 @@ from bs4 import BeautifulSoup
 from papilio.utils import currency
 
 from src.modules.pricing.engine.app.crawlers.base import AbstractFetcher
-from src.modules.pricing.engine.app.helpers.responses import json_path
+from src.modules.pricing.engine.app.helpers.responses import (
+    json_path,
+    source_timestamp,
+)
 from src.modules.pricing.engine.domain.quotes import (
     ErrorQuote,
     FeeQuote,
@@ -94,7 +97,7 @@ class TgjuFetcher(AbstractIranFetcher):
 
 class WallexFetcher(AbstractIranFetcher):
     __code__ = SourceCode.WALLEX
-    __symbols__ = (SymbolCode.USD_RIAL,)
+    __symbols__ = (SymbolCode.USDT_RIAL,)
     toman_to_rial = 10
 
     def _parse(self, resp: httpx.Response) -> Sequence[IranSourceQuote]:
@@ -103,7 +106,7 @@ class WallexFetcher(AbstractIranFetcher):
         bid = json_path(book, "bid", 0, "price")
         quote = IranSourceQuote.from_buying_selling(
             self.__code__,
-            SymbolCode.USD_RIAL,
+            SymbolCode.USDT_RIAL,
             float(ask) * self.toman_to_rial,
             float(bid) * self.toman_to_rial,
         )
@@ -112,16 +115,23 @@ class WallexFetcher(AbstractIranFetcher):
 
 class DigikalaFetcher(AbstractIranFetcher):
     __code__ = SourceCode.DIGIKALA
+    __symbols__ = (SymbolCode.GOLD18_GRAM, SymbolCode.SILVER_GRAM)
 
     def _parse(self, resp: httpx.Response) -> Sequence[IranSourceQuote]:
-        price = int(json_path(resp.json(), "gold18", "price")) * 1000
-        quote = IranSourceQuote.from_price_and_fee(
-            self.__code__,
-            SymbolCode.GOLD18_GRAM,
-            price,
-            FeeQuote(sell_rate=self.fee, buy_rate=self.fee),
-        )
-        return [quote]
+        data = resp.json()
+        return [
+            IranSourceQuote.from_price_and_fee(
+                self.__code__,
+                symbol,
+                int(json_path(data, name, "price")) * 1000,
+                FeeQuote(sell_rate=self.fee, buy_rate=self.fee),
+            )
+            for name, symbol in [
+                ("gold18", SymbolCode.GOLD18_GRAM),
+                ("silver999", SymbolCode.SILVER_GRAM),
+            ]
+            if name in data
+        ]
 
     parameter_names = {"fee"}
 
@@ -140,6 +150,8 @@ class TalineFetcher(AbstractIranFetcher):
                     float(price["buy"]) * 10_100,
                     float(price["sell"]) * 10_000,
                 )
+                stamp = source_timestamp(row["date"]["utc_timestamp"])
+                quote = replace(quote, quoted_at=stamp)
                 break
         if quote is None:
             raise ValueError("GOLD18 price not found")
@@ -154,6 +166,12 @@ class GoldikaFetcher(AbstractIranFetcher):
         quote = IranSourceQuote.from_buying_selling(
             self.__code__, SymbolCode.GOLD18_GRAM, price["sell"], price["buy"]
         )
+        stamp = price.get("created_at") or price.get("createdAt")
+        if stamp:
+            quote = replace(
+                quote,
+                quoted_at=source_timestamp(stamp),
+            )
         return [quote]
 
 
@@ -182,9 +200,15 @@ class MiligoldFetcher(AbstractIranFetcher):
             price,
             FeeQuote(sell_rate=self.fee, buy_rate=self.fee),
         )
+        stamp = json_path(resp.json(), "data", "date")
+        quote = replace(
+            quote,
+            quoted_at=source_timestamp(stamp, self.source_timezone),
+        )
         return [quote]
 
-    parameter_names = {"fee"}
+    source_timezone: str
+    parameter_names = {"fee", "source_timezone"}
 
 
 class TechnogoldFetcher(AbstractIranFetcher):

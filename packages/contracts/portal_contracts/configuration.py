@@ -88,12 +88,36 @@ class AIModelPolicy(BaseModel):
         return self
 
 
+class MarketInstrument(BaseModel):
+    symbol: Literal["gold", "usd", "silver", "usdt"]
+    label: str = Field(min_length=1)
+    basis: str = Field(min_length=1)
+    purity: str | None = None
+    market: str | None = None
+
+    @model_validator(mode="after")
+    def unit_is_explicit(self) -> Self:
+        if self.symbol in {"gold", "silver"} and not self.purity:
+            raise ValueError("Metal purity must be explicit")
+        if self.symbol in {"usd", "usdt"} and not self.market:
+            raise ValueError("Currency market must be explicit")
+        return self
+
+
 class MarketPolicy(BaseModel):
     backend: Literal["talamala", "auryx"] = "talamala"
+    report_mode: Literal["aggregate", "sources"] = "aggregate"
+    instruments: dict[str, MarketInstrument] = Field(default_factory=dict)
     enabled: bool
     allowed_hosts: set[str] = Field(min_length=1)
     max_age_seconds: int = Field(gt=0, le=86400)
     future_skew_seconds: int = Field(ge=0, le=600)
+
+    @model_validator(mode="after")
+    def source_report_has_instruments(self) -> Self:
+        if self.report_mode == "sources" and not self.instruments:
+            raise ValueError("Source reports require configured instruments")
+        return self
 
 
 class MarketEnginePolicy(BaseModel):

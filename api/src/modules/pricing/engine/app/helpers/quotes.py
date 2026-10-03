@@ -106,7 +106,8 @@ class GlobalMarketPriceHelper:
                     sell_spread=sell_spread,
                     buy_spread_rate=buy_spread / divisor,
                     sell_spread_rate=sell_spread / divisor,
-                    priced_at=date_utils.utc_now(),
+                    priced_at=quote.quoted_at or date_utils.utc_now(),
+                    timestamp_kind="source" if quote.quoted_at else "fetched",
                 )
             )
         return readings

@@ -8,6 +8,7 @@ class SymbolCode(FaStrEnum):
     SILVER_GRAM = ("silver_gram", "هر گرم نقره ۹۹۹")
     XAG_OUNCE = ("xag_ounce", "انس جهانی نقره")
     USD_RIAL = ("usd_rial", "دلار به ریال")
+    USDT_RIAL = ("usdt_rial", "تتر به ریال")
 
 
 class CurrencyType(FaStrEnum):

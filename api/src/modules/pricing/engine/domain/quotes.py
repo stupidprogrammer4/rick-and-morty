@@ -174,6 +174,7 @@ class GlobalSourceQuote:
     selling_cent: int
     buying_cent: int
     error: ErrorQuote | None = None
+    quoted_at: datetime | None = None
 
     @classmethod
     def from_pair(
