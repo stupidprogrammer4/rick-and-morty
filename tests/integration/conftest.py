@@ -271,6 +271,9 @@ def portal(tmp_path, monkeypatch):
         async def cleanup():
             from redis.asyncio import Redis
 
+            scheduler_module = sys.modules.pop("src.apps.scheduler", None)
+            if scheduler_module is not None:
+                await scheduler_module.app.stop()
             client = Redis.from_url(redis_url)
             keys = await client.keys(namespace + "*")
             if keys:
