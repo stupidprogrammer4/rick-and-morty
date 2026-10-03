@@ -84,7 +84,7 @@ services:
   scheduler:
     <<: *api
     networks: [database]
-    command: ["taskiq", "scheduler", "src.apps.scheduler:scheduler"]
+    command: ["taskiq", "scheduler", "src.apps.scheduler:scheduler", "--update-interval", "5"]
     depends_on:
       migrate:
         condition: service_completed_successfully

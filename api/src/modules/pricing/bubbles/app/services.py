@@ -53,8 +53,15 @@ class BubbleConfigService(Checks[BubbleConfigModel]):
         Returns:
             return (BubbleConfigModel): The created config.
         """
-        configs = await self.create_defaults([bubble_id])
-        return configs[0]
+        config = await self.repo.create(
+            BubbleConfigModel(
+                bubble_id=bubble_id,
+                scheduler_on=self.default_scheduler_on,
+                scheduler_seconds=self.default_scheduler_seconds,
+                agg_type=self.default_agg_type,
+            )
+        )
+        return config
 
     @handle_conflicts
     @transactional

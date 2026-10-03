@@ -1,6 +1,5 @@
 from papilio.core.logger import logger
 from papilio_tasks.apps.schedulers.backends.redis import (
-    RedisQueue,
     RedisScheduler,
 )
 
@@ -13,7 +12,6 @@ from src.modules.pricing.candle.interfaces import (
 
 class BuildFromCacheTask(RedisScheduler):
     schedule = [{"cron": "*/5 * * * *"}]
-    queue = RedisQueue("candle_queue")
 
     def __init__(
         self, candles: ICandleService, sources: ISourceCandleService
@@ -46,7 +44,6 @@ class RollTimeframeTask(RedisScheduler):
             "kwargs": {"tf": TimeFrame.DAILY.value},
         },
     ]
-    queue = RedisQueue("candle_queue")
 
     def __init__(
         self, candles: ICandleService, sources: ISourceCandleService

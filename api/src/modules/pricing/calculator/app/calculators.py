@@ -84,7 +84,7 @@ class BubbleCalculatorService:
                 bubble.agg_type,
             )
             result = AssetBubbleModel(
-                asset_id=published[0].asset_id,
+                asset_id=bubble.asset_id,
                 amount=amount,
                 priced_at=max(row.priced_at for row in published),
             )

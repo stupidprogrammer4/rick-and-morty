@@ -85,6 +85,10 @@ class ISourceService(Protocol):
 
 
 class ISourceErrorService(Protocol):
+    def apply_error(
+        self, source_id: int, error: SourceErrorInfo | None
+    ) -> Awaitable[SourceModel]: ...
+
     def apply_errors(
         self,
         errors: Mapping[int, SourceErrorInfo | None],

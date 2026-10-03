@@ -125,8 +125,25 @@ class AssetSwitchRepository(MySQLIdentifiedRepository[AssetSwitchModel]):
     async def delete_by_asset_and_id(
         self, asset_id: int, id: int
     ) -> AssetSwitchModel | None:
-        rows = await self.delete_by_asset_and_ids(asset_id, [id])
-        return next(iter(rows), None)
+        result = await self.uow.execute(
+            select(self.table)
+            .where(
+                col(self.table.asset_id) == asset_id, col(self.table.id) == id
+            )
+            .with_for_update()
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        snapshot = AssetSwitchModel.model_validate(row).model_copy()
+        await self.uow.execute(
+            delete(self.table)
+            .where(
+                col(self.table.asset_id) == asset_id, col(self.table.id) == id
+            )
+            .execution_options(synchronize_session=False)
+        )
+        return snapshot
 
     async def delete_by_asset_and_ids(
         self, asset_id: int, ids: Sequence[int]

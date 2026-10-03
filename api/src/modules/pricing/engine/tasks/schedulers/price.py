@@ -1,5 +1,4 @@
 from papilio_tasks.apps.schedulers.backends.redis import (
-    RedisQueue,
     RedisScheduler,
 )
 from papilio_tasks.tools.retry import Retry
@@ -12,7 +11,6 @@ from src.shared.dates import utc_now
 
 
 class PersistSupplierPrice(RedisScheduler):
-    queue = RedisQueue("engine_queue")
     retry = Retry(attempts=3, delay=1, errors=(Exception,))
 
     def __init__(self, runner: IPushRunnerService, policy: MarketEnginePolicy):
@@ -21,20 +19,26 @@ class PersistSupplierPrice(RedisScheduler):
 
     async def run(self, data: dict) -> bool:
         payload = SupplierPricePush.model_validate(data)
-        age = (utc_now() - payload.quoted_at).total_seconds()
-        if age < 0 or age > self.policy.max_quote_age_seconds:
+        now = utc_now()
+        if any(
+            (now - quote.quoted_at).total_seconds() < 0
+            or (now - quote.quoted_at).total_seconds()
+            > self.policy.max_quote_age_seconds
+            for quote in payload.quotes
+        ):
             raise ValueError("Supplier quote is stale or in the future")
         result = await self.runner.run(
             payload.source,
             [
                 SupplierSourceQuote.from_pair(
                     payload.source,
-                    payload.symbol,
-                    payload.buying_rial,
-                    payload.selling_rial,
-                    is_closed=payload.is_closed,
-                    quoted_at=payload.quoted_at,
+                    quote.symbol,
+                    quote.buying_rial,
+                    quote.selling_rial,
+                    is_closed=quote.is_closed,
+                    quoted_at=quote.quoted_at,
                 )
+                for quote in payload.quotes
             ],
         )
         return result

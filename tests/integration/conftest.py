@@ -129,6 +129,8 @@ class Harness:
                 "taskiq",
                 "scheduler",
                 "src.apps.scheduler:scheduler",
+                "--update-interval",
+                "5",
             ],
             env=env,
             stdout=scheduler_log,

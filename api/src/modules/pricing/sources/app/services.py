@@ -67,8 +67,12 @@ class SourceConfigService(Checks[SourceConfigModel]):
         Returns:
             return (SourceConfigModel): The created config.
         """
-        configs = await self.create_defaults([source_id])
-        return configs[0]
+        config = await self.repo.create(
+            SourceConfigModel(
+                source_id=source_id, timeout=self.default_timeout
+            )
+        )
+        return config
 
     @handle_conflicts
     @transactional
@@ -292,6 +296,18 @@ class SourceErrorService(IDChecks[SourceModel]):
 
     def __init__(self, repo: SourceRepository) -> None:
         self.repo = repo
+
+    @handle_conflicts
+    @transactional
+    async def apply_error(
+        self, source_id: int, error: SourceErrorInfo | None
+    ) -> SourceModel:
+        await self.repo.update_by_id(
+            source_id, SourceModel.patch(error=error).to_row()
+        )
+        source = await self.repo.get_by_id(source_id)
+        source = self._check_for_id_existence(source_id, source)
+        return source
 
     @handle_conflicts
     @transactional

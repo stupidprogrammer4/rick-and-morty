@@ -1,6 +1,5 @@
 from papilio.core.logger import logger
 from papilio_tasks.apps.schedulers.backends.redis import (
-    RedisQueue,
     RedisScheduler,
 )
 
@@ -10,8 +9,6 @@ from src.modules.pricing.calculator.interfaces import ICalculatorService
 
 
 class CalculateUsdTask(RedisScheduler):
-    queue = RedisQueue("calculator_queue")
-
     def __init__(self, service: ICalculatorService) -> None:
         self.service = service
 
@@ -22,8 +19,6 @@ class CalculateUsdTask(RedisScheduler):
 
 
 class CalculateAssetTask(RedisScheduler):
-    queue = RedisQueue("calculator_queue")
-
     def __init__(self, service: ICalculatorService) -> None:
         self.service = service
 
@@ -34,8 +29,6 @@ class CalculateAssetTask(RedisScheduler):
 
 
 class RepriceAssetTask(RedisScheduler):
-    queue = RedisQueue("calculator_queue")
-
     def __init__(
         self, assets: AssetReader, service: ICalculatorService
     ) -> None:

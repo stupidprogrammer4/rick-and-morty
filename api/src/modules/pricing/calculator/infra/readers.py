@@ -205,7 +205,9 @@ class BubbleReader(MySQLReader):
                 BubbleTable.id,
                 BubbleTable.code,
                 BubbleConfigTable.agg_type,
+                col(AssetTable.id).label("asset_id"),
             )
+            .join(AssetTable, col(AssetTable.code) == col(BubbleTable.code))
             .join(
                 BubbleConfigTable,
                 col(BubbleConfigTable.bubble_id) == col(BubbleTable.id),
@@ -218,9 +220,10 @@ class BubbleReader(MySQLReader):
             BubbleContext(
                 code=AssetCode(code),
                 bubble_id=id,
+                asset_id=asset_id,
                 agg_type=AggregationType(agg_type),
             )
-            for id, code, agg_type in rows
+            for id, code, agg_type, asset_id in rows
         ]
 
     async def get_bubble_config(
@@ -239,7 +242,9 @@ class BubbleReader(MySQLReader):
                 BubbleTable.id,
                 BubbleTable.code,
                 BubbleConfigTable.agg_type,
+                col(AssetTable.id).label("asset_id"),
             )
+            .join(AssetTable, col(AssetTable.code) == col(BubbleTable.code))
             .join(
                 BubbleConfigTable,
                 col(BubbleConfigTable.bubble_id) == col(BubbleTable.id),
@@ -250,10 +255,11 @@ class BubbleReader(MySQLReader):
         row = result.first()
         context = None
         if row is not None:
-            id, code, agg_type = row
+            id, code, agg_type, asset_id = row
             context = BubbleContext(
                 code=AssetCode(code),
                 bubble_id=id,
+                asset_id=asset_id,
                 agg_type=AggregationType(agg_type),
             )
         return context

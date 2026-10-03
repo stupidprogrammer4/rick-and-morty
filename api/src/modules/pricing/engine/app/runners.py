@@ -13,7 +13,11 @@ from src.modules.pricing.engine.interfaces import (
     IPersistFlusherService,
     IPushedFlusherService,
 )
-from src.modules.pricing.sources.domain.enums import ErrorType, SourceCode
+from src.modules.pricing.sources.domain.enums import (
+    ErrorType,
+    SourceCode,
+    SourceSwitch,
+)
 from src.modules.pricing.sources.domain.errors import SourceErrorInfo
 from src.modules.pricing.sources.interfaces import ISourceErrorService
 
@@ -53,19 +57,18 @@ class PushRunnerService:
     async def _stamp(self, source: SourceContext, exc: Exception) -> None:
         async with self.container() as scope:
             errors = await scope.get(ISourceErrorService)
-            await errors.apply_errors(
-                {
-                    source.id: SourceErrorInfo(
-                        kind=ErrorType.LOGICAL_ERROR,
-                        message=type(exc).__name__,
-                    )
-                }
+            await errors.apply_error(
+                source.id,
+                SourceErrorInfo(
+                    kind=ErrorType.LOGICAL_ERROR,
+                    message=type(exc).__name__,
+                ),
             )
 
     async def _clear(self, source: SourceContext) -> None:
         async with self.container() as scope:
             errors = await scope.get(ISourceErrorService)
-            await errors.apply_errors({source.id: None})
+            await errors.apply_error(source.id, None)
 
     async def run(
         self,
@@ -78,8 +81,10 @@ class PushRunnerService:
             symbols = await scope.get(SymbolReader)
             source = await sources.get_by_code_and_active(code, is_active=True)
             lines = await symbols.read_refs()
-        if source is None:
-            logger.warning("a price arrived for an unknown source %s", code)
+        if source is None or source.switch != SourceSwitch.SUPPLIER:
+            logger.warning(
+                "a price arrived for an unavailable supplier %s", code
+            )
             return False
 
         ids = {line.code: line.id for line in lines}
@@ -93,8 +98,6 @@ class PushRunnerService:
             try:
                 await self._stamp(source, exc)
             except Exception:
-                logger.exception(
-                    "could not record source %s failure", source.id
-                )
+                logger.error("could not record source %s failure", source.id)
             raise
         return True

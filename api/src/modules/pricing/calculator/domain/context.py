@@ -26,6 +26,7 @@ class AssetContext(BaseEntity):
 class BubbleContext(BaseEntity):
     code: AssetCode
     bubble_id: int
+    asset_id: int
     agg_type: AggregationType
 
 

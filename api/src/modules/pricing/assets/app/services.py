@@ -76,8 +76,19 @@ class AssetConfigService(Checks[AssetConfigModel]):
         Returns:
             return (AssetConfigModel): The created config.
         """
-        configs = await self.create_defaults({asset_id: code})
-        return configs[0]
+        config = await self.repo.create(
+            AssetConfigModel(
+                asset_id=asset_id,
+                scheduler_on=self.usd_scheduler_on
+                if code == AssetCode.USD
+                else self.default_scheduler_on,
+                scheduler_seconds=self.usd_scheduler_seconds
+                if code == AssetCode.USD
+                else self.default_scheduler_seconds,
+                agg_type=self.default_agg_type,
+            )
+        )
+        return config
 
     @handle_conflicts
     @transactional
@@ -215,7 +226,18 @@ class AssetSwitchService(IDChecks[AssetSwitchModel]):
         Returns:
             return (Sequence[AssetSwitchModel]): The created rows.
         """
-        rows = await self.batch_create_many({asset_id: data})
+        items = self._check_not_empty_list(data.items)
+        self._check_no_repeat([item.switch for item in items], "items")
+        rows = await self.repo.bulk_create(
+            [
+                AssetSwitchModel(
+                    asset_id=asset_id,
+                    switch=item.switch,
+                    priority=item.priority,
+                )
+                for item in items
+            ]
+        )
         return rows
 
     @handle_conflicts

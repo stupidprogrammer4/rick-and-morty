@@ -34,7 +34,7 @@ class ReconcileSchedules:
                 task_name=self.usd_task
                 if config.kind == "asset" and config.code == AssetCode.USD
                 else self.task_names[config.kind],
-                labels={"queue_name": "calculator_queue"},
+                labels={},
                 args=[],
                 kwargs={}
                 if config.kind == "asset" and config.code == AssetCode.USD

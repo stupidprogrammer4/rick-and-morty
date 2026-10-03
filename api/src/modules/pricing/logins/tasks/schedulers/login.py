@@ -2,7 +2,6 @@ from typing import Sequence
 
 from papilio.core.logger import logger
 from papilio_tasks.apps.schedulers.backends.redis import (
-    RedisQueue,
     RedisScheduler,
 )
 
@@ -13,7 +12,6 @@ from src.modules.pricing.sources.domain.enums import SourceCode
 
 class RefreshAllLoginsTask(RedisScheduler):
     schedule = [{"cron": "0 3 * * 5"}]
-    queue = RedisQueue("logins_queue")
 
     def __init__(self, service: ISourceLoginService) -> None:
         self.service = service
@@ -25,8 +23,6 @@ class RefreshAllLoginsTask(RedisScheduler):
 
 
 class RefreshLoginsTask(RedisScheduler):
-    queue = RedisQueue("logins_queue")
-
     def __init__(self, service: ISourceLoginService) -> None:
         self.service = service
 

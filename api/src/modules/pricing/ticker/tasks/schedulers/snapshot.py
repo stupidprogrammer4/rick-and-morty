@@ -1,6 +1,5 @@
 from papilio.core.logger import logger
 from papilio_tasks.apps.schedulers.backends.redis import (
-    RedisQueue,
     RedisScheduler,
 )
 
@@ -14,7 +13,6 @@ from src.modules.pricing.ticker.interfaces import (
 
 class SnapshotPricesTask(RedisScheduler):
     schedule = [{"cron": "*/5 * * * *"}]
-    queue = RedisQueue("ticker_queue")
 
     def __init__(self, service: IPriceSnapshotService) -> None:
         self.service = service
@@ -27,7 +25,6 @@ class SnapshotPricesTask(RedisScheduler):
 
 class SnapshotSourcePricesTask(RedisScheduler):
     schedule = [{"cron": "*/5 * * * *"}]
-    queue = RedisQueue("ticker_queue")
 
     def __init__(self, service: ISourcePriceSnapshotService) -> None:
         self.service = service
@@ -40,7 +37,6 @@ class SnapshotSourcePricesTask(RedisScheduler):
 
 class SnapshotBubblesTask(RedisScheduler):
     schedule = [{"cron": "*/5 * * * *"}]
-    queue = RedisQueue("ticker_queue")
 
     def __init__(self, service: IBubbleSnapshotService) -> None:
         self.service = service
@@ -53,7 +49,6 @@ class SnapshotBubblesTask(RedisScheduler):
 
 class SnapshotSourceBubblesTask(RedisScheduler):
     schedule = [{"cron": "*/5 * * * *"}]
-    queue = RedisQueue("ticker_queue")
 
     def __init__(self, service: ISourceBubbleSnapshotService) -> None:
         self.service = service

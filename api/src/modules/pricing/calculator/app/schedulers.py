@@ -2,7 +2,6 @@ from taskiq import ScheduledTask, ScheduleSource
 
 
 class SchedulerService:
-    queue_name = "calculator_queue"
     prefix = "calculator:asset:"
 
     def __init__(self, source: ScheduleSource, task_name: str) -> None:
@@ -31,7 +30,7 @@ class SchedulerService:
             await self.source.add_schedule(
                 ScheduledTask(
                     task_name=self.task_name,
-                    labels={"queue_name": self.queue_name},
+                    labels={},
                     args=[],
                     kwargs={"asset_id": asset_id},
                     schedule_id=schedule_id,
@@ -42,7 +41,6 @@ class SchedulerService:
 
 
 class BubbleSchedulerService:
-    queue_name = "calculator_queue"
     prefix = "calculator:bubble:"
 
     def __init__(self, source: ScheduleSource, task_name: str) -> None:
@@ -71,7 +69,7 @@ class BubbleSchedulerService:
             await self.source.add_schedule(
                 ScheduledTask(
                     task_name=self.task_name,
-                    labels={"queue_name": self.queue_name},
+                    labels={},
                     args=[],
                     kwargs={"bubble_id": bubble_id},
                     schedule_id=schedule_id,
