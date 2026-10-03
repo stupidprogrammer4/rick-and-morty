@@ -122,7 +122,12 @@ For recovery, stop writers and restore a verified dump into an isolated schema
 first. Check migration revision, configuration, approvals, reservations and
 unknown deliveries before replacing production state. Never automatically
 downgrade a database after a failed deployment. A source/image rollback is safe
-only after checking schema compatibility; otherwise restore a tested backup
+only after checking schema and persisted-data compatibility; otherwise restore a tested backup
 with an explicit recovery decision. Release scripts retain previous source and
 dumps but do not perform automatic rollback. Validate a restore independently
 and maintain encrypted off-server copies with an explicit retention policy.
+
+The source-report release adds USDT asset/symbol records and source snapshots.
+It preserves existing records and needs no table change, but older images do not
+understand those enum values or snapshot contracts. Treat recovery to an earlier
+image as a data-compatibility decision, even when the Alembic revision is unchanged.
