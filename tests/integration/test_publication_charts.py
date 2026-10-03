@@ -45,6 +45,7 @@ from src.modules.publishing.interfaces import (
     IPublicationCommands,
     IPublishedPageQuery,
 )
+from src.shared.dates import as_utc
 from tests.integration.conftest import OWNER, ExternalTelegramHandler
 from tests.integration.test_pricing_engine import prepare_source_report
 from tests.integration.test_workflows import (
@@ -298,6 +299,40 @@ def test_native_chart_rendering_keeps_event_loop_responsive(portal):
 
     portal.run(render_with_heartbeat())
     assert len(ExternalTelegramHandler.photos) == 1
+
+
+def test_native_chart_schedules_preserve_parent_microseconds(portal):
+    parent_id = portal.run(prepare_parent(portal))
+
+    async def read():
+        async with portal.request() as scope:
+            uow = await scope.get(MySQLUnitOfWork)
+            parent = (
+                await uow.execute(
+                    select(PublicationTable).where(
+                        PublicationTable.id == parent_id
+                    )
+                )
+            ).scalar_one()
+            charts = (
+                (
+                    await uow.execute(
+                        select(PublicationChartTable).where(
+                            PublicationChartTable.publication_id == parent.id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert len(charts) == 4
+            assert parent.scheduled_at.microsecond != 0
+            assert all(
+                as_utc(row.scheduled_at) == as_utc(parent.scheduled_at)
+                for row in charts
+            )
+
+    portal.run(read())
 
 
 def test_native_single_and_batch_chart_reads_preserve_closed_history(portal):

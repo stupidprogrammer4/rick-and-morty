@@ -132,9 +132,10 @@ It preserves existing records and needs no table change, but older images do not
 understand those enum values or snapshot contracts. Treat recovery to an earlier
 image as a data-compatibility decision, even when the Alembic revision is unchanged.
 
-The chart release requires migration `20261003_publication_charts` before API and
-workers start. It adds nullable frozen pages to publications and a separate table
-for chart snapshots and delivery state; existing publication rows are preserved.
+The chart release requires migrations through `20261003_chart_precision` before
+API and workers start. It adds nullable frozen pages to publications and a
+separate table for chart snapshots and delivery state; existing publication
+rows are preserved.
 Seeding leaves charts and pagination disabled on new installations and preserves
 edited configuration on upgrades. Enable these settings explicitly after checking
 native candle history, memory headroom and Telegram photo posting rights.
@@ -145,3 +146,5 @@ unknown and needs an owner decision. The migration refuses a downgrade while
 recorded pages or chart deliveries exist. Older images do not recover those child
 deliveries; use compatible code or a verified backup with an explicit recovery
 decision.
+Chart schedules retain microseconds so immediately due sends are not rounded
+into a future second by MySQL.
