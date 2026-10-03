@@ -38,6 +38,7 @@ not establish production readiness, capacity or a complete penetration test.
 | ORM bulk updates expired dirty attributes during async access | Match native repository behavior with `synchronize_session=False`; real MySQL workflows pass |
 | MySQL rounded immediate delivery timestamps into the future | Preserve six fractional digits for due times with a forward migration; native delivery workflows pass |
 | Dependency audit found outdated cryptography, JWT, dotenv and pip versions | Pin fixed releases; the runtime lock audit reports no known vulnerabilities |
+| Live provider rejected an unadvertised parallel-tool parameter | Omit unsupported options and empty tool arrays; enforce the existing one-tool checkpoint limit; provider contract regression supplied |
 
 ## Performance assessment
 
