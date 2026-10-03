@@ -144,4 +144,4 @@ async def update_source_config(
     service: FromDishka[INewsSourceConfigService],
 ):
     result = await service.update(id, data)
-    return APIResponse.from_data(result.source_id)
+    return APIResponse.from_data(EntityWritten(id=result.source_id))

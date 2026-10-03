@@ -1,0 +1,127 @@
+name: CI and deployment
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: portal-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4.10
+        env:
+          MYSQL_ROOT_PASSWORD: test-only-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -ptest-only-password"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+      redis:
+        image: redis:8.2.1-alpine
+        ports: ['6379:6379']
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-retries=20
+    env:
+      PORTAL_TEST_DATABASE_URL: mysql+aiomysql://root:test-only-password@127.0.0.1:3306/mysql
+      PORTAL_TEST_REDIS_URL: redis://127.0.0.1:6379/0
+      PORTAL_TRANSPORT_TESTS: '1'
+      PYTHONPATH: api:bots:packages/contracts
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install pinned dependencies and local packages
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r api/requirements-dev.lock -r bots/requirements.lock
+          .venv/bin/python -m pip install --no-deps -e packages/contracts -e api -e bots
+          .venv/bin/python -m pip check
+      - name: Check formatting, types and publication contents
+        run: |
+          .venv/bin/ruff check api bots packages tests tools
+          .venv/bin/ruff format --check api bots packages tests tools
+          .venv/bin/pyright
+          .venv/bin/python tools/check_publication.py
+      - name: Execute native MySQL, scheduler, Redis and worker workflows
+        run: .venv/bin/python -m pytest tests -q
+      - name: Scan committed history for secrets
+        run: |
+          docker run --rm --network none -v "$PWD:/repo:ro" \
+            zricethezav/gitleaks:v8.24.2 git /repo --redact --no-banner
+      - name: Audit runtime Python dependencies
+        run: |
+          python -m venv /tmp/portal-audit
+          /tmp/portal-audit/bin/pip install pip-audit==2.10.1
+          .venv/bin/python -m pip freeze --all | \
+            python tools/audit_requirements.py > /tmp/portal-audit.txt
+          /tmp/portal-audit/bin/pip-audit --no-deps --disable-pip -r /tmp/portal-audit.txt
+      - name: Validate container topology with synthetic credentials
+        run: .venv/bin/python tools/check_compose.py
+      - name: Build both production images
+        run: |
+          docker build -f api/Dockerfile -t portal-api:test .
+          docker build -f bots/Dockerfile -t portal-bots:test .
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    environment: production
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+      DEPLOY_HOST_KEY_SHA256: ${{ secrets.DEPLOY_HOST_KEY_SHA256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build and publish images for this exact commit
+        run: |
+          set -euo pipefail
+          registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -f api/Dockerfile -t "$registry-api:$GITHUB_SHA" .
+          docker build -f bots/Dockerfile -t "$registry-bots:$GITHUB_SHA" .
+          docker push "$registry-api:$GITHUB_SHA"
+          docker push "$registry-bots:$GITHUB_SHA"
+          api_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$registry-api:$GITHUB_SHA")
+          bots_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$registry-bots:$GITHUB_SHA")
+          printf 'PORTAL_API_IMAGE=%s\nPORTAL_BOTS_IMAGE=%s\n' "$api_image" "$bots_image" > /tmp/portal-images.env
+          git archive HEAD | gzip > /tmp/portal-release.tar.gz
+      - name: Deploy through a pinned SSH host key
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_PASSWORD"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass
+          known_hosts=$(mktemp)
+          ssh-keyscan -T 10 -t ed25519,rsa "$DEPLOY_HOST" 2>/dev/null > "$known_hosts"
+          ssh-keygen -lf "$known_hosts" -E sha256 | awk '{print $2}' | grep -Fx "$DEPLOY_HOST_KEY_SHA256"
+          # Keep only the key whose fingerprint matches the saved pin.
+          python tools/filter_host_keys.py "$known_hosts" "$DEPLOY_HOST_KEY_SHA256"
+          export SSHPASS="$DEPLOY_PASSWORD"
+          remote="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh_options=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=10)
+          temporary=$(sshpass -e ssh "${ssh_options[@]}" "$remote" 'mktemp -d /tmp/portal-release.XXXXXXXX')
+          [[ "$temporary" =~ ^/tmp/portal-release\.[A-Za-z0-9]+$ ]]
+          sshpass -e scp "${ssh_options[@]}" /tmp/portal-release.tar.gz /tmp/portal-images.env "$remote:$temporary/"
+          # Keep registry credentials in the temporary release directory.
+          trap 'sshpass -e ssh "${ssh_options[@]}" "$remote" "rm -f '\''$temporary/docker/config.json'\''"' EXIT
+          printf '%s' "$GH_TOKEN" | sshpass -e ssh "${ssh_options[@]}" "$remote" \
+            "docker --config '$temporary/docker' login ghcr.io -u '$GITHUB_ACTOR' --password-stdin"
+          sshpass -e ssh "${ssh_options[@]}" "$remote" \
+            "tar -xzf '$temporary/portal-release.tar.gz' -C '$temporary' && DOCKER_CONFIG='$temporary/docker' bash '$temporary/deploy/release.sh' '$temporary' '$GITHUB_SHA'"
