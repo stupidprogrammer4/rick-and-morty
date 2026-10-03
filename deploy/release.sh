@@ -19,7 +19,10 @@ release_directory="$root_directory/releases/$revision"
 mkdir -p "$release_directory" "$root_directory/backups"
 tar -xzf "$source_directory/portal-release.tar.gz" -C "$release_directory"
 install -m 600 "$root_directory/private/.env.runtime" "$release_directory/.env.runtime"
+# The private parent protects infrastructure settings on the host. The bind
+# mounted file must also be readable by the non-root application UID.
 install -m 600 "$root_directory/private/config.yml" "$release_directory/config.yml"
+chown 10001:10001 "$release_directory/config.yml"
 python3 - "$source_directory/portal-images.env" "$release_directory/.env.runtime" <<'PY'
 import re
 import sys
@@ -36,14 +39,30 @@ with Path(sys.argv[2]).open('a') as stream:
     stream.write('\n' + '\n'.join(images) + '\n')
 PY
 compose=(docker compose -p portal --project-directory "$release_directory" --env-file "$release_directory/.env.runtime" -f "$release_directory/compose.yml")
+shared_mysql=false
+if test -f "$root_directory/private/compose.server.yml"; then
+    shared_mysql=true
+    install -m 600 "$root_directory/private/compose.server.yml" "$release_directory/compose.server.yml"
+    compose+=(-f "$release_directory/compose.server.yml")
+fi
 "${compose[@]}" config --quiet
 "${compose[@]}" pull
-"${compose[@]}" up -d --wait --wait-timeout 180 mysql redis
+if "$shared_mysql"; then
+    "${compose[@]}" up -d --wait --wait-timeout 180 redis
+else
+    "${compose[@]}" up -d --wait --wait-timeout 180 mysql redis
+fi
 "${compose[@]}" stop worker scheduler api bots
 
 # Preserve the current database before any forward migration.
 backup_file="$root_directory/backups/$(date -u +%Y%m%dT%H%M%SZ)-$revision.sql.gz"
-"${compose[@]}" exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --triggers --events --databases portal' | gzip > "$backup_file"
+if "$shared_mysql"; then
+    database_container=$(sed -n 's/^PORTAL_SHARED_MYSQL_CONTAINER=//p' "$release_directory/.env.runtime" | tail -n 1)
+    [[ "$database_container" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]+$ ]]
+    docker exec "$database_container" sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --triggers --events --databases portal' | gzip > "$backup_file"
+else
+    "${compose[@]}" exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --triggers --events --databases portal' | gzip > "$backup_file"
+fi
 test -s "$backup_file"
 "${compose[@]}" run --rm --no-deps migrate
 "${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api worker scheduler bots

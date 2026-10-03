@@ -46,6 +46,7 @@ preserves active webhooks, and checks both bots' posting permissions. Telegram's
 Bot API cannot enumerate all memberships; an older join may have no pending
 event. `--write-policy` stores a uniquely verified channel in the running local
 API's database policy. It never enables live delivery or sends a channel post.
+When a public channel name is known, pass `--channel @username` to verify it directly.
 
 The public repository contains only code, seeds and sample infrastructure.
 Prepare private `.env.runtime` and `config.yml` locally. Keep dry-run enabled
@@ -65,12 +66,24 @@ archive and creates private server settings only if absent. Later deployments
 preserve those settings. For private GHCR images, authenticate the server
 separately using a restricted token; CI uses an ephemeral token directory.
 
+### Existing MySQL on a small server
+
+`deploy/compose.server.yml` is an optional override for a server that already
+runs MySQL. Provision a separate `portal` schema and a `portal` user with
+privileges only on `portal.*`. Set `PORTAL_SHARED_MYSQL_NETWORK` and
+`PORTAL_SHARED_MYSQL_CONTAINER` in the private runtime environment; the DSN
+must resolve the existing server through that network. Install the override as
+`/opt/portal/private/compose.server.yml`. Release and backup scripts detect it,
+preserve the original databases and dump only the portal schema. Use small
+connection pools in private infrastructure settings and verify memory limits.
+The override requires Compose support for `!override` (verified with v2.40.3).
+
 The release layout is `/opt/portal/private`, `/opt/portal/releases/<commit>`,
 `/opt/portal/backups` and an atomic `/opt/portal/current` symlink. The release
 script obtains a server lock, pulls digest-pinned images, checks Compose,
 starts storage, dumps MySQL, drains/stops application workers, migrates, seeds,
-starts applications, checks local liveness and live dependencies, and registers
-both webhooks. Database migration is a single forward operation before workers
+starts applications, checks local liveness and database/gateway reachability,
+and registers both webhooks. Database migration is a single forward operation before workers
 resume. A failed gate exits with a nonzero status and does not advance `current`.
 
 Run the paid model smoke test once after deployment:
@@ -79,6 +92,12 @@ Run the paid model smoke test once after deployment:
 cd /opt/portal/current
 docker compose -p portal --env-file .env.runtime exec -T api python -m src.cli.live_check --paid-model-smoke
 ```
+
+Check the price provider separately with `python -m src.cli.live_check --market`
+inside the API container. A temporary market outage does not stop webhook/chat
+startup; market workflows still require valid fresh quotes. Include the server
+override (`-f compose.yml -f compose.server.yml`) in Compose commands when it
+is installed.
 
 Then send `/ask rick` and `/ask morty` through Telegram, check `/job` and `/status`,
 create/approve a draft and inspect a dry-run publication. Set the channel policy

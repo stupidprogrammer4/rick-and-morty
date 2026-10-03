@@ -75,6 +75,7 @@ class MissionRepository(MySQLRepository[MissionModel]):
     async def claim(self, id: int, data: MissionClaim) -> bool:
         result = await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(
                 col(self.table.id) == id,
                 col(self.table.status) == "queued",
@@ -92,6 +93,7 @@ class MissionRepository(MySQLRepository[MissionModel]):
     async def change(self, id: int, data: MissionChange) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == id)
             .values(**data.model_dump(), version=col(self.table.version) + 1)
         )
@@ -108,6 +110,7 @@ class MissionRepository(MySQLRepository[MissionModel]):
     async def expire_running(self, now: datetime) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(
                 col(self.table.status) == "running",
                 col(self.table.lease_expires_at) <= now,

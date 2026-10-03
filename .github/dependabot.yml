@@ -8,3 +8,7 @@ updates:
     directories: [/api, /bots, /packages/contracts]
     schedule:
       interval: weekly
+  - package-ecosystem: docker
+    directories: [/api, /bots]
+    schedule:
+      interval: weekly

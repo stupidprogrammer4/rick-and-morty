@@ -59,6 +59,7 @@ class AIBudgetRepository(MySQLRepository[AIBudgetModel]):
     async def adjust(self, day: date, delta: Decimal) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.day) == day)
             .values(reserved_usd=col(self.table.reserved_usd) + delta)
         )
@@ -70,6 +71,7 @@ class LLMRunRepository(MySQLRepository[LLMRunModel]):
     async def save(self, row: LLMRunModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == row.id)
             .values(**row.model_dump(exclude={"id", "created_at"}))
         )

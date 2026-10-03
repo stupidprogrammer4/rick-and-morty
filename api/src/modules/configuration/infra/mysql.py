@@ -64,6 +64,7 @@ class SettingValueRepository(MySQLRepository[SettingValueModel]):
     async def save(self, row: SettingValueModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == row.id)
             .values(value=row.value, revision=row.revision)
         )
@@ -100,6 +101,7 @@ class NewsSourceRepository(MySQLRepository[NewsSourceModel]):
     async def save(self, row: NewsSourceModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == row.id)
             .values(
                 title=row.title,
@@ -135,6 +137,7 @@ class NewsSourceConfigRepository(MySQLRepository[NewsSourceConfigModel]):
     async def save(self, row: NewsSourceConfigModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.source_id) == row.source_id)
             .values(value=row.value, revision=row.revision)
         )

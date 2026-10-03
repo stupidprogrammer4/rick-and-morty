@@ -35,6 +35,9 @@ not establish production readiness, capacity or a complete penetration test.
 | Queue and budget visibility was missing | Declared queue status read model in the protected status endpoint |
 | Long Unicode evidence could exceed MySQL TEXT checkpoint capacity | MySQL MEDIUMTEXT for checkpoint history; native round-trip regression supplied |
 | Non-ASCII authentication headers raised TypeError | Compare encoded bytes; the native API regression requires a 401 response |
+| ORM bulk updates expired dirty attributes during async access | Match native repository behavior with `synchronize_session=False`; real MySQL workflows pass |
+| MySQL rounded immediate delivery timestamps into the future | Preserve six fractional digits for due times with a forward migration; native delivery workflows pass |
+| Dependency audit found outdated cryptography, JWT, dotenv and pip versions | Pin fixed releases; the runtime lock audit reports no known vulnerabilities |
 
 ## Performance assessment
 
@@ -43,7 +46,8 @@ and model work occurs after short claim/reservation transactions commit. Queue
 indexes cover status, due times and owner/status; no public collection performs
 an unbounded list operation. API and workers each have independent DB pools.
 
-The initial worker has one process and eight concurrent tasks. Raising this
+The standalone worker has one process and eight concurrent tasks; the small
+production server override reduces this to two concurrent tasks. Raising this
 without measuring MySQL connections, HTTP connection limits and MCP memory can
 overload a small shared VPS. MCP starts a native subprocess for a model step;
 startup cost and process memory can dominate short chat latency. Reuse must
@@ -68,28 +72,29 @@ needs an explicit policy and a future bounded cleanup workflow.
 
 ## Verification evidence and open gates
 
-Locally, 49 tests passed and 8 infrastructure tests were skipped in the final
-available sandbox run. Unit coverage includes configuration schemas, presentation,
-safe formatting, HTML escaping, price normalization/freshness, routing, quiet
-hours, SSRF/redirect/size guards and native API authorization. MySQL, Redis,
-native worker/scheduler and MCP transport tests are supplied and configured in
-CI, but have not passed in this environment. External Telegram is controlled in
-integration tests; no model provider or live Telegram result is inferred from it.
+On 2026-10-03, the unrestricted local run passed all 57 tests, including
+real MySQL migrations, native Redis scheduler/worker workflows and MCP stdio.
+The regression suite also covers authorization, concurrency, unknown-delivery
+resolution and a large Unicode checkpoint. External Telegram is controlled in
+integration tests; those results do not prove live Telegram or model responses.
+Both production images built from clean pinned dependencies and passed
+`pip check`. Formatting and type checks also passed.
 
-The sandbox denies socket writes and outbound SSH. Local Docker daemon access
-is also unavailable. Compose configuration validation succeeds. Framework app,
-task discovery and offline SQL generation can be checked without these services.
-Paid OpenRouter, actual Talamala timestamps, server resources/TLS, webhook
-registration, public GitHub push and a successful production release require
-actual execution evidence. A configured live model is not a successful model call.
+The VPS has 2 GiB RAM and existing services. Deployment uses an isolated portal
+schema/user in its existing MySQL server, small independent connection pools,
+a 64 MiB Redis limit and two worker tasks. A dedicated 1 GiB swap file covers
+memory peaks. Native API startup measured approximately 126 MiB locally; this
+is not a full worker/MCP load test. Existing TLS and ingress were inspected,
+and the original service health route still responds after adding webhook paths.
+Both real bot identities are distinct and have posting rights in the supplied
+channel. All three Talamala endpoints returned HTTP 503 from the VPS; live
+market validation remains unavailable and publication must fail closed.
 
 Remaining acceptance gates:
 
-- Run the native integration suite and dependency/secret audits on an unrestricted
-  runner; inspect failures rather than reducing those gates.
+- Complete dependency/secret audits and the exact-commit CI release checks.
 - Confirm live prices and all three timestamp/currency contracts.
 - Run the paid model smoke request and private Telegram mission/tool workflows.
-- Obtain the target channel ID and verify both bots' actual permissions.
 - Inspect the existing VPS ingress and available resources, then verify DNS/TLS,
   exact-commit deployment, webhooks and an approved channel publication.
 - Prove an isolated backup restore and arrange encrypted off-server backups.

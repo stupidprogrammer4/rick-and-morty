@@ -1,0 +1,36 @@
+# The small production VPS already owns a MySQL server.
+services:
+  mysql:
+    profiles: [local-db]
+  migrate:
+    networks: [application, database, shared_mysql]
+    depends_on: !override
+      redis:
+        condition: service_healthy
+  api:
+    networks: [application, database, shared_mysql]
+    depends_on: !override
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+  worker:
+    networks: [application, database, shared_mysql]
+    command: [taskiq, worker, 'src.apps.scheduler:broker', --workers, '1', --max-async-tasks, '2']
+    depends_on: !override
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+  scheduler:
+    depends_on: !override
+      redis:
+        condition: service_healthy
+    mem_limit: 192m
+  bots:
+    mem_limit: 192m
+  redis:
+    mem_limit: 96m
+    command: [redis-server, --appendonly, 'yes', --appendfsync, everysec, --maxmemory, 64mb, --maxmemory-policy, noeviction]
+networks:
+  shared_mysql:
+    external: true
+    name: ${PORTAL_SHARED_MYSQL_NETWORK:?Set the existing MySQL network}

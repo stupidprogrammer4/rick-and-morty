@@ -14,7 +14,7 @@ from src.modules.market.interfaces import IMarketQuery
 from src.modules.rick.interfaces import IModelSmokeCommands
 
 
-async def check(paid_model: bool) -> None:
+async def check(paid_model: bool, check_market: bool) -> None:
     settings = get_settings(PortalAppSettings)
     container = make_async_container(*task_providers(settings))
     try:
@@ -33,15 +33,17 @@ async def check(paid_model: bool) -> None:
             )
             response.raise_for_status()
             print("Bot gateway: reachable")
-            market = await request.get(IMarketQuery)
-            prices = await market.snapshot()
-            print(
-                "Market: all three quotes passed freshness and unit validation"
-            )
-            print(
-                "Quote symbols:",
-                ", ".join(quote.symbol for quote in prices.quotes),
-            )
+            if check_market:
+                market = await request.get(IMarketQuery)
+                prices = await market.snapshot()
+                print(
+                    "Market: all three quotes passed freshness "
+                    "and unit validation"
+                )
+                print(
+                    "Quote symbols:",
+                    ", ".join(quote.symbol for quote in prices.quotes),
+                )
             if paid_model:
                 identities = await client.get(
                     settings.portal.gateway_url + "/internal/identities",
@@ -69,9 +71,10 @@ def main() -> None:
     load_dotenv(os.getenv("PORTAL_ENV_FILE", ".env"))
     parser = argparse.ArgumentParser()
     parser.add_argument("--paid-model-smoke", action="store_true")
+    parser.add_argument("--market", action="store_true")
     args = parser.parse_args()
     try:
-        asyncio.run(check(args.paid_model_smoke))
+        asyncio.run(check(args.paid_model_smoke, args.market))
     except Exception as exc:
         raise SystemExit(f"Live check failed: {type(exc).__name__}") from None
 

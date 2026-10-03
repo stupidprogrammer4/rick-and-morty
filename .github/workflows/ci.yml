@@ -70,6 +70,18 @@ jobs:
         run: |
           docker build -f api/Dockerfile -t portal-api:test .
           docker build -f bots/Dockerfile -t portal-bots:test .
+          docker run --rm portal-api:test python -m pip check
+          docker run --rm portal-bots:test python -m pip check
+      - name: Scan image dependencies and operating system packages
+        run: |
+          for image in portal-api:test portal-bots:test; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              -v portal-trivy-cache:/root/.cache/trivy \
+              aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
+              image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+              --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+              --exit-code 1 "$image"
+          done
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: verify

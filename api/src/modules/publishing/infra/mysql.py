@@ -56,6 +56,7 @@ class PublicationRepository(MySQLRepository[PublicationModel]):
     async def save(self, model: PublicationModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == model.id)
             .values(**model.model_dump(exclude={"id", "created_at"}))
         )
@@ -77,6 +78,7 @@ class PublicationRepository(MySQLRepository[PublicationModel]):
     async def recover_sending(self, now: datetime) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(
                 col(self.table.status) == "sending",
                 col(self.table.lease_expires_at) < now,
@@ -87,6 +89,7 @@ class PublicationRepository(MySQLRepository[PublicationModel]):
     async def expire_queued(self, now: datetime) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(
                 col(self.table.status) == "queued",
                 col(self.table.deadline) <= now,
@@ -122,6 +125,7 @@ class PrivateReplyRepository(MySQLRepository[PrivateReplyModel]):
     async def save(self, model: PrivateReplyModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == model.id)
             .values(**model.model_dump(exclude={"id", "created_at"}))
         )
@@ -129,6 +133,7 @@ class PrivateReplyRepository(MySQLRepository[PrivateReplyModel]):
     async def recover_sending(self, now: datetime) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(
                 col(self.table.status) == "sending",
                 col(self.table.lease_expires_at) < now,

@@ -13,7 +13,7 @@ attrs==26.1.0
 certifi==2026.7.22
 cffi==2.1.1
 click==8.5.0
-cryptography==46.0.7
+cryptography==50.0.2
 dishka==1.10.1
 dnspython==2.8.0
 email-validator==2.3.0
@@ -48,9 +48,9 @@ pycron==3.3.0
 pydantic==2.12.5
 pydantic-core==2.41.5
 pygments==2.21.0
-pyjwt[crypto]==2.14.0
+pyjwt[crypto]==2.15.1
 pymysql==1.1.2
-python-dotenv==1.2.1
+python-dotenv==1.2.4
 python-multipart==0.0.32
 pyyaml==6.0.3
 redis==8.1.0
@@ -75,3 +75,4 @@ uvloop==0.22.1
 watchfiles==1.1.1
 websockets==17.1
 yarl==1.25.1
+pip==26.2.1

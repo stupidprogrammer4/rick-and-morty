@@ -32,6 +32,7 @@ class PortalGuardRepository(MySQLRepository[PortalGuardModel]):
     async def set_paused(self, key: str, paused: bool) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.key) == key)
             .values(paused=paused)
         )

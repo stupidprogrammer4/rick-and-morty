@@ -49,6 +49,7 @@ class DraftRepository(MySQLRepository[DraftModel]):
     async def save(self, model: DraftModel) -> None:
         await self.uow.execute(
             update(self.table)
+            .execution_options(synchronize_session=False)
             .where(col(self.table.id) == model.id)
             .values(**model.model_dump(exclude={"id", "created_at"}))
         )

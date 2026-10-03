@@ -23,7 +23,7 @@ class TelegramChannelDiscovery:
             raise RuntimeError(f"Telegram {method} failed")
         return payload["result"]
 
-    def discover(self, known_channel: int | None = None):
+    def discover(self, known_channel: int | str | None = None):
         identities = {role: self.call(role, "getMe") for role in self.tokens}
         if len({item["id"] for item in identities.values()}) != 2:
             raise RuntimeError("Independent bot identities are required")
@@ -89,7 +89,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-file", type=Path, default=Path(".env.runtime"))
     parser.add_argument("--write-policy", action="store_true")
-    parser.add_argument("--channel-id", type=int)
+    channel = parser.add_mutually_exclusive_group()
+    channel.add_argument("--channel-id", type=int)
+    channel.add_argument("--channel", help="Public @username or numeric ID")
     args = parser.parse_args()
     values = dotenv_values(args.env_file)
     tokens = {
@@ -106,7 +108,7 @@ def main():
     try:
         with httpx.Client(timeout=10, trust_env=False) as client:
             chat = TelegramChannelDiscovery(client, tokens).discover(
-                args.channel_id
+                args.channel_id or args.channel
             )
             print("Verified common posting channel:", chat["id"])
             if args.write_policy:
