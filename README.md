@@ -1,7 +1,7 @@
 # Rick and Morty Portal
 
 Two Persian Telegram assistants for private administration, sourced news,
-verified market reports and reviewed channel posts. Rick is sarcastic and
+verified market reports and scheduled channel posts. Rick is sarcastic and
 analytical; Morty is nervous, friendly and practical. Their system prompts,
 responses, reactions and channel presentation are editable database records.
 
@@ -17,7 +17,8 @@ responses, reactions and channel presentation are editable database records.
 MySQL owns configuration, missions, collected evidence, drafts, approvals,
 publication reservations and model costs. Redis carries native Papilio Tasks.
 The model can read permitted evidence and create drafts. Channel publication
-requires a human approval for the current draft revision.
+requires human approval for manual drafts. Explicitly enabled database rules
+authorize recurring news and price drafts through the same publication workflow.
 
 ## Start locally
 
@@ -29,18 +30,15 @@ python3.13 -m venv .venv
 .venv/bin/python -m pip install -r api/requirements-dev.lock -r bots/requirements.lock
 .venv/bin/python -m pip install --no-deps -e packages/contracts -e api -e bots
 .venv/bin/python -m pip check
-cp .env.example .env
-# Fill the three original bot/model credentials in .env.
-.venv/bin/python tools/prepare_env.py
-# Set PORTAL_ADMIN_USER_IDS in the private .env.runtime if it is still empty.
+cp .env.example .env.runtime
+cp config.yml.sample config.yml
+# Fill bot/model credentials, administrator IDs, independent secrets and DB DSN.
+# Match the private config.yml database DSN to PORTAL_DATABASE_URL.
 docker compose --env-file .env.runtime up -d --build
 ```
 
-`prepare_env.py` retains the original `.env`, generates independent service,
-webhook and database credentials, and creates a minimal `config.yml`. It reads
-the optional local Papilio Proxy environment for the admin allowlist. Both
-generated files are ignored. Compose runs a forward Alembic migration and an
-idempotent seed before starting the API, worker, scheduler and bots.
+Keep both private files out of Git. Compose runs a forward Alembic migration and
+an idempotent seed before starting the API, worker, scheduler and bots.
 
 Incoming Telegram messages need public HTTPS. Use the deployment instructions
 to serve `bot.amupouya.org`; then register the two distinct webhook paths:
@@ -80,8 +78,8 @@ command is restricted to allowlisted administrators in private chats.
 ## Configuration and OpenRouter
 
 Business configuration is stored in MySQL using separate setting definitions
-and scoped values, plus news sources and their configurations. The initial
-`api/seeds/defaults.json` creates missing records; restarting or seeding never
+and scoped values, plus news and market sources and their configurations. The
+initial `api/seeds/defaults.json` creates missing records; restarting or seeding never
 overwrites administrator changes. Credentials and transport belong in private
 environment variables; `config.yml` contains framework and infrastructure setup.
 
@@ -92,14 +90,9 @@ These are editable initial records. Requests reserve the maximum estimated
 cost before contacting the provider. An ambiguous request keeps its reservation
 and is not automatically repeated. Provider data collection is denied by default.
 
-```bash
-docker compose --env-file .env.runtime exec -T api python -m src.cli.live_check --paid-model-smoke
-```
-
-This performs a real, budgeted model request, persists its smoke mission and
-cost, and checks current database configuration, bot identities and all three
-live market quotes. A successful check is required before claiming the model
-works. It does not send a channel post.
+Test live model behavior using a private `/ask rick` or `/ask morty` mission.
+Inspect `/job` and `/status` for the persisted result and budget. `/prices` checks
+the configured market backend without sending an unapproved channel post.
 
 Channel publication initially uses `PORTAL_DRY_RUN=true` and has no destination.
 Update the complete `portal.policy/global` record with a negative channel ID,
@@ -109,11 +102,10 @@ worker and scheduler. The shared daily cap and quiet hours still apply.
 ## Verification
 
 ```bash
-.venv/bin/ruff check api bots packages tests tools
-.venv/bin/ruff format --check api bots packages tests tools
+.venv/bin/ruff check api bots packages tests
+.venv/bin/ruff format --check api bots packages tests
 .venv/bin/pyright
 .venv/bin/python -m pytest tests -q
-.venv/bin/python tools/check_compose.py
 ```
 
 Native integration tests require `PORTAL_TEST_DATABASE_URL` with permission to
@@ -125,4 +117,4 @@ Tests without these variables skip the corresponding infrastructure workflows.
 
 See [architecture](docs/architecture.md), [configuration](docs/configuration.md),
 [deployment](docs/deployment.md), [security](SECURITY.md) and
-[requirements and review](docs/review.md). License: [MIT](LICENSE).
+[database schedules and prices](docs/configuration.md). License: [MIT](LICENSE).

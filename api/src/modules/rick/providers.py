@@ -4,7 +4,6 @@ from dishka import Provider, Scope, provide
 
 from src.modules.rick.app.agent import MissionAgentCommands
 from src.modules.rick.app.context import ToolContext
-from src.modules.rick.app.smoke import ModelSmokeCommands
 from src.modules.rick.app.tools import AgentToolCommands
 from src.modules.rick.infra.mcp import MissionMCPClient
 from src.modules.rick.infra.mysql import (
@@ -16,7 +15,6 @@ from src.modules.rick.infra.openrouter import OpenRouterClient
 from src.modules.rick.interfaces import (
     IAgentToolCommands,
     ILLMClient,
-    IModelSmokeCommands,
     IRickAgent,
 )
 
@@ -30,7 +28,6 @@ class RickProvider(Provider):
     agent = provide(MissionAgentCommands, provides=IRickAgent)
     mcp = provide(MissionMCPClient, scope=Scope.APP)
     tools = provide(AgentToolCommands, provides=IAgentToolCommands)
-    smoke = provide(ModelSmokeCommands, provides=IModelSmokeCommands)
 
     @provide(scope=Scope.APP)
     def context(self) -> ToolContext:

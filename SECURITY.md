@@ -29,11 +29,14 @@ sizes and timeouts are bounded. Proxy environment variables are not trusted.
 External article text is untrusted evidence. Tools enforce typed arguments,
 current mission ownership, status and deadline. The model receives no shell,
 payment, plan pricing, service credential or channel publication tool. Only
-collected evidence can create a news draft. Human review remains necessary for
-accuracy and prompt injection: evidence IDs establish provenance, not truth.
+collected evidence can create a news draft. Manual drafts require human review.
+Explicitly enabled automatic rules authorize
+their own news and price drafts; evidence IDs establish provenance, not truth.
+Review automatic output and pause publishing if source quality is unacceptable.
 
 Telegram HTML is escaped. Database templates reject unknown placeholders and
-attribute access. Market publication requires persisted, complete fresh quotes
+attribute access. Market publication requires persisted, complete quotes within
+the configured age policy
 and an unchanged deterministic draft body. Model request costs and channel
 delivery slots have separate transactional reservations.
 

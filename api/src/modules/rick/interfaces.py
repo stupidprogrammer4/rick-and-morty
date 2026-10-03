@@ -20,10 +20,6 @@ class IRickAgent(Protocol):
     ) -> Awaitable[AgentOutcome]: ...
 
 
-class IModelSmokeCommands(Protocol):
-    async def run(self, owner_id: int, bot_id: int) -> str: ...
-
-
 class IAgentToolCommands(Protocol):
     async def authorize(self) -> MissionModel: ...
 

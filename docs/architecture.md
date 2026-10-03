@@ -39,7 +39,7 @@ use the same discovered tasks and Redis settings.
 | `missions` | Admission, duplicate updates, owner concurrency, execution, cancellation and recovery |
 | `news` | Source fetching, article reading and persisted evidence |
 | `market` | Typed quotes, complete fresh snapshots and linked deterministic drafts |
-| `rick` | Both persona prompts, model checkpoints, budgets, MCP tools and live diagnostics |
+| `rick` | Both persona prompts, model checkpoints, budgets, MCP tools |
 | `content` | Draft revisions and human decisions |
 | `publishing` | Shared quota, scheduling, rendering, delivery and ambiguous results |
 | `ops` | Publishing pause, invariant locks, health and queue read models |

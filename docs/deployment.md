@@ -2,10 +2,8 @@
 
 ## Preflight
 
-Run `python tools/check_server.py` in the installed development environment.
-It reads the local Papilio Proxy environment for the host, user, password and
-SHA256 key pin, and checks resources, Docker, listeners, Nginx and provider
-reachability without changing services. It never publishes these credentials.
+Inspect server resources, Docker, listeners, ingress and source reachability.
+Use the existing server access and verify its SSH host-key pin independently.
 
 Verify all of the following before the first release:
 
@@ -19,9 +17,9 @@ Verify all of the following before the first release:
    bot gateway and per-mission MCP subprocesses. Measure actual peak usage.
 5. Both tokens return distinct `getMe` identities; the administrator has started
    both private chats. Both bots have channel posting permissions.
-6. OpenRouter credits and provider policy allow the configured model. All three
-   Talamala endpoints provide fresh, timezone-aware timestamps with the declared
-   currency and basis.
+6. OpenRouter credits and provider policy allow the configured model. Selected
+   market sources provide correctly labeled quote times, currency and basis
+   within the configured age policy.
 
 ## HTTPS ingress
 
@@ -40,13 +38,8 @@ externally. No API or internal gateway path should become public.
 
 ## Initial release
 
-To discover an existing shared channel, run `python tools/discover_channel.py`.
-It inspects pending membership/channel updates without acknowledging them,
-preserves active webhooks, and checks both bots' posting permissions. Telegram's
-Bot API cannot enumerate all memberships; an older join may have no pending
-event. `--write-policy` stores a uniquely verified channel in the running local
-API's database policy. It never enables live delivery or sends a channel post.
-When a public channel name is known, pass `--channel @username` to verify it directly.
+Verify both bot identities and channel posting rights through Telegram before
+configuring the negative channel ID in the database portal policy.
 
 The public repository contains only code, seeds and sample infrastructure.
 Prepare private `.env.runtime` and `config.yml` locally. Keep dry-run enabled
@@ -60,11 +53,12 @@ PORTAL_API_IMAGE=ghcr.io/owner/repository/api@sha256:<digest>
 PORTAL_BOTS_IMAGE=ghcr.io/owner/repository/bots@sha256:<digest>
 ```
 
-After ingress is provisioned, `tools/deploy.py --source /path/to/committed/repo
---images /path/to/images.env` uses pinned SSH, uploads a committed-source
-archive and creates private server settings only if absent. Later deployments
-preserve those settings. For private GHCR images, authenticate the server
-separately using a restricted token; CI uses an ephemeral token directory.
+Install private `.env.runtime` and `config.yml` under `/opt/portal/private` with
+restricted access. Upload a committed-source archive named `portal-release.tar.gz`
+and the digest file named `portal-images.env` into a temporary server directory.
+Run `deploy/release.sh <temporary-directory> <full-commit>` from that archive.
+Later releases preserve private settings. CI authenticates GHCR with an ephemeral
+token directory and runs the same release script.
 
 ### Existing MySQL on a small server
 
@@ -86,18 +80,8 @@ starts applications, checks local liveness and database/gateway reachability,
 and registers both webhooks. Database migration is a single forward operation before workers
 resume. A failed gate exits with a nonzero status and does not advance `current`.
 
-Run the paid model smoke test once after deployment:
-
-```bash
-cd /opt/portal/current
-docker compose -p portal --env-file .env.runtime run --rm --no-deps worker python -m src.cli.live_check --paid-model-smoke
-```
-
-Check the price provider separately with `python -m src.cli.live_check --market`
-in a temporary worker container. A temporary market outage does not stop webhook/chat
-startup; market workflows still require valid fresh quotes. Include the server
-override (`-f compose.yml -f compose.server.yml`) in Compose commands when it
-is installed.
+After deployment verify both webhook identities and protected database status.
+Use ordinary private bot missions to check live model and market behavior.
 
 Then send `/ask rick` and `/ask morty` through Telegram, check `/job` and `/status`,
 create/approve a draft and inspect a dry-run publication. Set the channel policy
@@ -109,7 +93,7 @@ Verify a real approved publication and its persisted message ID.
 The GitHub workflow verifies formatting, types, publication contents, secrets,
 dependencies, native MySQL/Redis/MCP/worker workflows, Compose and both images.
 Image builds validate dependencies before removing package managers and build
-tools from the runtime filesystem. Diagnostic and webhook registration commands
+tools from the runtime filesystem. Webhook registration commands
 run in separate temporary containers to preserve service memory headroom.
 Main deployments run only after verification and push immutable GHCR images.
 Full action commits are pinned and dependabot tracks action/package updates.
@@ -140,4 +124,5 @@ unknown deliveries before replacing production state. Never automatically
 downgrade a database after a failed deployment. A source/image rollback is safe
 only after checking schema compatibility; otherwise restore a tested backup
 with an explicit recovery decision. Release scripts retain previous source and
-dumps but do not claim automatic rollback or a tested restore.
+dumps but do not perform automatic rollback. Validate a restore independently
+and maintain encrypted off-server copies with an explicit retention policy.

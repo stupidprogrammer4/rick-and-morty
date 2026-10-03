@@ -47,10 +47,16 @@ jobs:
           .venv/bin/python -m pip check
       - name: Check formatting, types and publication contents
         run: |
-          .venv/bin/ruff check api bots packages tests tools
-          .venv/bin/ruff format --check api bots packages tests tools
+          .venv/bin/ruff check api bots packages tests
+          .venv/bin/ruff format --check api bots packages tests
           .venv/bin/pyright
-          .venv/bin/python tools/check_publication.py
+          test -z "$(git ls-files tools AGENTS.md WORK.md)"
+          if git grep -n -P '[\x{0600}-\x{06ff}]' -- '*.md'; then
+            echo 'Documentation must be English'; exit 1
+          fi
+          if git log --format=%B | grep -P '[\x{0600}-\x{06ff}]'; then
+            echo 'Commit messages must be English'; exit 1
+          fi
       - name: Execute native MySQL, scheduler, Redis and worker workflows
         run: .venv/bin/python -m pytest tests -q
       - name: Scan committed history for secrets
@@ -62,10 +68,20 @@ jobs:
           python -m venv /tmp/portal-audit
           /tmp/portal-audit/bin/pip install pip-audit==2.10.1
           .venv/bin/python -m pip freeze --all | \
-            python tools/audit_requirements.py > /tmp/portal-audit.txt
+            grep '==' | grep -viE '^(portal-(api|bots|contracts)|papilio(-tasks)?)==' > /tmp/portal-audit.txt
           /tmp/portal-audit/bin/pip-audit --no-deps --disable-pip -r /tmp/portal-audit.txt
       - name: Validate container topology with synthetic credentials
-        run: .venv/bin/python tools/check_compose.py
+        env:
+          MYSQL_PASSWORD: test-only-password
+          MYSQL_ROOT_PASSWORD: test-only-root-password
+          PORTAL_DATABASE_URL: mysql+aiomysql://portal:test@mysql:3306/portal
+          PORTAL_SERVICE_KEY: test-service-key-test-service-key-test-service-key
+          PORTAL_ADMIN_USER_IDS: '140001'
+          RICK_TG_BOT: '140001:TEST_ONLY_NOT_REAL'
+          MORTY_TG_BOT: '140002:TEST_ONLY_NOT_REAL'
+          PORTAL_RICK_WEBHOOK_SECRET: rick-test-key-rick-test-key-rick-test-key
+          PORTAL_MORTY_WEBHOOK_SECRET: morty-test-key-morty-test-key-morty-test-key
+        run: docker compose --env-file /dev/null config --quiet
       - name: Build both production images
         run: |
           docker build -f api/Dockerfile -t portal-api:test .
@@ -122,7 +138,18 @@ jobs:
           ssh-keyscan -T 10 -t ed25519,rsa "$DEPLOY_HOST" 2>/dev/null > "$known_hosts"
           ssh-keygen -lf "$known_hosts" -E sha256 | awk '{print $2}' | grep -Fx "$DEPLOY_HOST_KEY_SHA256"
           # Keep only the key whose fingerprint matches the saved pin.
-          python tools/filter_host_keys.py "$known_hosts" "$DEPLOY_HOST_KEY_SHA256"
+          pinned_hosts=$(mktemp)
+          single_key=$(mktemp)
+          while IFS= read -r host_key; do
+            printf '%s\n' "$host_key" > "$single_key"
+            fingerprint=$(ssh-keygen -lf "$single_key" -E sha256 | awk '{print $2}')
+            if [[ "$fingerprint" == "$DEPLOY_HOST_KEY_SHA256" ]]; then
+              printf '%s\n' "$host_key" >> "$pinned_hosts"
+            fi
+          done < "$known_hosts"
+          test -s "$pinned_hosts"
+          mv "$pinned_hosts" "$known_hosts"
+          rm -f "$single_key"
           export SSHPASS="$DEPLOY_PASSWORD"
           remote="$DEPLOY_USER@$DEPLOY_HOST"
           ssh_options=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=10)

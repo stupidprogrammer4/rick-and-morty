@@ -52,7 +52,11 @@ if "$shared_mysql"; then
 else
     "${compose[@]}" up -d --wait --wait-timeout 180 mysql redis
 fi
-"${compose[@]}" stop worker scheduler api bots
+# Keep the API and gateway alive until workers have drained their deliveries.
+"${compose[@]}" stop scheduler
+"${compose[@]}" stop worker
+"${compose[@]}" stop bots
+"${compose[@]}" stop api
 
 # Preserve the current database before any forward migration.
 backup_file="$root_directory/backups/$(date -u +%Y%m%dT%H%M%SZ)-$revision.sql.gz"
@@ -68,7 +72,24 @@ test -s "$backup_file"
 "${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api worker scheduler bots
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18010/health/live >/dev/null
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18011/health/live >/dev/null
-"${compose[@]}" run --rm --no-deps worker python -m src.cli.live_check
+python3 - "$release_directory/.env.runtime" <<'PYTHON'
+import json
+import sys
+import urllib.request
+from pathlib import Path
+values = dict(line.split("=", 1) for line in Path(sys.argv[1]).read_text().splitlines()
+              if line and not line.startswith("#") and "=" in line)
+owner = min(int(value) for value in values["PORTAL_ADMIN_USER_IDS"].split(","))
+request = urllib.request.Request("http://127.0.0.1:18010/internal/status", headers={
+    "Authorization": "Bearer " + values["PORTAL_SERVICE_KEY"],
+    "X-Portal-Owner": str(owner),
+})
+with urllib.request.urlopen(request, timeout=15) as response:
+    result = json.load(response)
+if not result["success"]:
+    raise SystemExit("Database status gate failed")
+print("Protected database status: reachable")
+PYTHON
 "${compose[@]}" run --rm --no-deps bots python -m portal_bots.webhooks
 ln -sfn "$release_directory" "$root_directory/current.next"
 mv -Tf "$root_directory/current.next" "$root_directory/current"
