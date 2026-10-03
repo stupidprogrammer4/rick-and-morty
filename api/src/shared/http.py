@@ -35,6 +35,26 @@ class SourceHTTPClient:
         token: str = "",
         maximum_bytes: int = 1_000_000,
     ) -> bytes:
+        data = await self.request(
+            "GET",
+            url,
+            allowed_hosts,
+            headers={"Authorization": "Bearer " + token} if token else {},
+            maximum_bytes=maximum_bytes,
+        )
+        return data
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        allowed_hosts: set[str],
+        *,
+        headers: dict[str, str] | None = None,
+        json: dict | None = None,
+        maximum_bytes: int = 1_000_000,
+        timeout: float = 20,
+    ) -> bytes:
         parsed = urlsplit(url)
         if (
             parsed.scheme != "https"
@@ -50,9 +70,15 @@ class SourceHTTPClient:
             address = None
         if address is not None and not address.is_global:
             raise ValueError("Non-public source address")
-        headers = {"Authorization": "Bearer " + token} if token else {}
-        async with self.session.get(
-            url, headers=headers, allow_redirects=False
+        if method not in {"GET", "POST"}:
+            raise ValueError("Unsupported source method")
+        async with self.session.request(
+            method,
+            url,
+            headers=headers,
+            json=json,
+            allow_redirects=False,
+            timeout=aiohttp.ClientTimeout(total=timeout),
         ) as response:
             if response.status != 200:
                 raise ValueError(f"Source returned HTTP {response.status}")

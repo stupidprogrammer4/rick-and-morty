@@ -19,8 +19,10 @@ class Quote(BaseModel):
     basis: str = Field(min_length=1)
     purity: str | None = None
     market: str | None = None
+    timestamp_kind: Literal["source", "fetched"] = "source"
     quoted_at: AwareDatetime
     source_url: HttpUrl
+    sources: list[HttpUrl] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def basis_is_explicit(self):

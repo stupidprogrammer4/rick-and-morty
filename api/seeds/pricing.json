@@ -1,0 +1,481 @@
+{
+  "sources": [
+    {
+      "code": "talaland",
+      "title": "طلالند",
+      "website_url": "https://talaland.net",
+      "primary_color": "#9e2b5a",
+      "switch": "supplier",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "TalalandFetcher": {
+          "endpoint": "https://api.talaland.net/api/getPrice/{username}/{token}/abshode-rasmi",
+          "allowed_hosts": [
+            "api.talaland.net"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "hanzaei",
+      "title": "حنزایی",
+      "website_url": "https://hanzaei.com",
+      "primary_color": "#1f7a8c",
+      "switch": "supplier",
+      "update_type": "event",
+      "active": false,
+      "fetchers": {},
+      "login": {}
+    },
+    {
+      "code": "mirrokni",
+      "title": "میرکنی",
+      "website_url": "https://mirrokni.ir",
+      "primary_color": "#db9416",
+      "switch": "supplier",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "MirrokniFetcher": {
+          "endpoint": "https://pnlapi.mirrokni.ir/api/Home/ShopkeeperItemsList",
+          "allowed_hosts": [
+            "pnlapi.mirrokni.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {
+        "login_url": "https://pnl.mirrokni.ir/auth/LoginPass",
+        "end_sessions_url": "https://pnl.mirrokni.ir/Auth/EndSessions",
+        "profile_url": "https://pnlapi.mirrokni.ir/api/Profile/GetProfile",
+        "shopkeeper_id": "4c8d255e-80b3-ec11-9aaf-00505600229b",
+        "allowed_hosts": [
+          "pnl.mirrokni.ir",
+          "pnlapi.mirrokni.ir"
+        ]
+      }
+    },
+    {
+      "code": "noghresea",
+      "title": "نقره‌سی",
+      "website_url": "https://noghresea.ir",
+      "primary_color": "#8c9196",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "NoghreseaFetcher": {
+          "endpoint": "https://api.noghresea.ir/api/market/getSilverPrice",
+          "allowed_hosts": [
+            "api.noghresea.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "digikala",
+      "title": "دیجی‌کالا",
+      "website_url": "https://www.digikala.com",
+      "primary_color": "#0a712d",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "DigikalaFetcher": {
+          "endpoint": "https://api.digikala.com/non-inventory/v1/prices/",
+          "allowed_hosts": [
+            "api.digikala.com"
+          ],
+          "parameters": {
+            "fee": 0.005
+          }
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "taline",
+      "title": "تلاین",
+      "website_url": "https://tlyn.ir",
+      "primary_color": "#1ab6df",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "TalineFetcher": {
+          "endpoint": "https://price.tlyn.ir/api/v1/price",
+          "allowed_hosts": [
+            "price.tlyn.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "goldika",
+      "title": "گلدیکا",
+      "website_url": "https://goldika.ir",
+      "primary_color": "#6844a9",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "GoldikaFetcher": {
+          "endpoint": "https://api.goldika.ir/api/public/price",
+          "allowed_hosts": [
+            "api.goldika.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "meligold",
+      "title": "ملی‌گلد",
+      "website_url": "https://melligold.com",
+      "primary_color": "#f4778d",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "MeligoldFetcher": {
+          "endpoint": "https://melligold.com/api/v1/exchange/buy-sell-price/",
+          "allowed_hosts": [
+            "melligold.com"
+          ],
+          "parameters": {}
+        },
+        "MeligoldBubbleFetcher": {
+          "endpoint": "https://cms.melligold.com/api/bubble-rates/latest",
+          "allowed_hosts": [
+            "cms.melligold.com"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "miligold",
+      "title": "میلی‌گلد",
+      "website_url": "https://milli.gold",
+      "primary_color": "#84630a",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "MiligoldFetcher": {
+          "endpoint": "https://milli.gold/api/v1/public/milli-price/detail",
+          "allowed_hosts": [
+            "milli.gold"
+          ],
+          "parameters": {
+            "fee": 0.005
+          }
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "technogold",
+      "title": "تکنوگلد",
+      "website_url": "https://technogold.gold",
+      "primary_color": "#2ac180",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "TechnogoldFetcher": {
+          "endpoint": "https://api2.technogold.gold/customer/tradeables/price/",
+          "allowed_hosts": [
+            "api2.technogold.gold"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "wallgold",
+      "title": "وال‌گلد",
+      "website_url": "https://wallgold.ir",
+      "primary_color": "#0c729b",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "WallgoldFetcher": {
+          "endpoint": "https://api.wallgold.ir/api/v1/price?side=buy&symbol=GLD_18C_750TMN",
+          "allowed_hosts": [
+            "api.wallgold.ir"
+          ],
+          "parameters": {
+            "fee": 0.0005
+          }
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "talasea",
+      "title": "طلاسی",
+      "website_url": "https://talasea.ir",
+      "primary_color": "#be88f0",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "TalaseaFetcher": {
+          "endpoint": "https://api.talasea.ir/api/market/getGoldPrice",
+          "allowed_hosts": [
+            "api.talasea.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "tgju",
+      "title": "شبکه اطلاع‌رسانی طلا و ارز",
+      "website_url": "https://www.tgju.org",
+      "primary_color": "#c0a316",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "TgjuFetcher": {
+          "endpoint": "https://call4.tgju.org/ajax.json?rev=pf2MFAghbHqfa4c5jYzDfSq8c8PmqUq4aZatIEutGCv93T8b0rhYJzSfvjI9",
+          "allowed_hosts": [
+            "call4.tgju.org"
+          ],
+          "parameters": {
+            "source_timezone": "Asia/Tehran"
+          }
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "alanchand",
+      "title": "الان چند",
+      "website_url": "https://alanchand.com",
+      "primary_color": "#0f886a",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "AlanchandFetcher": {
+          "endpoint": "https://alanchand.com/gold-price",
+          "allowed_hosts": [
+            "alanchand.com"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "wallex",
+      "title": "والکس",
+      "website_url": "https://wallex.ir",
+      "primary_color": "#f67b65",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "WallexFetcher": {
+          "endpoint": "https://api.wallex.ir/v1/depth?symbol=USDTTMN",
+          "allowed_hosts": [
+            "api.wallex.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "estjt",
+      "title": "اتحادیه طلا و جواهر تهران",
+      "website_url": "https://www.estjt.ir",
+      "primary_color": "#c9541f",
+      "switch": "iran_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "EstjtFetcher": {
+          "endpoint": "https://www.estjt.ir/price/",
+          "allowed_hosts": [
+            "www.estjt.ir"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "gold_api",
+      "title": "Gold-API",
+      "website_url": "https://gold-api.com",
+      "primary_color": "#085dae",
+      "switch": "global_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "GoldApiXauFetcher": {
+          "endpoint": "https://api.gold-api.com/price/XAU",
+          "allowed_hosts": [
+            "api.gold-api.com"
+          ],
+          "parameters": {}
+        },
+        "GoldApiXagFetcher": {
+          "endpoint": "https://api.gold-api.com/price/XAG",
+          "allowed_hosts": [
+            "api.gold-api.com"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    },
+    {
+      "code": "goldprice_dev",
+      "title": "GoldPrice.dev",
+      "website_url": "https://goldprice.dev",
+      "primary_color": "#d87ed5",
+      "switch": "global_market",
+      "update_type": "scheduler",
+      "active": false,
+      "fetchers": {
+        "GoldPriceDevFetcher": {
+          "endpoint": "https://api.goldprice.dev/v1/spot/XAU",
+          "allowed_hosts": [
+            "api.goldprice.dev"
+          ],
+          "parameters": {}
+        }
+      },
+      "login": {}
+    }
+  ],
+  "assets": [
+    {
+      "code": "gold18",
+      "title": "طلای ۱۸ عیار",
+      "description": "مظنه آب‌شده و قیمت هر گرم طلای ۱۸ عیار",
+      "primary_color": "#2a78d6",
+      "switches": [
+        {
+          "switch": "global_market",
+          "priority": 0
+        },
+        {
+          "switch": "supplier",
+          "priority": 0
+        },
+        {
+          "switch": "iran_market",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "silver999",
+      "title": "نقره ۹۹۹",
+      "description": "قیمت هر گرم نقره ۹۹۹",
+      "primary_color": "#8c9196",
+      "switches": [
+        {
+          "switch": "iran_market",
+          "priority": 0
+        }
+      ]
+    },
+    {
+      "code": "usd",
+      "title": "دلار آمریکا",
+      "description": "نرخ برابری دلار آمریکا در برابر ریال",
+      "primary_color": "#eb6834",
+      "switches": [
+        {
+          "switch": "iran_market",
+          "priority": 0
+        }
+      ]
+    }
+  ],
+  "symbols": [
+    {
+      "code": "gold18_gram",
+      "title": "گرم طلای ۱۸ عیار",
+      "description": "قیمت هر گرم طلای ۱۸ عیار به ریال",
+      "asset": "gold18",
+      "currency": "rial",
+      "primary_color": "#1baf7a"
+    },
+    {
+      "code": "gold18_mazane",
+      "title": "مظنه آب‌شده",
+      "description": "قیمت مثقال آب‌شده هفده عیار به ریال",
+      "asset": "gold18",
+      "currency": "rial",
+      "primary_color": "#eda100"
+    },
+    {
+      "code": "silver_gram",
+      "title": "گرم نقره ۹۹۹",
+      "description": "قیمت هر گرم نقره ۹۹۹ به ریال",
+      "asset": "silver999",
+      "currency": "rial",
+      "primary_color": "#8c9196"
+    },
+    {
+      "code": "xau_ounce",
+      "title": "انس جهانی طلا",
+      "description": "قیمت هر اونس طلا در بازار جهانی به دلار",
+      "asset": "gold18",
+      "currency": "usd",
+      "primary_color": "#e87ba4"
+    },
+    {
+      "code": "xag_ounce",
+      "title": "انس جهانی نقره",
+      "description": "قیمت هر اونس نقره در بازار جهانی به دلار",
+      "asset": "silver999",
+      "currency": "usd",
+      "primary_color": "#b9c0c6"
+    },
+    {
+      "code": "usd_rial",
+      "title": "دلار آمریکا",
+      "description": "نرخ برابری دلار آمریکا در برابر ریال",
+      "asset": "usd",
+      "currency": "rial",
+      "primary_color": "#4a3aa7"
+    }
+  ],
+  "bubbles": [
+    {
+      "code": "gold18",
+      "title": "حباب طلای ۱۸ عیار",
+      "description": "اختلاف قیمت بازار با ارزش ذاتی هر گرم طلای ۱۸ عیار"
+    }
+  ],
+  "defaults": {
+    "source_timeout": 10,
+    "asset_interval": 60,
+    "usd_interval": 30,
+    "aggregation": "median",
+    "outlier_rate": 0.1,
+    "min_outlier_sample": 3,
+    "max_quote_age_seconds": 90
+  }
+}

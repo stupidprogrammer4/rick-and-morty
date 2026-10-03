@@ -21,6 +21,7 @@ class MissionModel(PersistenceEntity):
     actor: str = CharField(8)
     intent: str = CharField(16)
     text: str = TextField()
+    automation_key: str | None = CharField(100, default=None, nullable=True)
     status: str = CharField(24, default="queued", index=True)
     stage: str = CharField(32, default="accepted")
     deadline: datetime = TimestampField()

@@ -57,8 +57,15 @@ class PresentationSettings(BaseModel):
     source_label: str
     editorial_label: str
     market_heading: str
+    fetch_time_label: str = "🕒 زمان دریافت"
     quote_time_label: str
     maximum_post_characters: int = Field(ge=200, le=4000)
+    asset_styles: dict[str, "AssetStyle"] = Field(default_factory=dict)
+
+
+class AssetStyle(BaseModel):
+    emoji: str = Field(min_length=1, max_length=32)
+    hashtag: str = Field(min_length=2, max_length=64, pattern=r"^#[\w]+$")
 
 
 class PortalPresentation(PresentationSettings):

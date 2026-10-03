@@ -218,6 +218,7 @@ def portal(tmp_path, monkeypatch):
     for key, value in environment.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
+    sys.modules.pop("src.apps.scheduler", None)
     config = Config("api/alembic.ini")
     config.set_main_option("sqlalchemy.url", owned_url.replace("%", "%%"))
     command.upgrade(config, "head")
@@ -233,6 +234,12 @@ def portal(tmp_path, monkeypatch):
                     Path("api/seeds/defaults.json").read_text()
                 )
             )
+            from papilio.infra.db.uow import MySQLUnitOfWork
+
+            from src.cli.pricing_seed import seed_pricing
+
+            unit = await request.get(MySQLUnitOfWork)
+            await seed_pricing(unit, Path("api/seeds/pricing.json"))
         snapshot = await harness.snapshot()
         policy = snapshot.configuration.portal.model_dump(
             mode="json", exclude={"dry_run"}

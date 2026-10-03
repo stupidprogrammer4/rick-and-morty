@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 from portal_contracts.configuration import (
     AIModelPolicy,
+    AutomationPolicy,
+    MarketEnginePolicy,
     MarketPolicy,
     PortalPolicy,
     SettingKey,
@@ -27,6 +29,8 @@ class SettingValueValidator:
         SettingKey.VOICE: VoiceProfile,
         SettingKey.POST: PostStyle,
         SettingKey.QUOTE: QuoteMapping,
+        SettingKey.AUTOMATION: AutomationPolicy,
+        SettingKey.ENGINE: MarketEnginePolicy,
     }
 
     def validate(

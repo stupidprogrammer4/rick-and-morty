@@ -85,6 +85,10 @@ class AgentToolCommands:
 
     async def react_to_message(self, emoji: ReactionEmoji) -> str:
         mission = await self.authorize()
+        if mission.automation_key is not None:
+            raise conflict(
+                "Scheduled missions have no private message to react to"
+            )
         await self.gateway.react(
             ReactionRequest(
                 role=BotRole(mission.origin_bot),

@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import Literal, Self
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 from portal_contracts.presentation import PortalPresentation
 
@@ -17,6 +17,8 @@ class SettingKey(StrEnum):
     VOICE = "voice"
     POST = "post.style"
     QUOTE = "market.quote"
+    AUTOMATION = "automation.policy"
+    ENGINE = "market.engine"
 
 
 class SettingScope(StrEnum):
@@ -36,7 +38,7 @@ class SettingScope(StrEnum):
 class PortalPolicy(BaseModel):
     channel_id: int | None
     timezone: str
-    daily_post_cap: int = Field(ge=1, le=20)
+    daily_post_cap: int = Field(ge=1, le=100)
     quiet_start: time
     quiet_end: time
     mission_timeout: int = Field(ge=10, le=600)
@@ -87,16 +89,56 @@ class AIModelPolicy(BaseModel):
 
 
 class MarketPolicy(BaseModel):
+    backend: Literal["talamala", "auryx"] = "talamala"
     enabled: bool
     allowed_hosts: set[str] = Field(min_length=1)
     max_age_seconds: int = Field(gt=0, le=86400)
     future_skew_seconds: int = Field(ge=0, le=600)
 
 
+class MarketEnginePolicy(BaseModel):
+    source_timeout: int = Field(ge=1, le=60)
+    asset_interval: int = Field(ge=20, le=300)
+    usd_interval: int = Field(ge=20, le=300)
+    aggregation: Literal[
+        "median", "mean", "min", "max", "first_quartile", "third_quartile"
+    ]
+    asset_scheduler_on: bool
+    usd_scheduler_on: bool
+    bubble_scheduler_on: bool
+    outlier_rate: float = Field(gt=0, le=1)
+    min_outlier_sample: int = Field(ge=3, le=100)
+    max_quote_age_seconds: int = Field(ge=30, le=86400)
+
+
+class ContentSchedule(BaseModel):
+    enabled: bool
+    interval_seconds: int = Field(ge=60, le=604800)
+    starts_at: AwareDatetime
+    topic: str = Field(min_length=1, max_length=64)
+    lookback_seconds: int = Field(ge=60, le=604800)
+    prompt: str = Field(min_length=1, max_length=4000)
+
+
+class AutomationPolicy(BaseModel):
+    owner_id: int | None = Field(default=None, gt=0)
+    news: ContentSchedule
+    prices: ContentSchedule
+
+    @model_validator(mode="after")
+    def enabled_schedules_have_owner(self) -> Self:
+        if (
+            self.news.enabled or self.prices.enabled
+        ) and self.owner_id is None:
+            raise ValueError("Enabled schedules require an owner")
+        return self
+
+
 class PortalConfiguration(BaseModel):
     portal: EffectivePortalPolicy
     ai: AIModelPolicy
     market: MarketPolicy
+    automation: AutomationPolicy
 
 
 class SettingDefinitionCreate(BaseModel):

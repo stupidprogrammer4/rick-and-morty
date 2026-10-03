@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl
 
 from portal_contracts.configuration import (
+    MarketEnginePolicy,
     PortalConfiguration,
     SettingDefinitionCreate,
     SettingScope,
@@ -62,6 +63,7 @@ class ConfigurationSnapshot(BaseModel):
     configuration: PortalConfiguration
     presentation: PortalPresentation
     prices: PriceMapping
+    engine: MarketEnginePolicy
 
 
 class SeedValue(BaseModel):

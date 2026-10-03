@@ -10,7 +10,6 @@ annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 attrs==26.1.0
-bcrypt==5.0.0
 certifi==2026.7.22
 cffi==2.1.1
 click==8.5.0
@@ -29,7 +28,6 @@ httpx==0.28.1
 httpx2==2.13.1
 idna==3.20
 iniconfig==2.3.0
-invoke==3.0.3
 jinja2==3.1.6
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
@@ -46,7 +44,6 @@ orjson==3.12.0
 packaging==26.3
 papilio[db,mcp,server] @ https://codeload.github.com/stupidprogrammer4/papilio/tar.gz/e026dbc9aa335ab4f6cc79f7ff2aecb198bd93ad
 papilio-tasks[scheduler,scheduler-redis] @ https://codeload.github.com/stupidprogrammer4/papilio-tasks/tar.gz/bca239763eab5c0d176b5ac8af9e878edb6997a7
-paramiko==5.0.0
 pluggy==1.6.0
 propcache==0.5.4
 pycparser==3.0
@@ -56,7 +53,6 @@ pydantic-core==2.41.5
 pygments==2.21.0
 pyjwt[crypto]==2.15.1
 pymysql==1.1.2
-pynacl==1.6.2
 pyright==1.1.414
 pytest==9.0.3
 pytest-asyncio==1.3.0
@@ -87,3 +83,7 @@ watchfiles==1.1.1
 websockets==17.1
 yarl==1.25.1
 pip==26.2.1
+beautifulsoup4==4.15.0
+defusedxml==0.7.1
+persiantools==5.5.1
+soupsieve==2.10

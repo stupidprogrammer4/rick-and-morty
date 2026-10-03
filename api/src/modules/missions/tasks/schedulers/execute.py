@@ -1,6 +1,10 @@
 from papilio_tasks.apps.schedulers.backends.redis import RedisScheduler
 
-from src.modules.missions.interfaces import IMissionExecutor, IMissionRecovery
+from src.modules.missions.interfaces import (
+    IMissionExecutor,
+    IMissionRecovery,
+    IScheduledMissionCommands,
+)
 
 
 class ExecuteMission(RedisScheduler):
@@ -19,3 +23,13 @@ class RecoverMissions(RedisScheduler):
 
     async def run(self) -> None:
         await self.recovery.enqueue_pending()
+
+
+class ScheduleContent(RedisScheduler):
+    schedule = [{"interval": 60}]
+
+    def __init__(self, commands: IScheduledMissionCommands):
+        self.commands = commands
+
+    async def run(self) -> None:
+        await self.commands.tick()

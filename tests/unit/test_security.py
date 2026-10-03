@@ -25,7 +25,7 @@ from src.shared.http import PublicResolver, SourceHTTPClient
 )
 async def test_sources_reject_private_and_unconfigured_targets(url):
     class NoNetwork:
-        def get(self, *args, **kwargs):
+        def request(self, *args, **kwargs):
             raise AssertionError("Forbidden URL reached network")
 
     with pytest.raises(ValueError):
@@ -79,7 +79,7 @@ async def test_sources_reject_redirects_and_large_responses(
             pass
 
     class ExternalHTTP:
-        def get(self, url, **kwargs):
+        def request(self, method, url, **kwargs):
             assert kwargs["allow_redirects"] is False
             return Response()
 

@@ -1,6 +1,8 @@
 from portal_contracts.configuration import (
     AIModelPolicy,
+    AutomationPolicy,
     EffectivePortalPolicy,
+    MarketEnginePolicy,
     MarketPolicy,
     PortalConfiguration,
     PortalPolicy,
@@ -102,12 +104,18 @@ class ConfigurationQueries:
             )
         ]
         return ConfigurationSnapshot(
+            engine=MarketEnginePolicy.model_validate_json(
+                value(SettingKey.ENGINE)
+            ),
             configuration=PortalConfiguration(
                 portal=EffectivePortalPolicy(
                     **portal.model_dump(), dry_run=self.runtime.portal.dry_run
                 ),
                 ai=ai,
                 market=market,
+                automation=AutomationPolicy.model_validate_json(
+                    value(SettingKey.AUTOMATION)
+                ),
             ),
             presentation=PortalPresentation(
                 **common.model_dump(), voices=voices, posts=posts

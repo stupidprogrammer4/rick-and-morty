@@ -6,7 +6,9 @@ from pathlib import Path
 from dishka import make_async_container
 from dotenv import load_dotenv
 from papilio.core.config import get_settings
+from papilio.infra.db.uow import MySQLUnitOfWork
 
+from src.cli.pricing_seed import seed_pricing
 from src.config.providers import task_providers
 from src.config.settings import PortalAppSettings
 from src.modules.configuration.domain.dtos import ConfigurationSeed
@@ -21,6 +23,8 @@ async def seed(path: Path) -> None:
         async with container() as request:
             commands = await request.get(IConfigurationCommands)
             await commands.seed(data)
+            uow = await request.get(MySQLUnitOfWork)
+            await seed_pricing(uow, Path("api/seeds/pricing.json"))
     finally:
         await container.close()
     print(

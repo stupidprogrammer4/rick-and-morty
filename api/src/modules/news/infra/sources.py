@@ -4,7 +4,8 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-from xml.etree import ElementTree
+
+from defusedxml import ElementTree
 
 from src.modules.configuration.domain.dtos import NewsSourceCatalog
 from src.modules.news.domain.dtos import (

@@ -1,5 +1,6 @@
 from dishka import Provider, Scope, provide
 
+from portal_contracts.configuration import PortalConfiguration
 from src.modules.market.app.commands import (
     MarketDraftCommands,
     MarketPublicationQuery,
@@ -7,6 +8,7 @@ from src.modules.market.app.commands import (
 from src.modules.market.app.queries import MarketQuery
 from src.modules.market.app.renderer import MarketReportRenderer
 from src.modules.market.app.services import MarketSnapshotService
+from src.modules.market.infra.auryx import AuryxPriceProvider
 from src.modules.market.infra.mysql import MarketSnapshotRepository
 from src.modules.market.infra.site import OwnerSitePriceProvider
 from src.modules.market.interfaces import (
@@ -20,7 +22,18 @@ from src.modules.market.interfaces import (
 
 class MarketProvider(Provider):
     scope = Scope.REQUEST
-    prices = provide(OwnerSitePriceProvider, provides=IPriceProvider)
+    talamala_prices = provide(OwnerSitePriceProvider)
+    auryx_prices = provide(AuryxPriceProvider)
+
+    @provide
+    def prices(
+        self,
+        settings: PortalConfiguration,
+        talamala: OwnerSitePriceProvider,
+        auryx: AuryxPriceProvider,
+    ) -> IPriceProvider:
+        return auryx if settings.market.backend == "auryx" else talamala
+
     market = provide(MarketQuery, provides=IMarketQuery)
     snapshot_repo = provide(MarketSnapshotRepository)
     snapshot_service = provide(

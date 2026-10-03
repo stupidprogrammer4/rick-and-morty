@@ -8,9 +8,13 @@ from portal_contracts.missions import (
     MissionPage,
     PageRequest,
 )
+from src.modules.missions.domain.dtos import ScheduledMissionCreate
 
 
 class IMissionService(Protocol):
+    def create_scheduled(
+        self, data: ScheduledMissionCreate
+    ) -> Awaitable[None]: ...
     def create(self, data: MissionCreate) -> Awaitable[MissionAccepted]: ...
     def get(self, id: int, owner_id: int) -> Awaitable[MissionOut]: ...
     def page(
@@ -29,3 +33,7 @@ class IMissionRecovery(Protocol):
 
 class IMissionAdmission(Protocol):
     def accept(self, data: MissionCreate) -> Awaitable[MissionAccepted]: ...
+
+
+class IScheduledMissionCommands(Protocol):
+    def tick(self) -> Awaitable[None]: ...

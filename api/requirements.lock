@@ -76,3 +76,7 @@ watchfiles==1.1.1
 websockets==17.1
 yarl==1.25.1
 pip==26.2.1
+beautifulsoup4==4.15.0
+defusedxml==0.7.1
+persiantools==5.5.1
+soupsieve==2.10

@@ -17,6 +17,7 @@ def seed() -> ConfigurationSeed:
 def snapshot(seed):
     from portal_contracts.configuration import (
         AIModelPolicy,
+        AutomationPolicy,
         EffectivePortalPolicy,
         MarketPolicy,
         PortalConfiguration,
@@ -34,6 +35,7 @@ def snapshot(seed):
         ),
         ai=AIModelPolicy(**values["ai.model", "global"]),
         market=MarketPolicy(**values["market.policy", "global"]),
+        automation=AutomationPolicy(**values["automation.policy", "global"]),
     )
     presentation = PortalPresentation(
         **values["presentation", "global"],

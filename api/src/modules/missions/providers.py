@@ -3,6 +3,7 @@ from dishka import Provider, Scope, provide
 from src.modules.missions.app.commands import MissionAdmission
 from src.modules.missions.app.execution import MissionExecutor
 from src.modules.missions.app.recovery import MissionRecovery
+from src.modules.missions.app.scheduled import ScheduledMissionCommands
 from src.modules.missions.app.services import MissionService
 from src.modules.missions.infra.mysql import (
     MissionEventRepository,
@@ -13,10 +14,12 @@ from src.modules.missions.interfaces import (
     IMissionExecutor,
     IMissionRecovery,
     IMissionService,
+    IScheduledMissionCommands,
 )
 from src.modules.missions.tasks.schedulers.execute import (
     ExecuteMission,
     RecoverMissions,
+    ScheduleContent,
 )
 
 
@@ -30,3 +33,7 @@ class MissionProvider(Provider):
     recovery = provide(MissionRecovery, provides=IMissionRecovery)
     execute_task = provide(ExecuteMission)
     recovery_task = provide(RecoverMissions)
+    scheduled = provide(
+        ScheduledMissionCommands, provides=IScheduledMissionCommands
+    )
+    schedule_task = provide(ScheduleContent)

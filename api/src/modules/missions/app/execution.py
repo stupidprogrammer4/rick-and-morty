@@ -5,6 +5,8 @@ from html import escape
 
 from papilio.infra.db.transaction import transaction
 
+from portal_contracts.configuration import PortalConfiguration
+from portal_contracts.content import DraftDecision, PublishRequest
 from portal_contracts.enums import BotRole
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.telegram import (
@@ -15,12 +17,14 @@ from src.modules.content.interfaces import IDraftService
 from src.modules.market.domain.dtos import MarketSnapshot
 from src.modules.market.interfaces import IMarketDraftCommands, IMarketQuery
 from src.modules.missions.domain.dtos import MissionChange, MissionClaim
+from src.modules.missions.domain.models import MissionModel
 from src.modules.missions.infra.mysql import MissionRepository
 from src.modules.news.domain.dtos import CollectNews
 from src.modules.news.interfaces import IArticleService
 from src.modules.publishing.domain.models import PrivateReplyModel
 from src.modules.publishing.interfaces import (
     IPrivateReplyService,
+    IPublicationCommands,
     ITelegramGateway,
 )
 from src.modules.rick.domain.dtos import AgentOutcome
@@ -40,6 +44,8 @@ class MissionExecutor:
         replies: IPrivateReplyService,
         gateway: ITelegramGateway,
         presentation: PortalPresentation,
+        settings: PortalConfiguration,
+        publications: IPublicationCommands,
     ):
         self.repo = repo
         self.articles = articles
@@ -50,6 +56,8 @@ class MissionExecutor:
         self.replies = replies
         self.gateway = gateway
         self.presentation = presentation
+        self.settings = settings
+        self.publications = publications
 
     async def execute(self, mission_id: int) -> None:
         async with transaction():
@@ -79,20 +87,8 @@ class MissionExecutor:
             # Snapshot before closing the short claim transaction.
             mission = mission.model_copy()
         role = BotRole(mission.origin_bot)
-        await asyncio.gather(
-            self.gateway.typing(
-                TypingRequest(role=role, chat_id=mission.origin_chat_id)
-            ),
-            self.gateway.react(
-                ReactionRequest(
-                    role=role,
-                    chat_id=mission.origin_chat_id,
-                    message_id=mission.origin_message_id,
-                    emoji=self.presentation.interactions.thinking,
-                )
-            ),
-            return_exceptions=True,
-        )
+        if mission.automation_key is None:
+            await self.interact(mission, role)
         market_snapshot: MarketSnapshot | None = None
         try:
             remaining = (as_utc(mission.deadline) - utc_now()).total_seconds()
@@ -101,11 +97,20 @@ class MissionExecutor:
                     market_snapshot = await self.market.snapshot()
                     outcome = AgentOutcome()
                 elif mission.stage == "accepted" and mission.intent == "news":
+                    rule = self.settings.automation.news
+                    automatic = mission.automation_key is not None
                     evidence = await self.articles.collect(
                         mission.id,
                         CollectNews(
-                            topic=mission.text[:64],
-                            since=utc_now() - timedelta(hours=24),
+                            topic=rule.topic
+                            if automatic
+                            else mission.text[:64],
+                            since=utc_now()
+                            - timedelta(
+                                seconds=rule.lookback_seconds
+                                if automatic
+                                else 86400
+                            ),
                         ),
                     )
                     if not evidence:
@@ -145,24 +150,22 @@ class MissionExecutor:
                         failure_reason=failure,
                     ),
                 )
-                text = self.presentation.voices[role].failed.format(
-                    detail=failure
-                )
-                await self.replies.create(
-                    PrivateReplyModel(
-                        mission_id=mission_id,
-                        owner_id=mission.owner_id,
-                        origin_bot=role,
-                        text=escape(text),
+                if mission.automation_key is None:
+                    text = self.presentation.voices[role].failed.format(
+                        detail=failure
                     )
-                )
+                    await self.replies.create(
+                        PrivateReplyModel(
+                            mission_id=mission_id,
+                            owner_id=mission.owner_id,
+                            origin_bot=role,
+                            text=escape(text),
+                        )
+                    )
             elif outcome.waiting:
                 await self.repo.change(
                     mission_id,
-                    MissionChange(
-                        status="queued",
-                        stage="model",
-                    ),
+                    MissionChange(status="queued", stage="model"),
                 )
                 return
             else:
@@ -184,6 +187,10 @@ class MissionExecutor:
                         f"\n\nپیش‌نویس #{draft.id} · نسخه {draft.revision}"
                         f"\n{draft.title}\n\n{draft.text}"
                     )
+                    if mission.automation_key is not None:
+                        await self.schedule_draft(
+                            current, draft.id, draft.revision
+                        )
                 await self.repo.change(
                     mission_id,
                     MissionChange(
@@ -194,25 +201,63 @@ class MissionExecutor:
                         result=result_text,
                     ),
                 )
-                await self.replies.create(
-                    PrivateReplyModel(
-                        mission_id=mission_id,
-                        owner_id=mission.owner_id,
-                        origin_bot=role,
-                        text=escape(result_text),
-                        draft_id=outcome.draft_id,
-                        revision=outcome.revision,
+                if mission.automation_key is None:
+                    await self.replies.create(
+                        PrivateReplyModel(
+                            mission_id=mission_id,
+                            owner_id=mission.owner_id,
+                            origin_bot=role,
+                            text=escape(result_text),
+                            draft_id=outcome.draft_id,
+                            revision=outcome.revision,
+                        )
                     )
-                )
+        if mission.automation_key is None:
+            await asyncio.gather(
+                self.gateway.react(
+                    ReactionRequest(
+                        role=role,
+                        chat_id=mission.origin_chat_id,
+                        message_id=mission.origin_message_id,
+                        emoji=self.presentation.interactions.failure
+                        if failure
+                        else self.presentation.interactions.success,
+                    )
+                ),
+                return_exceptions=True,
+            )
+
+    async def schedule_draft(
+        self, mission: MissionModel, draft_id: int, revision: int
+    ) -> None:
+        policy = self.settings.automation
+        rule = policy.news if mission.intent == "news" else policy.prices
+        if not rule.enabled or policy.owner_id != mission.owner_id:
+            return
+        role = BotRole(mission.origin_bot)
+        await self.drafts.decide(
+            draft_id,
+            mission.owner_id,
+            DraftDecision(revision=revision, origin_bot=role),
+            approve=True,
+        )
+        await self.publications.schedule(
+            draft_id,
+            mission.owner_id,
+            PublishRequest(revision=revision, origin_bot=role),
+        )
+
+    async def interact(self, mission: MissionModel, role: BotRole) -> None:
         await asyncio.gather(
+            self.gateway.typing(
+                TypingRequest(role=role, chat_id=mission.origin_chat_id)
+            ),
             self.gateway.react(
                 ReactionRequest(
                     role=role,
                     chat_id=mission.origin_chat_id,
                     message_id=mission.origin_message_id,
-                    emoji=self.presentation.interactions.failure
-                    if failure
-                    else self.presentation.interactions.success,
+                    emoji=self.presentation.interactions.thinking,
                 )
             ),
             return_exceptions=True,

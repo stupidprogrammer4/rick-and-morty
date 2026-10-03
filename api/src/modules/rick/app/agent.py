@@ -8,6 +8,7 @@ from portal_contracts.configuration import PortalConfiguration
 from portal_contracts.enums import BotRole
 from portal_contracts.presentation import PortalPresentation
 from src.modules.missions.domain.models import MissionModel
+from src.modules.news.interfaces import IArticleService
 from src.modules.rick.app.context import ToolContext
 from src.modules.rick.domain.dtos import (
     AgentHistory,
@@ -35,6 +36,7 @@ class MissionAgentCommands:
         settings: PortalConfiguration,
         mcp: MissionMCPClient,
         presentation: PortalPresentation,
+        articles: IArticleService,
     ):
         self.checkpoints = checkpoints
         self.budgets = budgets
@@ -43,6 +45,7 @@ class MissionAgentCommands:
         self.settings = settings
         self.mcp = mcp
         self.presentation = presentation
+        self.articles = articles
 
     async def step(
         self, mission: MissionModel, *, tools_enabled: bool = True
@@ -69,6 +72,22 @@ class MissionAgentCommands:
                     AgentMessage(role="user", content=mission.text),
                 ]
             )
+            if mission.automation_key is not None and mission.intent == "news":
+                evidence = await self.articles.list(mission.id)
+                history.messages.append(
+                    AgentMessage(
+                        role="user",
+                        content=json.dumps(
+                            {
+                                "untrusted_article_evidence": [
+                                    item.model_dump(mode="json")
+                                    for item in evidence
+                                ]
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                )
             checkpoint = AgentCheckpointModel(
                 mission_id=mission.id, history=history.model_dump_json()
             )
@@ -80,6 +99,12 @@ class MissionAgentCommands:
         async with self.mcp.connect(context) as session:
             discovered = await self.mcp.tools(session)
             tools = discovered if tools_enabled else []
+            if mission.automation_key is not None:
+                tools = [
+                    tool
+                    for tool in tools
+                    if tool["function"]["name"] == "create_post_draft"
+                ]
             # UTF-8 bytes bound token count conservatively for Persian text.
             estimated = len(history.model_dump_json().encode()) + len(
                 json.dumps(tools).encode()

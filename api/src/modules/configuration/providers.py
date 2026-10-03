@@ -1,6 +1,9 @@
 from dishka import Provider, Scope, provide
 
-from portal_contracts.configuration import PortalConfiguration
+from portal_contracts.configuration import (
+    MarketEnginePolicy,
+    PortalConfiguration,
+)
 from portal_contracts.presentation import PortalPresentation
 from src.modules.configuration.app.commands import ConfigurationCommands
 from src.modules.configuration.app.queries import ConfigurationQueries
@@ -72,6 +75,12 @@ class ConfigurationProvider(Provider):
     @provide
     def price_mapping(self, snapshot: ConfigurationSnapshot) -> PriceMapping:
         return snapshot.prices
+
+    @provide
+    def engine_policy(
+        self, snapshot: ConfigurationSnapshot
+    ) -> MarketEnginePolicy:
+        return snapshot.engine
 
     @provide
     async def news_catalog(
