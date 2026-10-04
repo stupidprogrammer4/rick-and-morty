@@ -28,6 +28,8 @@ def media_provider(url: str) -> str:
         ("youtu.be", "youtube"),
         ("soundcloud.com", "soundcloud"),
         ("spotify.com", "spotify"),
+        ("pinterest.com", "pinterest"),
+        ("pin.it", "pinterest"),
     ):
         if host == domain or host.endswith("." + domain):
             return provider

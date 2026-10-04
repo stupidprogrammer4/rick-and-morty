@@ -4,6 +4,16 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
+MediaExtractor = Literal[
+    "video",
+    "gallery",
+    "browser",
+    "direct",
+    "spotify",
+    "instagram",
+    "pinterest",
+]
+
 
 class MediaPresentation(BaseModel):
     show_avatar: bool = True
@@ -31,6 +41,7 @@ class MediaPresentation(BaseModel):
         "▶️ <b>YouTube</b> · ویدئو، صوت و پلی‌لیست\n"
         "☁️ <b>SoundCloud</b> · آهنگ و پلی‌لیست\n"
         "🟢 <b>Spotify</b> · آهنگ، آلبوم و پلی‌لیست با تطبیق منبع صوت\n"
+        "📌 <b>Pinterest</b> · عکس، ویدئو و اسلایدهای پین\n"
         "🎭 <b>سایت‌های بیشتر</b> · TikTok، Vimeo و منابع دیگر\n\n"
         "🔗 لینک رسانه یا صفحهٔ عمومی را بفرست؛ بررسیش می‌کنم.\n"
         "🔐 بعضی منابع نیازمند ورود یا session هستند.\n"
@@ -64,11 +75,28 @@ class MediaPolicy(BaseModel):
         "instagram",
         "soundcloud",
         "spotify",
+        "pinterest",
         "gallery",
         "video",
         "browser",
         "direct",
     }
+    source_routes: dict[str, list[MediaExtractor]] = Field(
+        default_factory=lambda: {
+            "instagram.reel": ["instagram", "video"],
+            "instagram": ["instagram", "gallery"],
+            "pinterest": ["pinterest"],
+            "youtube": ["video"],
+            "soundcloud": ["video"],
+            "spotify": ["spotify"],
+            "video": ["video", "gallery", "browser"],
+        }
+    )
+    pinterest_api_url: str = (
+        "https://www.pinterest.com/resource/PinResource/get/"
+    )
+    instagram_query_url: str = "https://www.instagram.com/api/graphql"
+    instagram_document_id: str = "27130156389949648"
     max_file_bytes: int = Field(
         default=49_000_000, ge=1_000_000, le=50_000_000
     )
@@ -76,6 +104,8 @@ class MediaPolicy(BaseModel):
     max_duration_seconds: int = Field(default=3600, ge=30, le=14400)
     item_timeout_seconds: int = Field(default=240, ge=30, le=900)
     concurrent_downloads: int = Field(default=2, ge=1, le=4)
+    concurrent_plans: int = Field(default=1, ge=1, le=2)
+    buffered_items: int = Field(default=4, ge=1, le=12)
     source_timeout_seconds: int = Field(default=10, ge=5, le=60)
     source_retries: int = Field(default=0, ge=0, le=3)
     extractor_request_interval: float = Field(default=0, ge=0, le=30)

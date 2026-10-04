@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import json
 import resource
@@ -24,6 +25,12 @@ def plan(request: DownloadProcessRequest) -> DownloadPlan:
 
     errors: list[str] = []
     from src.modules.media.infra.downloaders.browser import BrowserDownloader
+    from src.modules.media.infra.downloaders.instagram import (
+        InstagramDownloader,
+    )
+    from src.modules.media.infra.downloaders.pinterest import (
+        PinterestDownloader,
+    )
 
     engines = {
         "video": VideoDownloader,
@@ -46,6 +53,10 @@ def plan(request: DownloadProcessRequest) -> DownloadPlan:
                 ]
             )
         try:
+            if stage == "instagram":
+                return asyncio.run(InstagramDownloader(request).plan())
+            if stage == "pinterest":
+                return asyncio.run(PinterestDownloader(request).plan())
             return engines[stage](request).plan()
         except Exception as exc:
             errors.append(stage + ": " + str(exc)[:220])
@@ -79,7 +90,9 @@ def main() -> None:
 
                     result = SpotifyDownloader(request).download(request.item)
                 elif request.item.engine == "direct":
-                    result = DirectDownloader(request).download(request.item)
+                    result = asyncio.run(
+                        DirectDownloader(request).download(request.item)
+                    )
                 else:
                     from src.modules.media.infra.downloaders.video import (
                         VideoDownloader,

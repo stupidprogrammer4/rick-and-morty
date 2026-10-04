@@ -30,6 +30,12 @@ class MediaItemCounts(BaseModel):
     pending: int = 0
 
 
+class MediaOccupiedCounts(BaseModel):
+    transfers: int
+    buffered: int
+    plans: int
+
+
 class MediaTransferTicket(BaseModel):
     item_id: int
     job_id: int
@@ -142,17 +148,17 @@ class MediaReader:
             ),
         )
 
-    async def occupied(self, now: datetime) -> int:
+    async def occupied(self, now: datetime) -> MediaOccupiedCounts:
         result = await self.uow.execute(
-            select(func.count())
-            .select_from(MediaItemTable)
+            select(col(MediaItemTable.status), func.count())
             .where(
                 col(MediaItemTable.status).in_(
                     ["reserved", "downloading", "ready", "sending"]
                 )
             )
+            .group_by(col(MediaItemTable.status))
         )
-        transfers = result.scalar_one()
+        counts = {status: count for status, count in result.all()}
         result = await self.uow.execute(
             select(func.count())
             .select_from(MediaJobTable)
@@ -165,7 +171,11 @@ class MediaReader:
                 )
             )
         )
-        return transfers + result.scalar_one()
+        return MediaOccupiedCounts(
+            transfers=counts.get("reserved", 0) + counts.get("downloading", 0),
+            buffered=counts.get("ready", 0) + counts.get("sending", 0),
+            plans=result.scalar_one(),
+        )
 
     async def ready_items(
         self, now: datetime, limit: int

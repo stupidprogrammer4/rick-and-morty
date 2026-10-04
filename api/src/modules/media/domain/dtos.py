@@ -4,10 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from portal_contracts.media import MediaPolicy
+from portal_contracts.media import MediaExtractor, MediaPolicy
 from src.modules.media.domain.models import MediaItemModel, MediaJobModel
 
-DownloadStage = Literal["video", "gallery", "browser", "direct", "spotify"]
+DownloadStage = MediaExtractor
 
 
 class DownloadItem(BaseModel):

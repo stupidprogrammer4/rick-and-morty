@@ -1,3 +1,4 @@
+import json
 import os
 import ssl
 import subprocess
@@ -266,6 +267,21 @@ def external_media(tmp_path, slow_release=None):
         check=True,
     )
     data = audio.read_bytes()
+    mp4 = tmp_path / "sample.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(audio),
+            "-threads",
+            "1",
+            str(mp4),
+        ],
+        check=True,
+    )
     ogg = tmp_path / "sample.ogg"
     subprocess.run(
         [
@@ -286,6 +302,51 @@ def external_media(tmp_path, slow_release=None):
     arrival_lock = threading.Lock()
 
     class Source(BaseHTTPRequestHandler):
+        def do_POST(self):
+            if self.path == "/instagram-query":
+                result = {
+                    "data": {
+                        "xig_polaris_media": {
+                            "if_not_gated_logged_out": {
+                                "caption": {"text": "Owned slides"},
+                                "carousel_media_count": 2,
+                                "carousel_media": [
+                                    {
+                                        "image_versions2": {
+                                            "candidates": [
+                                                {
+                                                    "url": "https://media.portal-test.example/cover.png",
+                                                    "width": 128,
+                                                    "height": 128,
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "image_versions2": {
+                                            "candidates": [
+                                                {
+                                                    "url": "https://media.portal-test.example/cover.png",
+                                                    "width": 128,
+                                                    "height": 128,
+                                                }
+                                            ]
+                                        }
+                                    },
+                                ],
+                            }
+                        }
+                    }
+                }
+                value = json.dumps(result).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(value)))
+                self.end_headers()
+                self.wfile.write(value)
+            else:
+                self.send_error(404)
+
         def do_HEAD(self):
             self.respond(False)
 
@@ -324,12 +385,62 @@ def external_media(tmp_path, slow_release=None):
                 if self.path == "/browser.html"
                 else data
             )
+            if self.path.startswith("/p/"):
+                value = (
+                    b'<html><script>["LSD",[],'
+                    b'{"token":"owned-fixture"}]</script></html>'
+                )
+            if self.path.startswith("/pinterest-api"):
+                value = json.dumps(
+                    {
+                        "resource_response": {
+                            "data": {
+                                "id": "12345",
+                                "title": "Owned pin",
+                                "images": {
+                                    "orig": {
+                                        "url": "https://media.portal-test.example/cover.png"
+                                    }
+                                },
+                            }
+                        }
+                    }
+                ).encode()
+            if self.path == "/pin/54321/":
+                pin = {
+                    "entityId": "54321",
+                    "title": "Owned slide pin",
+                    "storyPinData": {
+                        "pages": [
+                            {
+                                "blocks": [
+                                    {
+                                        "__typename": "StoryPinImageBlock",
+                                        "images_750x": {
+                                            "url": "https://media.portal-test.example/cover.png",
+                                            "width": 750,
+                                            "height": 750,
+                                        },
+                                    }
+                                ],
+                            }
+                            for _ in range(3)
+                        ],
+                    },
+                }
+                payload = {"data": {"v3GetPinQueryv2": {"data": pin}}}
+                value = (
+                    "<script>window.__PWS_RELAY_REGISTER_COMPLETED_REQUEST__("
+                    '"owned-request", ' + json.dumps(payload) + ");</script>"
+                ).encode()
             if self.path == "/cover.png":
                 value = Path(
                     "bots/portal_bots/media/assets/avatar.png"
                 ).read_bytes()
             if self.path == "/direct.ogg":
                 value = ogg.read_bytes()
+            if self.path == "/direct.mp4":
+                value = mp4.read_bytes()
             self.send_response(200)
             self.send_header(
                 "Content-Type",
@@ -339,6 +450,8 @@ def external_media(tmp_path, slow_release=None):
                 if self.path == "/cover.png"
                 else "application/ogg"
                 if self.path == "/direct.ogg"
+                else "video/mp4"
+                if self.path == "/direct.mp4"
                 else "audio/mpeg",
             )
             self.send_header("Content-Length", str(len(value)))
@@ -364,7 +477,11 @@ def external_media(tmp_path, slow_release=None):
         .not_valid_after(now + timedelta(hours=1))
         .add_extension(
             x509.SubjectAlternativeName(
-                [x509.DNSName("media.portal-test.example")]
+                [
+                    x509.DNSName("media.portal-test.example"),
+                    x509.DNSName("www.instagram.com"),
+                    x509.DNSName("www.pinterest.com"),
+                ]
             ),
             critical=False,
         )
@@ -391,6 +508,11 @@ def external_media(tmp_path, slow_release=None):
     thread.start()
     boundary = tmp_path / "external-network"
     boundary.mkdir()
+    hosts = (
+        "media.portal-test.example",
+        "www.instagram.com",
+        "www.pinterest.com",
+    )
     # Redirect only the controlled external hostname; native DB/Redis are real.
     (boundary / "sitecustomize.py").write_text(f"""
 import socket, ssl
@@ -398,7 +520,7 @@ resolve = socket.getaddrinfo
 connect = socket.socket.connect
 load = ssl.SSLContext.load_verify_locations
 def external_resolve(host, port, *args, **kwargs):
-    if host == "media.portal-test.example":
+    if host in {hosts!r}:
         host = "1.1.1.1"
     return resolve(host, port, *args, **kwargs)
 def external_connect(self, address):
@@ -587,7 +709,12 @@ def test_six_tracks_download_concurrently_and_clean_separate_workspaces(
         server.server_close()
 
 
-def test_direct_ogg_is_normalized_for_telegram_audio(portal, tmp_path):
+@pytest.mark.parametrize(
+    ("name", "mode"), [("direct.ogg", "media"), ("direct.mp4", "audio")]
+)
+def test_direct_media_is_normalized_for_telegram_audio(
+    portal, tmp_path, name, mode
+):
     server, boundary = external_media(tmp_path)
     portal.environment["PYTHONPATH"] = (
         str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
@@ -603,7 +730,8 @@ def test_direct_ogg_is_normalized_for_telegram_audio(portal, tmp_path):
                         chat_id=USER,
                         bot_id=140003,
                         update_id=8,
-                        url="https://media.portal-test.example/direct.ogg",
+                        url="https://media.portal-test.example/" + name,
+                        mode=mode,
                     )
                 )
                 return result.job.id
@@ -875,3 +1003,94 @@ def test_recovery_never_replays_unknown_delivery(portal):
     )
     assert result.items[0].message_id is None
     assert not ExternalTelegramHandler.media_files
+
+
+@pytest.mark.parametrize(
+    ("url", "provider", "count"),
+    [
+        ("https://www.pinterest.com/pin/12345/", "pinterest", 1),
+        ("https://www.pinterest.com/pin/54321/", "pinterest", 3),
+        ("https://www.instagram.com/p/ABC/", "instagram", 2),
+    ],
+)
+def test_provider_http_metadata_download_delivery_and_cleanup(
+    portal, tmp_path, url, provider, count
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(tmp_path)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def accept():
+            policy = MediaPolicy(
+                pinterest_api_url="https://media.portal-test.example/pinterest-api",
+                instagram_query_url="https://media.portal-test.example/instagram-query",
+            )
+            await portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                policy.model_dump(mode="json"),
+            )
+            async with portal.request() as request:
+                commands = await request.get(IMediaCommands)
+                accepted = await commands.accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=101,
+                        url=url,
+                    )
+                )
+                assert accepted.job.provider == provider
+                return accepted.job.id
+
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                jobs = await request.get(IMediaJobService)
+                result = await jobs.get(id, USER)
+                return result
+
+        result = portal.until(
+            read,
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=60,
+        )
+        assert (result.status, result.total, result.sent, result.failed) == (
+            "completed",
+            count,
+            count,
+            0,
+        ), result.error
+        assert len(ExternalTelegramHandler.media_files) == count
+        assert all(
+            f["kind"] == "photo" for f in ExternalTelegramHandler.media_files
+        )
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+
+        async def committed():
+            async with portal.request() as request:
+                items = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                assert [row.position for row in items.items] == list(
+                    range(1, count + 1)
+                )
+                assert all(
+                    row.status == "sent" and row.source_url == url
+                    for row in items.items
+                )
+                messages = [row.message_id for row in items.items]
+                assert messages == sorted(messages)
+
+        portal.run(committed())
+    finally:
+        server.shutdown()
+        server.server_close()

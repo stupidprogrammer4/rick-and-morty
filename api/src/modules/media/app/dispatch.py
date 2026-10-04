@@ -39,7 +39,15 @@ class MediaDispatch:
             await self.guard.lock("media-dispatch")
             now = utc_now()
             occupied = await self.reader.occupied(now)
-            free = max(0, self.policy.concurrent_downloads - occupied)
+            free = max(
+                0,
+                min(
+                    self.policy.concurrent_downloads - occupied.transfers,
+                    self.policy.buffered_items
+                    - occupied.transfers
+                    - occupied.buffered,
+                ),
+            )
             transfers = await self.reader.ready_items(now, free)
             transfer_ids = [ticket.item_id for ticket in transfers]
             lease = now + timedelta(
@@ -48,7 +56,7 @@ class MediaDispatch:
             await self.items.reserve_many(transfer_ids, lease)
             pending = await self.jobs.due(self.policy.active_global)
             plan_ids = [job.id for job in pending if job.total == 0][
-                : max(0, free - len(transfers))
+                : max(0, self.policy.concurrent_plans - occupied.plans)
             ]
             await self.jobs.dispatch_many(plan_ids, lease)
             completed = await self.reader.finished_jobs()
