@@ -52,7 +52,10 @@ async def react_to_message(
 
 
 @router.tool(
-    description="Save an evidence-linked draft. This does not publish."
+    description=(
+        "Save one evidence-linked draft containing at most two articles. "
+        "Call this tool once per response. This does not publish."
+    )
 )
 async def create_post_draft(
     draft: NewsDraft, command: FromDishka[IAgentToolCommands]

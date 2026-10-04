@@ -163,7 +163,22 @@ class MissionAgentCommands:
             checkpoint.input_tokens += reply.input_tokens
             calls = reply.message.tool_calls or []
             if len(calls) > 1:
-                raise ValueError("Only one tool per checkpoint is allowed")
+                history.messages.extend(
+                    AgentMessage(
+                        role="tool",
+                        tool_call_id=call.id,
+                        content=(
+                            "No tools were executed. Send only one tool call "
+                            "per response. For news, combine at most two "
+                            "articles into one create_post_draft call."
+                        ),
+                    )
+                    for call in calls
+                )
+                checkpoint.history = history.model_dump_json()
+                async with transaction():
+                    await self.checkpoints.save(checkpoint)
+                return AgentOutcome(waiting=True)
             if calls:
                 call = calls[0]
                 allowed = {tool["function"]["name"] for tool in tools}
