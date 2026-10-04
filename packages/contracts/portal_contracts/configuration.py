@@ -46,6 +46,7 @@ class PortalPolicy(BaseModel):
     mission_timeout: int = Field(ge=10, le=600)
     mission_concurrency: int = Field(ge=1, le=10)
     publication_timeout: int = Field(ge=60, le=86400)
+    task_history_seconds: int = Field(default=3600, ge=60, le=86400)
 
     @model_validator(mode="after")
     def timezone_exists(self) -> Self:

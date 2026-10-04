@@ -45,7 +45,7 @@
     {
       "key": "portal.policy",
       "scope": "global",
-      "value": "{\"channel_id\":null,\"timezone\":\"Asia/Tehran\",\"daily_post_cap\":1,\"quiet_start\":\"23:00:00\",\"quiet_end\":\"09:00:00\",\"mission_timeout\":180,\"mission_concurrency\":2,\"publication_timeout\":1800}"
+      "value": "{\"channel_id\":null,\"timezone\":\"Asia/Tehran\",\"daily_post_cap\":1,\"quiet_start\":\"23:00:00\",\"quiet_end\":\"09:00:00\",\"mission_timeout\":180,\"mission_concurrency\":2,\"publication_timeout\":1800,\"task_history_seconds\":3600}"
     },
     {
       "key": "ai.model",

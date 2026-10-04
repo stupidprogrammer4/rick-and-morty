@@ -25,3 +25,8 @@ class PortalStatus(BaseModel):
     market_enabled: bool
     daily_post_cap: int
     queues: QueueStatus
+
+
+class TaskStreams(BaseModel):
+    main: str
+    media: str

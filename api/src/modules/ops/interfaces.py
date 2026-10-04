@@ -13,3 +13,7 @@ class IPortalGuard(Protocol):
 
 class IPortalStatusQuery(Protocol):
     def get(self) -> Awaitable[PortalStatus]: ...
+
+
+class ITaskHistoryMaintenance(Protocol):
+    def clean(self) -> Awaitable[int]: ...
