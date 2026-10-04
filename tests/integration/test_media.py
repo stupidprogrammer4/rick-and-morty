@@ -100,7 +100,10 @@ def external_media(tmp_path):
                 b'<audio controls src="/two.mp3"></audio></body></html>'
             )
             browser = (
-                b"<html><head><title>Dynamic audio page</title></head>"
+                b"<html><head><title>Dynamic audio page</title>"
+                b'<meta property="og:image" '
+                b'content="https://media.portal-test.example/cover.png">'
+                b"</head>"
                 b"<body><script>const audio = document.createElement('audio');"
                 b"audio.src = 'https://media.portal-test.example/one.mp3';"
                 b"document.body.appendChild(audio);</script></body></html>"
@@ -112,10 +115,18 @@ def external_media(tmp_path):
                 if self.path == "/browser.html"
                 else data
             )
+            if self.path == "/cover.png":
+                value = Path(
+                    "bots/portal_bots/media/assets/avatar.png"
+                ).read_bytes()
             self.send_response(200)
             self.send_header(
                 "Content-Type",
-                "text/html" if self.path.endswith(".html") else "audio/mpeg",
+                "text/html"
+                if self.path.endswith(".html")
+                else "image/png"
+                if self.path == "/cover.png"
+                else "audio/mpeg",
             )
             self.send_header("Content-Length", str(len(value)))
             self.end_headers()

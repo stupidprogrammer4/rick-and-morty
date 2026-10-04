@@ -117,13 +117,10 @@ class BrowserDownloader:
                     """() => [...document.querySelectorAll(
                         'video[src], audio[src], video source[src], '
                         + 'audio source[src], meta[property="og:video"], '
-                        + 'meta[property="og:video:url"], '
-                        + 'meta[property="og:image"]'
+                        + 'meta[property="og:video:url"]'
                     )].map(n => ({url: n.src || n.content,
                         kind: n.tagName === 'AUDIO' ? 'audio'
-                        : n.tagName === 'META'
-                        && n.getAttribute('property') === 'og:image'
-                        ? 'photo' : 'video'}))"""
+                        : 'video'}))"""
                 )
                 for row in rows:
                     if isinstance(row.get("url"), str) and row[
@@ -135,13 +132,7 @@ class BrowserDownloader:
                 browser.close()
         items = []
         for url, value in candidates.items():
-            kind = (
-                "audio"
-                if value == "audio"
-                else "photo"
-                if value == "photo"
-                else "video"
-            )
+            kind = "audio" if value == "audio" else "video"
             if urlsplit(url).path.lower().endswith((".m3u8", ".mpd")):
                 items.append(
                     DownloadItem(
