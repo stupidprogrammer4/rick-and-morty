@@ -4,7 +4,8 @@ WORKDIR /app
 COPY api/requirements.lock /tmp/requirements.lock
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/portal-browsers
 RUN pip install --no-cache-dir -r /tmp/requirements.lock
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libpcre2-8-0 \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libpcre2-8-0)" ge 10.42-1+deb12u2 \
     && python -m playwright install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
 COPY packages/contracts /app/packages/contracts
