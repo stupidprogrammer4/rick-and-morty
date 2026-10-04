@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 
 class MediaPresentation(BaseModel):
@@ -91,6 +91,10 @@ class MediaPolicy(BaseModel):
         "🧹 بعد از ارسال، فایل‌های موقت خودکار پاک می‌شوند.\n\n"
         "👇 از دکمه‌های پایین هم می‌تونی شروع کنی."
     )
+
+    @field_serializer("providers")
+    def ordered_providers(self, value: set[str]) -> list[str]:
+        return sorted(value)
 
 
 class MediaCreate(BaseModel):

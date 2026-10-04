@@ -476,4 +476,6 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     after = portal.run(historical())
     assert after["message_id"] == before["message_id"]
     assert after["pages"] is not None
+    # MySQL may commit empty descendant downgrades before the chart guard.
+    command.upgrade(config, "head")
     command.check(config)
