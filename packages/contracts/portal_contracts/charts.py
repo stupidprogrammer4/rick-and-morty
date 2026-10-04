@@ -25,3 +25,14 @@ class AssetChartPolicy(BaseModel):
     )
     asset_labels: dict[str, str] = Field(default_factory=dict)
     asset_symbols: dict[str, str] = Field(default_factory=dict)
+    asset_display_symbols: dict[str, str] = Field(default_factory=dict)
+    asset_logos: dict[str, str] = Field(default_factory=dict)
+    window_labels: dict[str, str] = Field(default_factory=dict)
+    candle_interval_seconds: int = Field(
+        default=1800, ge=300, le=86400, multiple_of=300
+    )
+    panel_background: str | None = Field(
+        default=None, pattern=r"^#[0-9a-fA-F]{6}$"
+    )
+    price_label: str = Field(default="Latest recorded price", max_length=100)
+    recorded_label: str = Field(default="Recorded", max_length=100)

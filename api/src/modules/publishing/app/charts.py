@@ -9,9 +9,11 @@ from portal_contracts.content import PublicationChartOut, PublicationResolution
 from portal_contracts.enums import BotRole
 from portal_contracts.telegram import TelegramPhotoDelivery
 from src.modules.ops.interfaces import IPortalGuard
-from src.modules.pricing.charts.app.renderer import AssetChartRenderer
 from src.modules.pricing.charts.domain.models import AssetChartCard
-from src.modules.pricing.charts.interfaces import IAssetChartQuery
+from src.modules.pricing.charts.interfaces import (
+    IAssetChartQuery,
+    IAssetChartRenderer,
+)
 from src.modules.publishing.app.policy import PublicationPolicy
 from src.modules.publishing.domain.models import (
     PublicationChartModel,
@@ -32,7 +34,7 @@ class PublicationChartCommands:
         repo: PublicationChartRepository,
         reader: PublicationChartReader,
         query: IAssetChartQuery,
-        renderer: AssetChartRenderer,
+        renderer: IAssetChartRenderer,
         settings: PortalConfiguration,
         guard: IPortalGuard,
         gateway: ITelegramGateway,
@@ -104,7 +106,7 @@ class PublicationChartCommands:
             row.lease_expires_at = now + timedelta(seconds=60)
             await self.repo.save(row)
         try:
-            image = await asyncio.to_thread(self.renderer.render, card)
+            image = await self.renderer.render(card)
         except Exception:
             async with transaction():
                 row = await self.repo.locked(chart_id)

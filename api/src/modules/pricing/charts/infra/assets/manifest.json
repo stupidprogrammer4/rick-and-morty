@@ -1,0 +1,20 @@
+{
+  "versions": {
+    "lightweight-charts": "5.0.9",
+    "apexcharts": "3.54.1",
+    "Vazirmatn": "33.003"
+  },
+  "sha256": {
+    "APEXCHARTS-LICENSE.txt": "4db98d106f5a157d60b24d49a4852156542ef58e08f1034e8a3b6d63e53e2241",
+    "LIGHTWEIGHT-CHARTS-LICENSE.txt": "70c9d5382506dd184465425c08a99ad9bd6d9ac1313c252968ba0b585e5ef823",
+    "LIGHTWEIGHT-CHARTS-NOTICE.txt": "f76c6afab94884448f0426e30d6e9d555ca7247894cd3484e477d2f87513036e",
+    "VAZIRMATN-LICENSE.txt": "e6f4ce7b6c830d5a25a4f8ac777c267cd7d3c180bc2a7150ca57cbb9b280c4b7",
+    "Vazirmatn.woff2": "e382101336c6eb32cfb31381c027d02d2e0354bad08f6a395d4088beb3db3d91",
+    "apexcharts.js": "56fb1229fe77c8cc66f31ea125bea9ed37a3840c97b66a23e44c851cff717b2b",
+    "gold.svg": "931d45c3ac1c339f66ba2b684a564e22d3d1a7fc5ed0f48acc983853d4f31f54",
+    "lightweight-charts.js": "e6bd6516d9ab9cb897c0d6438e3fe1126f2fdce07e68c23836e84d527de81f52",
+    "silver.svg": "cf3e3aac88fac5753105e301150b2f3ad2238cc9b4cb383329fde67d03641de5",
+    "usd.svg": "4e536e22338799bdb90361567aba2e84fe17243b8f3782a1404f82311f44f2d0",
+    "usdt.svg": "1bf576c9ef64ef10b0bf85002ab832b12f089ce25712fe03910efdf68e51b26d"
+  }
+}
