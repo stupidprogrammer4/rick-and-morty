@@ -90,6 +90,41 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+  media-worker:
+    <<: *api
+    command: ["taskiq", "worker", "src.apps.media:broker", "--workers", "1", "--max-async-tasks", "1"]
+    mem_limit: 640m
+    cpus: 0.75
+    pids_limit: 160
+    environment:
+      PORTAL_DATABASE_URL: ${PORTAL_DATABASE_URL:?Set PORTAL_DATABASE_URL}
+      PORTAL_REDIS_URL: ${PORTAL_REDIS_URL:-redis://redis:6379/0}
+      PORTAL_SERVICE_KEY: ${PORTAL_SERVICE_KEY:?Set PORTAL_SERVICE_KEY}
+      PORTAL_ADMIN_USER_IDS: ${PORTAL_ADMIN_USER_IDS:?Set PORTAL_ADMIN_USER_IDS}
+      SPOTIPY_CLIENT_ID: ${SPOTIPY_CLIENT_ID:-}
+      SPOTIPY_CLIENT_SECRET: ${SPOTIPY_CLIENT_SECRET:-}
+      PAPILIO_CONFIG: config.yml
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - media-data:/app/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+  media-scheduler:
+    <<: *api
+    networks: [database]
+    mem_limit: 160m
+    command: ["taskiq", "scheduler", "src.apps.media:scheduler", "--update-interval", "5"]
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - media-data:/app/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
   bots:
     image: ${PORTAL_BOTS_IMAGE:-portal-bots:local}
     security_opt: ["no-new-privileges:true"]
@@ -100,6 +135,8 @@ services:
     environment:
       RICK_TG_BOT: ${RICK_TG_BOT:?Set RICK_TG_BOT}
       MORTY_TG_BOT: ${MORTY_TG_BOT:?Set MORTY_TG_BOT}
+      MEDIA_DOWNLOADER_TG_BOT: ${MEDIA_DOWNLOADER_TG_BOT:-}
+      PORTAL_MEDIA_WEBHOOK_SECRET: ${PORTAL_MEDIA_WEBHOOK_SECRET:-}
       PORTAL_SERVICE_KEY: ${PORTAL_SERVICE_KEY:?Set PORTAL_SERVICE_KEY}
       PORTAL_RICK_WEBHOOK_SECRET: ${PORTAL_RICK_WEBHOOK_SECRET:?Set PORTAL_RICK_WEBHOOK_SECRET}
       PORTAL_MORTY_WEBHOOK_SECRET: ${PORTAL_MORTY_WEBHOOK_SECRET:?Set PORTAL_MORTY_WEBHOOK_SECRET}
@@ -107,6 +144,8 @@ services:
       PORTAL_API_URL: http://api:8000
       PORTAL_WEBHOOK_BASE_URL: ${PORTAL_WEBHOOK_BASE_URL:-https://bot.amupouya.org}
     networks: [application]
+    volumes:
+      - media-data:/app/data/media:ro
     depends_on:
       api:
         condition: service_healthy
@@ -122,6 +161,7 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  media-data:
 networks:
   application:
   database:

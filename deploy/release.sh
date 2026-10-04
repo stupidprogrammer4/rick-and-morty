@@ -54,6 +54,8 @@ else
 fi
 # Keep the API and gateway alive until workers have drained their deliveries.
 "${compose[@]}" stop scheduler
+"${compose[@]}" stop media-scheduler
+"${compose[@]}" stop media-worker
 "${compose[@]}" stop worker
 "${compose[@]}" stop bots
 "${compose[@]}" stop api
@@ -69,7 +71,7 @@ else
 fi
 test -s "$backup_file"
 "${compose[@]}" run --rm --no-deps migrate
-"${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api worker scheduler bots
+"${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api worker scheduler media-worker media-scheduler bots
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18010/health/live >/dev/null
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18011/health/live >/dev/null
 python3 - "$release_directory/.env.runtime" <<'PYTHON'

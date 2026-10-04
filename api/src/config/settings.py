@@ -24,12 +24,18 @@ class MarketCredentials(BaseModel):
     token: SecretStr = SecretStr("")
 
 
+class MediaRuntimeSettings(BaseModel):
+    directory: str = "data/media"
+    cookie_files: dict[str, str] = Field(default_factory=dict)
+
+
 class PortalAppSettings(Settings):
     security: SecuritySettings
     portal: TransportSettings = Field(default_factory=TransportSettings)
     ai: ModelCredentials = Field(default_factory=ModelCredentials)
     market: MarketCredentials = Field(default_factory=MarketCredentials)
     tasks: RedisSettings
+    media: MediaRuntimeSettings = Field(default_factory=MediaRuntimeSettings)
 
     @model_validator(mode="before")
     @classmethod

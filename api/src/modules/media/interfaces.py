@@ -1,0 +1,89 @@
+from collections.abc import Awaitable, Sequence
+from datetime import datetime
+from typing import Protocol
+
+from portal_contracts.media import (
+    MediaAccepted,
+    MediaCreate,
+    MediaFileDelivery,
+    MediaFileResult,
+    MediaItemPage,
+    MediaJobOut,
+    MediaJobPage,
+)
+from src.modules.media.domain.dtos import (
+    DownloadedFile,
+    DownloadItem,
+    DownloadPlan,
+    MediaItemChange,
+    MediaJobChange,
+)
+from src.modules.media.domain.models import MediaItemModel, MediaJobModel
+
+
+class IMediaJobService(Protocol):
+    def record(
+        self, id: int, lock: bool = False
+    ) -> Awaitable[MediaJobModel]: ...
+    def get(self, id: int, owner_id: int) -> Awaitable[MediaJobOut]: ...
+    def create(
+        self, data: MediaCreate, provider: str
+    ) -> Awaitable[MediaAccepted]: ...
+    def change(self, id: int, data: MediaJobChange) -> Awaitable[None]: ...
+    def due(self, limit: int) -> Awaitable[Sequence[MediaJobModel]]: ...
+    def expired(self, now: datetime) -> Awaitable[Sequence[MediaJobModel]]: ...
+    def requeue_many(self, ids: Sequence[int]) -> Awaitable[None]: ...
+    def dispatch_many(
+        self, ids: Sequence[int], lease_until: datetime
+    ) -> Awaitable[None]: ...
+
+
+class IMediaItemService(Protocol):
+    def create_many(
+        self, job_id: int, plan: DownloadPlan
+    ) -> Awaitable[None]: ...
+    def next(self, job_id: int) -> Awaitable[MediaItemModel | None]: ...
+    def get(self, id: int) -> Awaitable[MediaItemModel]: ...
+    def change(self, id: int, data: MediaItemChange) -> Awaitable[None]: ...
+    def interrupt(self, job_id: int) -> Awaitable[None]: ...
+    def interrupt_many(self, ids: Sequence[int]) -> Awaitable[None]: ...
+
+
+class IMediaCommands(Protocol):
+    def accept(self, data: MediaCreate) -> Awaitable[MediaAccepted]: ...
+    def cancel(self, id: int, owner_id: int) -> Awaitable[MediaJobOut]: ...
+
+
+class IMediaQueries(Protocol):
+    def page(
+        self, owner_id: int, page: int, per_page: int
+    ) -> Awaitable[MediaJobPage]: ...
+    def items(
+        self, id: int, owner_id: int, page: int, per_page: int
+    ) -> Awaitable[MediaItemPage]: ...
+    def authorize_file(self, data: MediaFileDelivery) -> Awaitable[bool]: ...
+
+
+class IMediaExecutor(Protocol):
+    def execute(self, job_id: int) -> Awaitable[None]: ...
+
+
+class IMediaMaintenance(Protocol):
+    def recover(self) -> Awaitable[None]: ...
+    def clean(self) -> Awaitable[None]: ...
+
+
+class IMediaDownloader(Protocol):
+    def plan(self, job: MediaJobModel) -> Awaitable[DownloadPlan]: ...
+    def download(
+        self, job: MediaJobModel, item: DownloadItem
+    ) -> Awaitable[DownloadedFile]: ...
+
+
+class IMediaWorkspace(Protocol):
+    def prepare(self, id: int) -> Awaitable[None]: ...
+
+
+class IMediaGateway(Protocol):
+    def send(self, data: MediaFileDelivery) -> Awaitable[MediaFileResult]: ...
+    def notify(self, owner_id: int, text: str) -> Awaitable[None]: ...

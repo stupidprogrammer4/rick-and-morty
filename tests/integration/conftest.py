@@ -34,6 +34,9 @@ OWNER = 140001
 
 
 class ExternalTelegramHandler(BaseHTTPRequestHandler):
+    media_files = []
+    media_delivery_status = "sent"
+    media_directory = None
     messages = []
     photos = []
     photo_attempts = []
@@ -59,6 +62,18 @@ class ExternalTelegramHandler(BaseHTTPRequestHandler):
                 "message_id": 100 + len(self.photos)
                 if status == "sent"
                 else None,
+            }
+        elif self.path == "/internal/media/files":
+            assert self.media_directory is not None
+            path = (
+                self.media_directory / str(body["job_id"]) / body["filename"]
+            )
+            assert path.is_file() and path.stat().st_size > 0
+            type(self).media_files.append(body)
+            response = {
+                "status": self.media_delivery_status,
+                "message_id": 200 + len(self.media_files),
+                "file_id": "external-test-media-file",
             }
         else:
             response = {"ok": True}
@@ -114,7 +129,7 @@ class Harness:
             result = await query.snapshot()
         return result
 
-    def start_workers(self):
+    def start_workers(self, application="src.apps.scheduler"):
         env = {**os.environ, **self.environment}
         worker_log = self.config_path.with_suffix(".worker.log").open("w+")
         scheduler_log = self.config_path.with_suffix(".scheduler.log").open(
@@ -126,11 +141,11 @@ class Harness:
                 "-m",
                 "taskiq",
                 "worker",
-                "src.apps.scheduler:broker",
+                application + ":broker",
                 "--workers",
                 "1",
                 "--max-async-tasks",
-                "8",
+                "1" if application == "src.apps.media" else "8",
             ],
             env=env,
             stdout=worker_log,
@@ -142,7 +157,7 @@ class Harness:
                 "-m",
                 "taskiq",
                 "scheduler",
-                "src.apps.scheduler:scheduler",
+                application + ":scheduler",
                 "--update-interval",
                 "5",
             ],
@@ -171,7 +186,7 @@ class Harness:
 
 
 @pytest.fixture
-def portal(tmp_path, monkeypatch):
+def portal(tmp_path, tmp_path_factory, monkeypatch):
     database_url = os.getenv("PORTAL_TEST_DATABASE_URL")
     redis_url = os.getenv("PORTAL_TEST_REDIS_URL")
     if not database_url or not redis_url:
@@ -200,6 +215,10 @@ def portal(tmp_path, monkeypatch):
     ExternalTelegramHandler.photo_attempts = []
     ExternalTelegramHandler.photo_delivery_status = "sent"
     ExternalTelegramHandler.delivery_status = "sent"
+    ExternalTelegramHandler.media_files = []
+    ExternalTelegramHandler.media_delivery_status = "sent"
+    media_directory = tmp_path_factory.mktemp("media")
+    ExternalTelegramHandler.media_directory = media_directory
     gateway = ThreadingHTTPServer(("127.0.0.1", 0), ExternalTelegramHandler)
     thread = threading.Thread(target=gateway.serve_forever, daemon=True)
     thread.start()
@@ -207,6 +226,7 @@ def portal(tmp_path, monkeypatch):
     raw = yaml.safe_load(Path("config.yml.sample").read_text())
     raw["db"]["dsn"] = owned_url
     raw["portal"]["gateway_url"] = f"http://127.0.0.1:{gateway.server_port}"
+    raw["media"] = {"directory": str(media_directory)}
     raw["tasks"].update(
         url=redis_url,
         queue_name=namespace + ":jobs",
@@ -238,6 +258,7 @@ def portal(tmp_path, monkeypatch):
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
     sys.modules.pop("src.apps.scheduler", None)
+    sys.modules.pop("src.apps.media", None)
     config = Config("api/alembic.ini")
     config.set_main_option("sqlalchemy.url", owned_url.replace("%", "%%"))
     command.upgrade(config, "head")
@@ -291,6 +312,9 @@ def portal(tmp_path, monkeypatch):
             scheduler_module = sys.modules.pop("src.apps.scheduler", None)
             if scheduler_module is not None:
                 await scheduler_module.app.stop()
+            media_module = sys.modules.pop("src.apps.media", None)
+            if media_module is not None:
+                await media_module.app.stop()
             client = Redis.from_url(redis_url)
             keys = await client.keys(namespace + "*")
             if keys:

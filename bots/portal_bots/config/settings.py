@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 class BotSettings(BaseModel):
+    media_token: SecretStr | None = None
+    media_webhook_secret: SecretStr | None = Field(default=None, min_length=32)
+    media_directory: str = "data/media"
     rick_token: SecretStr
     morty_token: SecretStr
     rick_webhook_secret: SecretStr = Field(min_length=32)
@@ -18,6 +21,19 @@ class BotSettings(BaseModel):
 
     @model_validator(mode="after")
     def independent_identities(self):
+        if self.media_token is not None:
+            if (
+                self.media_token in {self.rick_token, self.morty_token}
+                or self.media_webhook_secret is None
+            ):
+                raise ValueError(
+                    "Media needs its own token and webhook secret"
+                )
+            if self.media_webhook_secret in {
+                self.rick_webhook_secret,
+                self.morty_webhook_secret,
+            }:
+                raise ValueError("Media webhook secret must be independent")
         if self.rick_token == self.morty_token:
             raise ValueError("Rick and Morty need distinct bot tokens")
         if self.rick_webhook_secret == self.morty_webhook_secret:
@@ -28,6 +44,13 @@ class BotSettings(BaseModel):
     def from_env(cls):
         load_dotenv(os.getenv("PORTAL_ENV_FILE", ".env"))
         return cls(
+            media_token=SecretStr(token)
+            if (token := os.getenv("MEDIA_DOWNLOADER_TG_BOT"))
+            else None,
+            media_webhook_secret=SecretStr(secret)
+            if (secret := os.getenv("PORTAL_MEDIA_WEBHOOK_SECRET"))
+            else None,
+            media_directory=os.getenv("PORTAL_MEDIA_DIRECTORY", "data/media"),
             rick_token=SecretStr(
                 os.getenv(
                     "PORTAL_RICK_BOT_TOKEN", os.getenv("RICK_TG_BOT", "")

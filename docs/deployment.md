@@ -24,7 +24,7 @@ Verify all of the following before the first release:
 ## HTTPS ingress
 
 `deploy/nginx.conf` is a complete host Nginx virtual-host template.
-`deploy/nginx-locations.conf` supplies just the two webhook locations for an
+`deploy/nginx-locations.conf` supplies the webhook locations for an
 existing TLS server block. Choose the form matching the inspected server.
 Use a certificate covering `bot.amupouya.org`; the full template expects
 `/etc/letsencrypt/live/bot.amupouya.org/`. Its HTTP challenge root is
@@ -148,3 +148,36 @@ deliveries; use compatible code or a verified backup with an explicit recovery
 decision.
 Chart schedules retain microseconds so immediately due sends are not rounded
 into a future second by MySQL.
+
+## Public media bot
+
+The media release requires `20261004_media` before either media service starts.
+It adds independent jobs/items tables and preserves existing settings, market
+history, missions and publications. Downgrade refuses recorded download history.
+The seed creates missing `media.policy/global` without overwriting edited values.
+
+Install the updated shared-MySQL override when using an existing database.
+`media-worker` and `media-scheduler` discover their native queues from the media
+application; the ordinary mission worker does not execute downloads. Their
+shared `media-data` volume is writable by UID 10001 and mounted read-only in
+the bot gateway. The image includes FFmpeg and Chromium headless shell.
+Allow for the browser's additional memory and image storage; only one download
+executes at a time on the supplied small-server configuration.
+
+Set the new bot token and its independent webhook secret in the private runtime
+environment. Add the exact `/telegram/media` ingress, validate Nginx and reload
+the existing service. Register webhooks with the normal release command. The
+downloader is public in private chats; Rick/Morty administrative access stays
+allowlisted. Users must start the downloader before it can send them files.
+
+For sources requiring an authorized session, mount Netscape-format cookie files
+read-only into the media worker and map provider names to their container paths
+under `media.cookie_files` in the private configuration. Cookies must never enter
+Git or images. Optional `SPOTIPY_CLIENT_ID` and `SPOTIPY_CLIENT_SECRET` use the
+free Spotify Web API for full collection metadata, not Spotify audio delivery.
+
+Verify a complete small playlist, owned cancellation, persisted message IDs,
+temporary-file deletion and container memory/restarts after activation. Known
+Telegram rate limits wait before retry; ambiguous sends remain recorded without
+automatic replay. A failed extraction may require a source session or a permitted
+network path; installing a browser does not guarantee access to every service.

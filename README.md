@@ -9,6 +9,10 @@ Price reports support inline page navigation, asset-specific emojis and tags,
 linked providers and separate buy/sell rates. Each calculated asset can include
 a PNG with its closing-price line and OHLC history alongside the hourly report.
 
+AMU Downloader is a separate public bot for private media downloads. Its welcome
+image, emoji menu, progress cards and paginated history accompany downloads from
+Instagram, YouTube, SoundCloud, Spotify and other supported public sources.
+
 ## Components
 
 | Directory | Responsibility |
@@ -104,6 +108,34 @@ Channel publication initially uses `PORTAL_DRY_RUN=true` and has no destination.
 Update the complete `portal.policy/global` record with a negative channel ID,
 then set the private environment's dry-run flag to `false` and recreate API,
 worker and scheduler. The shared daily cap and quiet hours still apply.
+
+## Public media downloader
+
+Set `MEDIA_DOWNLOADER_TG_BOT` and an independent
+`PORTAL_MEDIA_WEBHOOK_SECRET`, then expose `/telegram/media` through HTTPS.
+Start the downloader with `/start`; send a public HTTPS link or use its menu.
+`/audio URL` requests audio. `/jobs`, `/status ID` and `/cancel ID` operate only
+on the requesting user's private downloads.
+
+Instagram posts include all discovered carousel slides, in order. YouTube and
+SoundCloud collections are processed item by item; collections exceeding the
+configured limit are rejected rather than silently truncated. Spotify supplies
+track metadata and searches for matching public audio from another source; the
+file caption identifies its actual source. Configure optional free Spotify API
+credentials to enumerate complete collections when public embeds are incomplete.
+Login-only sources need an authorized cookie file; DRM and live streams are
+unsupported. Extraction can also fail because a source blocks the server.
+
+The database record `media.policy/global` owns quotas, enabled providers, size
+and duration limits, disk reserves and the welcome/menu presentation. Read or
+update it through the administrator's existing settings commands. Credentials,
+cookie paths and the shared volume remain private infrastructure configuration.
+
+The extractor SDKs run first; a bounded Playwright browser handles supported
+dynamic pages when extraction fails. Downloads and codecs run in killable child
+processes on a separate native Papilio Tasks worker. Temporary files are removed
+after every item; scheduled cleanup removes aged inactive job directories.
+Uncertain Telegram deliveries are recorded and never automatically resent.
 
 ## Verification
 

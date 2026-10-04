@@ -12,7 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       mysql:
         image: mysql:8.4.10
@@ -45,6 +45,11 @@ jobs:
           .venv/bin/python -m pip install -r api/requirements-dev.lock -r bots/requirements.lock
           .venv/bin/python -m pip install --no-deps -e packages/contracts -e api -e bots
           .venv/bin/python -m pip check
+      - name: Install media codecs and headless browser for native workflows
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          .venv/bin/python -m playwright install --with-deps --only-shell chromium
       - name: Check formatting, types and publication contents
         run: |
           .venv/bin/ruff check api bots packages tests

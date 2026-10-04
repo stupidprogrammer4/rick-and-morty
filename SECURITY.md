@@ -2,7 +2,7 @@
 
 ## Exposure and credentials
 
-Public Nginx ingress exposes only the two webhook routes and a minimal liveness
+Public Nginx ingress exposes only the webhook routes and a minimal liveness
 endpoint. API and bot internal routes bind to host loopback through Compose.
 MySQL and Redis have no host ports and use an internal Docker network. The bot
 container has no database credentials or model key. Python containers run as
@@ -15,6 +15,12 @@ the API checks a sent publication's bot role, channel, message and page before
 returning its frozen public text. They cannot approve, publish or change settings.
 Callbacks retain the originating bot and draft revision. Internal service calls
 use a long random bearer key and validate the owner where applicable.
+
+The separate media bot accepts public users only in their own private chat.
+Every history, cancellation and file-delivery request verifies that owner.
+Per-user/global admission quotas serialize through native MySQL transactions.
+File delivery additionally verifies the running job, sending item and exact
+generated filename; the gateway cannot browse arbitrary shared-volume paths.
 
 Private environments, configuration, server credentials and backups are excluded
 from Git and image contexts. CI scans committed history with redacted Gitleaks
@@ -45,6 +51,24 @@ delivery slots have separate transactional reservations.
 Chart delivery accepts bounded PNG bytes over authenticated internal transport,
 without fetching image URLs. Photo sends have separate persisted states; an
 ambiguous send is never automatically repeated.
+
+## Media extraction
+
+Download children receive only the extractor runtime environment and optional
+provider credentials, not database, model, Telegram or service secrets. Their
+Python network connections validate public DNS answers and actual destination
+addresses on port 443, including redirects. Browser requests are fulfilled through
+that guarded HTTPS transport; direct browser DNS, WebSockets and service workers
+are disabled. Codec input permits only local file/pipe protocols. These controls
+are defenses, not a claim that third-party extractors are a complete sandbox.
+
+Subprocess deadlines, process-group termination, container CPU/memory/process
+limits, file-size checks and database quotas bound work. Shared files are streamed
+to Telegram without buffering whole downloads in the event loop. Completed-item
+workspaces are deleted; the cleaner preserves active jobs and removes only aged
+numeric job directories. Cookie files are private and source credentials are never
+requested through the public bot. Do not supply sessions with access beyond the
+media sources you intend the worker to read.
 
 ## Operational controls and residual risks
 

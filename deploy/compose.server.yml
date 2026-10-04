@@ -27,6 +27,16 @@ services:
     mem_limit: 192m
   bots:
     mem_limit: 256m
+  media-worker:
+    networks: [application, database, shared_mysql]
+    depends_on: !override
+      redis:
+        condition: service_healthy
+  media-scheduler:
+    networks: [database, shared_mysql]
+    depends_on: !override
+      redis:
+        condition: service_healthy
   redis:
     mem_limit: 96m
     command: [redis-server, --appendonly, 'yes', --appendfsync, everysec, --maxmemory, 64mb, --maxmemory-policy, noeviction]
