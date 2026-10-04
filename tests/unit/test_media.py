@@ -2,8 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from portal_contracts.media import MediaCreate
-from src.modules.media.app.commands import media_provider
-from src.modules.media.infra.downloaders.network import public_address
+from src.modules.media.downloads.app.commands import media_provider
+from src.modules.media.sources.infra.downloaders.network import public_address
 
 
 @pytest.mark.parametrize(

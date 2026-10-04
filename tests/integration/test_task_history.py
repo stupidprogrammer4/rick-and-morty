@@ -24,7 +24,7 @@ async def populate(client, stream):
 
 
 def test_retention_preserves_pending_unread_and_other_consumer_groups(portal):
-    from src.modules.ops.interfaces import ITaskHistoryMaintenance
+    from src.modules.ops.queues.interfaces import ITaskHistoryMaintenance
 
     async def workflow():
         client = Redis.from_url(portal.settings.tasks.url)

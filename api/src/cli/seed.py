@@ -11,8 +11,8 @@ from papilio.infra.db.uow import MySQLUnitOfWork
 from src.cli.pricing_seed import seed_pricing
 from src.config.providers import task_providers
 from src.config.settings import PortalAppSettings
-from src.modules.configuration.domain.dtos import ConfigurationSeed
-from src.modules.configuration.interfaces import IConfigurationCommands
+from src.modules.ops.settings.domain.dtos import ConfigurationSeed
+from src.modules.ops.settings.interfaces import IConfigurationCommands
 
 
 async def seed(path: Path) -> None:

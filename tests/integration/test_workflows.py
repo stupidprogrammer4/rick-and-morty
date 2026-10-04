@@ -15,14 +15,17 @@ from portal_contracts.content import (
 )
 from portal_contracts.enums import Actor, BotRole, Category, Intent
 from portal_contracts.missions import MissionCreate
-from src.modules.configuration.domain.dtos import ConfigurationSeed
-from src.modules.configuration.interfaces import (
+from src.modules.automation.missions.interfaces import (
+    IMissionAdmission,
+    IMissionService,
+)
+from src.modules.content.drafts.interfaces import IDraftService
+from src.modules.content.publications.interfaces import IPublicationCommands
+from src.modules.ops.settings.domain.dtos import ConfigurationSeed
+from src.modules.ops.settings.interfaces import (
     IConfigurationCommands,
     ISettingValueService,
 )
-from src.modules.content.interfaces import IDraftService
-from src.modules.missions.interfaces import IMissionAdmission, IMissionService
-from src.modules.publishing.interfaces import IPublicationCommands
 
 OWNER = 140001
 pytestmark = pytest.mark.integration
@@ -201,7 +204,7 @@ def test_native_scheduler_queue_worker_and_private_delivery(portal):
         from papilio.infra.db.uow import MySQLUnitOfWork
         from sqlalchemy import select
 
-        from src.modules.publishing.infra.tables import PrivateReplyTable
+        from src.modules.content.replies.infra.tables import PrivateReplyTable
 
         async with portal.request() as request:
             unit = await request.get(MySQLUnitOfWork)
@@ -259,7 +262,9 @@ async def dispatch_publication(portal, id):
 
 
 async def publication_status(portal, id):
-    from src.modules.publishing.infra.mysql import PublicationRepository
+    from src.modules.content.publications.infra.mysql import (
+        PublicationRepository,
+    )
 
     async with portal.request() as request:
         repo = await request.get(PublicationRepository)
@@ -293,9 +298,14 @@ def test_concurrent_publication_uses_one_shared_daily_slot(portal):
 def test_large_unicode_evidence_checkpoint_round_trip(portal):
     from papilio.infra.db.transaction import transaction
 
-    from src.modules.rick.domain.dtos import AgentHistory, AgentMessage
-    from src.modules.rick.domain.models import AgentCheckpointModel
-    from src.modules.rick.infra.mysql import CheckpointRepository
+    from src.modules.automation.agents.domain.dtos import (
+        AgentHistory,
+        AgentMessage,
+    )
+    from src.modules.automation.agents.domain.models import (
+        AgentCheckpointModel,
+    )
+    from src.modules.automation.agents.infra.mysql import CheckpointRepository
 
     history = AgentHistory(
         messages=[AgentMessage(role="tool", content="متن مقاله 🧪" * 6000)]

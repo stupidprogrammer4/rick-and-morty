@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from portal_contracts.configuration import AutomationPolicy
-from src.modules.missions.app.scheduled import current_slot
+from src.modules.automation.missions.app.scheduled import current_slot
 
 
 def test_database_cadence_does_not_reset_after_restart(snapshot):
@@ -38,9 +38,9 @@ def test_enabled_automation_requires_owner(snapshot):
 async def test_rss_rejects_document_entities():
     from defusedxml.common import DefusedXmlException
 
-    from src.modules.configuration.domain.dtos import NewsSourceCatalog
-    from src.modules.news.domain.dtos import NewsSource
-    from src.modules.news.infra.sources import NewsCollector
+    from src.modules.content.news.domain.dtos import NewsSource
+    from src.modules.content.news.infra.sources import NewsCollector
+    from src.modules.ops.settings.domain.dtos import NewsSourceCatalog
 
     class ExternalXML:
         async def get(self, *args, **kwargs):

@@ -21,19 +21,21 @@ from papilio.infra.db.uow import MySQLUnitOfWork
 from sqlalchemy import text
 
 from portal_contracts.media import MediaCreate
-from src.modules.media.domain.dtos import (
-    DownloadedFile,
-    DownloadItem,
-    DownloadPlan,
+from src.modules.media.downloads.domain.dtos import (
     MediaItemChange,
     MediaJobChange,
 )
-from src.modules.media.interfaces import (
+from src.modules.media.downloads.interfaces import (
     IMediaCommands,
     IMediaItemService,
     IMediaJobService,
     IMediaMaintenance,
     IMediaQueries,
+)
+from src.modules.media.sources.domain.dtos import (
+    DownloadedFile,
+    DownloadItem,
+    DownloadPlan,
 )
 from tests.integration.conftest import ExternalTelegramHandler
 

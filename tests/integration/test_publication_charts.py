@@ -22,12 +22,25 @@ from portal_contracts.content import (
     PublishRequest,
 )
 from portal_contracts.enums import BotRole
-from src.modules.content.interfaces import IDraftService
-from src.modules.market.domain.dtos import MarketSnapshot
-from src.modules.market.interfaces import IMarketDraftCommands, IMarketQuery
-from src.modules.missions.domain.dtos import ScheduledMissionCreate
-from src.modules.missions.infra.tables import MissionTable
-from src.modules.missions.interfaces import IMissionExecutor, IMissionService
+from src.modules.automation.missions.domain.dtos import ScheduledMissionCreate
+from src.modules.automation.missions.infra.tables import MissionTable
+from src.modules.automation.missions.interfaces import (
+    IMissionExecutor,
+    IMissionService,
+)
+from src.modules.content.drafts.interfaces import (
+    IDraftService,
+    IMarketDraftCommands,
+)
+from src.modules.content.publications.infra.tables import (
+    PublicationChartTable,
+    PublicationTable,
+)
+from src.modules.content.publications.interfaces import (
+    IPublicationChartCommands,
+    IPublicationCommands,
+    IPublishedPageQuery,
+)
 from src.modules.pricing.calculator.infra.cache import AssetPriceCache
 from src.modules.pricing.calculator.interfaces import ICalculatorService
 from src.modules.pricing.candle.app.helpers import WindowClock
@@ -36,14 +49,9 @@ from src.modules.pricing.candle.infra.cache import AssetWindowCache
 from src.modules.pricing.candle.interfaces import ICandleService
 from src.modules.pricing.charts.domain.models import AssetChartCard
 from src.modules.pricing.charts.interfaces import IAssetChartQuery
-from src.modules.publishing.infra.tables import (
-    PublicationChartTable,
-    PublicationTable,
-)
-from src.modules.publishing.interfaces import (
-    IPublicationChartCommands,
-    IPublicationCommands,
-    IPublishedPageQuery,
+from src.modules.pricing.reports.domain.dtos import MarketSnapshot
+from src.modules.pricing.reports.interfaces import (
+    IMarketQuery,
 )
 from src.shared.dates import as_utc
 from tests.integration.conftest import OWNER, ExternalTelegramHandler

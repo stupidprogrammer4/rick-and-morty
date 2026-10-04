@@ -5,8 +5,11 @@ import pytest
 from pydantic import SecretStr
 
 from src.config.settings import ModelCredentials
-from src.modules.rick.domain.dtos import AgentHistory, AgentMessage
-from src.modules.rick.infra.openrouter import OpenRouterClient
+from src.modules.automation.agents.domain.dtos import (
+    AgentHistory,
+    AgentMessage,
+)
+from src.modules.automation.agents.infra.openrouter import OpenRouterClient
 
 
 @pytest.mark.asyncio

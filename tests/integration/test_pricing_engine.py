@@ -9,9 +9,12 @@ from sqlalchemy import func, select
 
 from portal_contracts.configuration import SettingScope
 from src.cli.pricing_seed import seed_pricing
-from src.modules.market.interfaces import IMarketQuery
-from src.modules.missions.infra.tables import MissionTable
-from src.modules.missions.interfaces import IScheduledMissionCommands
+from src.modules.automation.missions.infra.tables import MissionTable
+from src.modules.automation.missions.interfaces import (
+    IScheduledMissionCommands,
+)
+from src.modules.content.publications.infra.tables import PublicationTable
+from src.modules.content.replies.infra.tables import PrivateReplyTable
 from src.modules.pricing.assets.infra.tables import AssetTable
 from src.modules.pricing.engine.domain.quotes import (
     IranSourceQuote,
@@ -21,6 +24,7 @@ from src.modules.pricing.engine.interfaces import (
     ICacheFlusherService,
     ICFGReaderService,
 )
+from src.modules.pricing.reports.interfaces import IMarketQuery
 from src.modules.pricing.sources.domain.enums import SourceCode
 from src.modules.pricing.sources.infra.tables import (
     SourceConfigTable,
@@ -28,10 +32,6 @@ from src.modules.pricing.sources.infra.tables import (
 )
 from src.modules.pricing.symbols.domain.enums import SymbolCode
 from src.modules.pricing.symbols.infra.tables import SymbolTable
-from src.modules.publishing.infra.tables import (
-    PrivateReplyTable,
-    PublicationTable,
-)
 
 pytestmark = pytest.mark.integration
 OWNER = 140001
@@ -654,7 +654,7 @@ def test_native_source_report_preserves_rates_units_and_accepted_sources(
 ):
     from decimal import Decimal
 
-    from src.modules.publishing.app.renderer import PostRenderer
+    from src.modules.content.publications.app.renderer import PostRenderer
 
     portal.run(prepare_source_report(portal))
 

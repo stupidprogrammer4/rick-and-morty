@@ -2,7 +2,7 @@ from papilio.infra.db.uow import MySQLUnitOfWork
 from sqlalchemy import literal, select
 from sqlmodel import col
 
-from src.modules.ops.infra.mysql import PortalGuardRepository
+from src.modules.ops.guards.infra.mysql import PortalGuardRepository
 from src.modules.pricing.assets.infra.tables import (
     AssetConfigTable,
     AssetTable,

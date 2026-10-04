@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from portal_contracts.configuration import SettingScope, SettingValueWrite
 from src.config.providers import task_providers
 from src.config.settings import PortalAppSettings
-from src.modules.configuration.domain.dtos import ConfigurationSeed
-from src.modules.configuration.interfaces import (
+from src.modules.ops.settings.domain.dtos import ConfigurationSeed
+from src.modules.ops.settings.interfaces import (
     IConfigurationCommands,
     IConfigurationQueries,
     ISettingValueService,

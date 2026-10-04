@@ -22,6 +22,21 @@ Instagram, YouTube, SoundCloud, Spotify and other supported public sources.
 | `packages/contracts` | Typed contracts shared by both applications |
 | `deploy` | Compose release, backups and restricted Nginx ingress |
 
+API features are grouped under `api/src/modules`:
+
+| Group | Modules |
+| --- | --- |
+| `ops` | Database settings, guards, status and task history retention |
+| `automation` | Missions and bounded agents |
+| `content` | News evidence, drafts, publications and private replies |
+| `pricing` | Market sources, assets, calculations, history, charts and reports |
+| `media` | Download workflows, source extraction, delivery and storage |
+
+Media source inputs are separate from persisted download jobs. Completed files
+enter the delivery queue immediately; download workflows retain their positions
+for ordered delivery. Media workers use their own Papilio Tasks application.
+Historical task names remain registered for queued work across upgrades.
+
 MySQL owns configuration, missions, collected evidence, drafts, approvals,
 publication reservations and model costs. Redis carries native Papilio Tasks.
 The model can read permitted evidence and create drafts. Channel publication

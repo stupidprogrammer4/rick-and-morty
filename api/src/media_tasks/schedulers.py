@@ -1,7 +1,6 @@
 from papilio_tasks.apps.schedulers.backends.redis import RedisScheduler
 
-from src.modules.media.domain.dtos import MediaDownloadOutcome
-from src.modules.media.interfaces import (
+from src.modules.media.downloads.interfaces import (
     IMediaCompletion,
     IMediaDelivery,
     IMediaDispatch,
@@ -11,6 +10,7 @@ from src.modules.media.interfaces import (
     IMediaTransfer,
     IMediaTransferBatch,
 )
+from src.modules.media.sources.domain.dtos import MediaDownloadOutcome
 
 
 class ExecuteMedia(RedisScheduler):

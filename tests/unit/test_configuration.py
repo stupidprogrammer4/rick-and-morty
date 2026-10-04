@@ -8,8 +8,8 @@ from portal_bots.app.voice import BotVoice
 from portal_contracts.configuration import SettingKey, SettingScope
 from portal_contracts.enums import BotRole
 from portal_contracts.presentation import VoiceProfile
-from src.modules.configuration.app.validation import SettingValueValidator
-from src.modules.publishing.app.renderer import PostRenderer
+from src.modules.content.publications.app.renderer import PostRenderer
+from src.modules.ops.settings.app.validation import SettingValueValidator
 
 
 def test_seed_has_complete_validated_scopes(seed):

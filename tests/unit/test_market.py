@@ -5,12 +5,12 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from src.modules.market.domain.dtos import (
+from src.modules.pricing.reports.domain.dtos import (
     MarketSnapshot,
     Quote,
     validate_freshness,
 )
-from src.modules.market.infra.site import OwnerSitePriceProvider
+from src.modules.pricing.reports.infra.site import OwnerSitePriceProvider
 from src.shared.dates import utc_now
 
 

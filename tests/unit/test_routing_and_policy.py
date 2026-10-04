@@ -4,7 +4,7 @@ import pytest
 
 from portal_bots.app.routing import MissionRouter
 from portal_contracts.enums import Actor, BotRole, Intent
-from src.modules.publishing.app.policy import PublicationPolicy
+from src.modules.content.publications.app.policy import PublicationPolicy
 
 
 @pytest.mark.parametrize(

@@ -26,8 +26,8 @@ async def test_mcp_discovers_tools_through_native_stdio(monkeypatch):
     monkeypatch.setenv("PAPILIO_CONFIG", "config.yml.sample")
     monkeypatch.setenv("PORTAL_SERVICE_KEY", "test-service-key-" * 4)
     monkeypatch.setenv("PORTAL_ADMIN_USER_IDS", "140001")
-    from src.modules.rick.app.context import ToolContext
-    from src.modules.rick.infra.mcp import MissionMCPClient
+    from src.modules.automation.agents.app.context import ToolContext
+    from src.modules.automation.agents.infra.mcp import MissionMCPClient
 
     client = MissionMCPClient()
     async with client.connect(

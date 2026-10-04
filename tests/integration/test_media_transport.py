@@ -13,7 +13,7 @@ from portal_bots.config.settings import BotSettings
 from portal_bots.infra.backend import BackendClient
 from portal_bots.media.runtime import MediaRuntime
 from src.config.providers import infrastructure_providers
-from src.modules.media.interfaces import IMediaQueries
+from src.modules.media.downloads.interfaces import IMediaQueries
 from tests.integration.conftest import OWNER
 
 pytestmark = pytest.mark.integration

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.modules.configuration.domain.dtos import ConfigurationSeed
+from src.modules.ops.settings.domain.dtos import ConfigurationSeed
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def snapshot(seed):
         PortalConfiguration,
     )
     from portal_contracts.presentation import PortalPresentation
-    from src.modules.market.domain.dtos import PriceMapping
+    from src.modules.pricing.reports.domain.dtos import PriceMapping
 
     values = {
         (item.key, item.scope.value): json.loads(item.value)

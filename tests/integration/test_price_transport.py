@@ -13,7 +13,9 @@ from portal_bots.config.settings import BotSettings
 from portal_bots.infra.backend import BackendClient
 from portal_bots.runtime import BotRuntime
 from src.config.providers import infrastructure_providers
-from src.modules.publishing.interfaces import IPublicationChartCommands
+from src.modules.content.publications.interfaces import (
+    IPublicationChartCommands,
+)
 from tests.integration.conftest import OWNER
 from tests.integration.test_publication_charts import (
     prepare_parent,

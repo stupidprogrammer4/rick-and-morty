@@ -9,22 +9,25 @@ from papilio.infra.db.transaction import transaction
 from portal_contracts.configuration import SettingScope
 from portal_contracts.enums import BotRole
 from src.config.providers import task_providers
-from src.modules.missions.domain.dtos import (
-    MissionChange,
-    ScheduledMissionCreate,
-)
-from src.modules.missions.infra.mysql import MissionRepository
-from src.modules.missions.interfaces import IMissionExecutor, IMissionService
-from src.modules.news.domain.models import ArticleModel
-from src.modules.news.infra.mysql import ArticleRepository
-from src.modules.publishing.infra.mysql import PublicationRepository
-from src.modules.rick.domain.dtos import (
+from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
     LLMReply,
     ToolCall,
     ToolFunction,
 )
-from src.modules.rick.interfaces import ILLMClient
+from src.modules.automation.agents.interfaces import ILLMClient
+from src.modules.automation.missions.domain.dtos import (
+    MissionChange,
+    ScheduledMissionCreate,
+)
+from src.modules.automation.missions.infra.mysql import MissionRepository
+from src.modules.automation.missions.interfaces import (
+    IMissionExecutor,
+    IMissionService,
+)
+from src.modules.content.news.domain.models import ArticleModel
+from src.modules.content.news.infra.mysql import ArticleRepository
+from src.modules.content.publications.infra.mysql import PublicationRepository
 from src.shared.dates import utc_now
 from tests.integration.conftest import OWNER, ExternalTelegramHandler
 
