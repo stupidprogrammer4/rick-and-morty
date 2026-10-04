@@ -17,7 +17,7 @@ class BrowserDownloader:
         self.request = request
 
     def plan(self) -> DownloadPlan:
-        from playwright.sync_api import Route, sync_playwright
+        from playwright.sync_api import Route, TimeoutError, sync_playwright
 
         candidates: dict[str, str] = {}
         total_bytes = 0
@@ -112,7 +112,21 @@ class BrowserDownloader:
                     wait_until="domcontentloaded",
                     timeout=45000,
                 )
-                page.wait_for_timeout(2500)
+                try:
+                    page.wait_for_function(
+                        """() => [...document.querySelectorAll(
+                        'video[src], audio[src], source[src], '
+                        + 'meta[property="og:video"], '
+                        + 'meta[property="og:video:url"]'
+                    )].some(n => (n.src || n.content || '').startsWith('https://'))""",
+                        timeout=self.request.policy.source_timeout_seconds
+                        * 1000,
+                    )
+                except TimeoutError:
+                    if not candidates:
+                        raise ValueError(
+                            "No downloadable public media found on this page"
+                        ) from None
                 rows = page.evaluate(
                     """() => [...document.querySelectorAll(
                         'video[src], audio[src], video source[src], '

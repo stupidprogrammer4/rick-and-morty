@@ -16,8 +16,19 @@ class GalleryDownloader:
         from gallery_dl.extractor.message import Message
 
         config.clear()
-        config.set(("extractor",), "timeout", 20)
-        config.set(("extractor",), "retries", 2)
+        config.set(
+            ("extractor",),
+            "timeout",
+            self.request.policy.source_timeout_seconds,
+        )
+        config.set(
+            ("extractor",), "retries", self.request.policy.source_retries
+        )
+        config.set(
+            ("extractor",),
+            "sleep-request",
+            self.request.policy.extractor_request_interval,
+        )
         if self.request.cookie_file:
             config.set(
                 ("extractor", "instagram"), "cookies", self.request.cookie_file
@@ -50,7 +61,12 @@ class GalleryDownloader:
                         or metadata.get("title")
                         or f"Slide {len(items) + 1}"
                     )[:200],
-                    headers={"Referer": self.request.url},
+                    headers={
+                        "Referer": self.request.url,
+                        "User-Agent": source.session.headers.get(
+                            "User-Agent", self.request.policy.http_user_agent
+                        ),
+                    },
                 )
             )
             if len(items) > self.request.policy.max_playlist_items:

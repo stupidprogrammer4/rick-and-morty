@@ -118,7 +118,8 @@ Start the downloader with `/start`; send a public HTTPS link or use its menu.
 on the requesting user's private downloads.
 
 Instagram posts include all discovered carousel slides, in order. YouTube and
-SoundCloud collections are processed item by item; collections exceeding the
+SoundCloud collections download concurrently and retain their original numbers
+for ordered delivery; collections exceeding the
 configured limit are rejected rather than silently truncated. Spotify supplies
 track metadata and searches for matching public audio from another source; the
 file caption identifies its actual source. Configure optional free Spotify API
@@ -127,14 +128,21 @@ Login-only sources need an authorized cookie file; DRM and live streams are
 unsupported. Extraction can also fail because a source blocks the server.
 
 The database record `media.policy/global` owns quotas, enabled providers, size
-and duration limits, disk reserves and the welcome/menu presentation. Read or
+and duration limits, download concurrency, source timeouts/retries, extractor
+request intervals, HTTP user agent, disk reserves and
+the welcome/menu presentation. Read or
 update it through the administrator's existing settings commands. Credentials,
 cookie paths and the shared volume remain private infrastructure configuration.
 
 The extractor SDKs run first; a bounded Playwright browser handles supported
 dynamic pages when extraction fails. Downloads and codecs run in killable child
 processes on a separate native Papilio Tasks worker. Temporary files are removed
-after every item; scheduled cleanup removes aged inactive job directories.
+after every delivered item; scheduled cleanup removes aged inactive job directories.
+Planning, downloading and ordered Telegram delivery have separate application
+owners and native tasks. Normal progress dispatches immediately; recovery only
+handles interrupted work. Independent item leases and workspaces isolate failures.
+Collection downloads use `asyncio.gather` to await isolated extractor processes
+concurrently; database writes finish before network work begins.
 Uncertain Telegram deliveries are recorded and never automatically resent.
 
 ## Verification

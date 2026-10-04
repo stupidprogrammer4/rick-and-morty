@@ -21,6 +21,7 @@ from sqlalchemy import text
 
 from portal_contracts.media import MediaCreate
 from src.modules.media.domain.dtos import (
+    DownloadedFile,
     DownloadItem,
     DownloadPlan,
     MediaItemChange,
@@ -66,7 +67,187 @@ def test_media_migration_preserves_populated_previous_schema(portal):
     assert portal.run(records()) == before
 
 
-def external_media(tmp_path):
+def test_parallel_migration_preserves_recorded_items_and_active_leases(portal):
+    config = Config("api/alembic.ini")
+    config.set_main_option(
+        "sqlalchemy.url",
+        portal.environment["PORTAL_DATABASE_URL"].replace("%", "%%"),
+    )
+    command.downgrade(config, "20261004_media")
+
+    async def seed():
+        async with portal.request() as request:
+            unit = await request.get(MySQLUnitOfWork)
+            async with transaction():
+                await unit.execute(
+                    text("""INSERT INTO tbl_media_jobs
+                    (id,owner_id,chat_id,bot_id,update_id,url,mode,provider,
+                    status,total,sent,failed,lease_until)
+                    VALUES (801,:user,:user,140003,801,:url,'audio','video',
+                    'completed',1,1,0,NULL),
+                    (802,:user,:user,140003,802,:url,'audio','video',
+                    'running',1,0,0,'2026-10-05 00:00:00')"""),
+                    {"user": USER, "url": "https://example.com/track.mp3"},
+                )
+                payload = DownloadItem(
+                    url="https://example.com/track.mp3",
+                    source_url="https://example.com/track.mp3",
+                ).model_dump_json()
+                await unit.execute(
+                    text("""INSERT INTO tbl_media_items
+                    (id,job_id,position,title,payload,source_url,status,message_id)
+                    VALUES (801,801,1,'Recorded track',:payload,
+                    :url,'sent',8700), (802,802,1,'Interrupted track',
+                    :payload,:url,'sending',NULL)
+                    """),
+                    {
+                        "payload": payload,
+                        "url": "https://example.com/track.mp3",
+                    },
+                )
+            result = await unit.execute(
+                text(
+                    "SELECT id,job_id,position,title,payload,source_url,"
+                    "status,message_id FROM tbl_media_items ORDER BY id"
+                )
+            )
+            return list(result)
+
+    before = portal.run(seed())
+    command.upgrade(config, "head")
+    command.check(config)
+
+    async def verify():
+        async with portal.request() as request:
+            unit = await request.get(MySQLUnitOfWork)
+            result = await unit.execute(
+                text(
+                    "SELECT id,job_id,position,title,payload,source_url,"
+                    "status,message_id FROM tbl_media_items ORDER BY id"
+                )
+            )
+            assert list(result) == before
+            items = await request.get(IMediaItemService)
+            sent = await items.get(801)
+            active = await items.get(802)
+            assert sent.message_id == 8700 and sent.lease_until is None
+            assert (
+                active.status == "sending"
+                and active.lease_until == datetime(2026, 10, 5)
+            )
+            assert active.downloaded_payload is None
+
+    portal.run(verify())
+
+
+def test_prepared_audio_retries_rate_limit_without_downloading_again(
+    portal, tmp_path
+):
+    server, _ = external_media(tmp_path)
+    try:
+
+        async def prepare():
+            async with portal.request() as request:
+                commands = await request.get(IMediaCommands)
+                result = await commands.accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=9,
+                        url="https://example.com/track.mp3",
+                        mode="audio",
+                    )
+                )
+                jobs = await request.get(IMediaJobService)
+                items = await request.get(IMediaItemService)
+                async with transaction():
+                    await items.create_many(
+                        result.job.id,
+                        DownloadPlan(
+                            items=[
+                                DownloadItem(
+                                    url="https://example.com/track.mp3",
+                                    source_url="https://example.com/track.mp3",
+                                    engine="direct",
+                                    kind="audio",
+                                )
+                            ]
+                        ),
+                    )
+                    item = await items.next(result.job.id)
+                    assert item is not None
+                    downloaded = DownloadedFile(
+                        filename="0" * 32 + ".mp3",
+                        kind="audio",
+                        title="Prepared audio",
+                        source_url="https://example.com/track.mp3",
+                    )
+                    directory = (
+                        Path(portal.settings.media.directory)
+                        / str(result.job.id)
+                        / str(item.id)
+                    )
+                    directory.mkdir(parents=True)
+                    (directory / downloaded.filename).write_bytes(
+                        (tmp_path / "sample.mp3").read_bytes()
+                    )
+                    await items.change(
+                        item.id,
+                        MediaItemChange(
+                            status="ready",
+                            filename=downloaded.filename,
+                            downloaded_payload=downloaded.model_dump_json(),
+                        ),
+                    )
+                    await jobs.change(
+                        result.job.id,
+                        MediaJobChange(status="running", total=1),
+                    )
+                return result.job.id, directory / downloaded.filename
+
+        id, file = portal.run(prepare())
+        ExternalTelegramHandler.media_delivery_status = "rate_limited"
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                jobs = await request.get(IMediaJobService)
+                result = await jobs.get(id, USER)
+                return result
+
+        portal.until(
+            read,
+            lambda job: (
+                len(ExternalTelegramHandler.media_files) == 1
+                and job.status == "running"
+            ),
+            timeout=20,
+        )
+        assert file.is_file()
+        ExternalTelegramHandler.media_delivery_status = "sent"
+        result = portal.until(
+            read,
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=20,
+        )
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            1,
+            0,
+        )
+        assert len(ExternalTelegramHandler.media_files) == 2
+        assert {
+            record["filename"]
+            for record in ExternalTelegramHandler.media_files
+        } == {file.name}
+        assert not file.parent.parent.exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def external_media(tmp_path, slow_release=None):
     audio = tmp_path / "sample.mp3"
     subprocess.run(
         [
@@ -85,6 +266,24 @@ def external_media(tmp_path):
         check=True,
     )
     data = audio.read_bytes()
+    ogg = tmp_path / "sample.ogg"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(audio),
+            "-threads",
+            "1",
+            str(ogg),
+        ],
+        check=True,
+    )
+    arrivals = set()
+    arrived = threading.Event()
+    arrival_lock = threading.Lock()
 
     class Source(BaseHTTPRequestHandler):
         def do_HEAD(self):
@@ -94,6 +293,16 @@ def external_media(tmp_path):
             self.respond(True)
 
         def respond(self, body):
+            if body and self.path == "/slow.mp3" and slow_release is not None:
+                slow_release.wait(15)
+            if body and self.path in {"/parallel-1.mp3", "/parallel-2.mp3"}:
+                with arrival_lock:
+                    arrivals.add(self.path)
+                    if len(arrivals) == 2:
+                        arrived.set()
+                if not arrived.wait(8):
+                    self.send_error(503, "Downloads did not overlap")
+                    return
             playlist = (
                 b"<html><head><title>Owned audio playlist</title></head>"
                 b'<body><audio controls src="/one.mp3"></audio>'
@@ -119,6 +328,8 @@ def external_media(tmp_path):
                 value = Path(
                     "bots/portal_bots/media/assets/avatar.png"
                 ).read_bytes()
+            if self.path == "/direct.ogg":
+                value = ogg.read_bytes()
             self.send_response(200)
             self.send_header(
                 "Content-Type",
@@ -126,6 +337,8 @@ def external_media(tmp_path):
                 if self.path.endswith(".html")
                 else "image/png"
                 if self.path == "/cover.png"
+                else "application/ogg"
+                if self.path == "/direct.ogg"
                 else "audio/mpeg",
             )
             self.send_header("Content-Length", str(len(value)))
@@ -201,6 +414,226 @@ socket.socket.connect = external_connect
 ssl.SSLContext.load_verify_locations = external_trust
 """)
     return server, boundary
+
+
+def test_first_ready_track_is_sent_while_later_download_is_pending(
+    portal, tmp_path
+):
+    release = threading.Event()
+    server, boundary = external_media(tmp_path, release)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def prepare():
+            async with portal.request() as request:
+                commands = await request.get(IMediaCommands)
+                result = await commands.accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=10,
+                        url="https://media.portal-test.example/playlist.html",
+                        mode="audio",
+                    )
+                )
+                jobs = await request.get(IMediaJobService)
+                items = await request.get(IMediaItemService)
+                async with transaction():
+                    await items.create_many(
+                        result.job.id,
+                        DownloadPlan(
+                            items=[
+                                DownloadItem(
+                                    url="https://media.portal-test.example/"
+                                    + file,
+                                    source_url="https://media.portal-test.example/"
+                                    + file,
+                                    title=title,
+                                    kind="audio",
+                                    engine="direct",
+                                )
+                                for file, title in (
+                                    ("fast.mp3", "First"),
+                                    ("slow.mp3", "Second"),
+                                )
+                            ]
+                        ),
+                    )
+                    await jobs.change(
+                        result.job.id, MediaJobChange(status="queued", total=2)
+                    )
+                return result.job.id
+
+        id = portal.run(prepare())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                jobs = await request.get(IMediaJobService)
+                result = await jobs.get(id, USER)
+                return result
+
+        portal.until(
+            read,
+            lambda job: len(ExternalTelegramHandler.media_files) == 1,
+            timeout=20,
+        )
+        assert ExternalTelegramHandler.media_files[0]["title"] == "First"
+        release.set()
+        result = portal.until(
+            read,
+            lambda job: job.status in {"completed", "failed", "partial"},
+            timeout=20,
+        )
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            2,
+            0,
+        )
+        assert [
+            file["title"] for file in ExternalTelegramHandler.media_files
+        ] == ["First", "Second"]
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+
+
+def test_six_tracks_download_concurrently_and_clean_separate_workspaces(
+    portal, tmp_path
+):
+    server, boundary = external_media(tmp_path)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def prepare():
+            async with portal.request() as request:
+                commands = await request.get(IMediaCommands)
+                result = await commands.accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=7,
+                        url="https://media.portal-test.example/playlist.html",
+                        mode="audio",
+                    )
+                )
+                jobs = await request.get(IMediaJobService)
+                items = await request.get(IMediaItemService)
+                async with transaction():
+                    await items.create_many(
+                        result.job.id,
+                        DownloadPlan(
+                            items=[
+                                DownloadItem(
+                                    url=f"https://media.portal-test.example/parallel-{n}.mp3",
+                                    source_url=f"https://media.portal-test.example/parallel-{n}.mp3",
+                                    title=f"Track {n}",
+                                    engine="direct",
+                                    kind="audio",
+                                )
+                                for n in range(1, 7)
+                            ]
+                        ),
+                    )
+                    await jobs.change(
+                        result.job.id, MediaJobChange(status="queued", total=6)
+                    )
+                return result.job.id
+
+        id = portal.run(prepare())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                jobs = await request.get(IMediaJobService)
+                result = await jobs.get(id, USER)
+                return result
+
+        result = portal.until(
+            read,
+            lambda job: job.status in {"completed", "failed", "partial"},
+            timeout=90,
+        )
+        assert (result.status, result.total, result.sent, result.failed) == (
+            "completed",
+            6,
+            6,
+            0,
+        )
+        assert len(ExternalTelegramHandler.media_files) == 6
+        assert [
+            file["title"] for file in ExternalTelegramHandler.media_files
+        ] == [f"Track {n}" for n in range(1, 7)]
+        assert (
+            len(
+                {
+                    file["item_id"]
+                    for file in ExternalTelegramHandler.media_files
+                }
+            )
+            == 6
+        )
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_direct_ogg_is_normalized_for_telegram_audio(portal, tmp_path):
+    server, boundary = external_media(tmp_path)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                commands = await request.get(IMediaCommands)
+                result = await commands.accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=8,
+                        url="https://media.portal-test.example/direct.ogg",
+                    )
+                )
+                return result.job.id
+
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                jobs = await request.get(IMediaJobService)
+                result = await jobs.get(id, USER)
+                return result
+
+        result = portal.until(
+            read,
+            lambda job: job.status in {"completed", "failed", "partial"},
+            timeout=90,
+        )
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            1,
+            0,
+        )
+        delivered = ExternalTelegramHandler.media_files[0]
+        assert delivered["kind"] == "audio" and delivered["filename"].endswith(
+            ".mp3"
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_public_playlist_runs_native_worker_and_cleans_files(portal, tmp_path):

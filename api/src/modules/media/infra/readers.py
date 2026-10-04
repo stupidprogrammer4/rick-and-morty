@@ -1,8 +1,9 @@
+from collections.abc import Sequence
 from datetime import datetime
 
 from papilio.infra.db.uow import MySQLUnitOfWork
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlmodel import col
 
 from portal_contracts.media import (
@@ -11,6 +12,8 @@ from portal_contracts.media import (
     MediaJobOut,
     MediaJobPage,
 )
+from src.modules.media.domain.dtos import MediaDownloadInput
+from src.modules.media.domain.models import MediaItemModel, MediaJobModel
 from src.modules.media.infra.tables import MediaItemTable, MediaJobTable
 
 
@@ -24,6 +27,12 @@ class MediaItemCounts(BaseModel):
     sent: int = 0
     failed: int = 0
     unknown: int = 0
+    pending: int = 0
+
+
+class MediaTransferTicket(BaseModel):
+    item_id: int
+    job_id: int
 
 
 class MediaReader:
@@ -121,7 +130,82 @@ class MediaReader:
             sent=values.get("sent", 0),
             failed=values.get("failed", 0),
             unknown=values.get("unknown", 0),
+            pending=sum(
+                values.get(status, 0)
+                for status in (
+                    "queued",
+                    "reserved",
+                    "downloading",
+                    "ready",
+                    "sending",
+                )
+            ),
         )
+
+    async def occupied(self, now: datetime) -> int:
+        result = await self.uow.execute(
+            select(func.count())
+            .select_from(MediaItemTable)
+            .where(
+                col(MediaItemTable.status).in_(
+                    ["reserved", "downloading", "ready", "sending"]
+                )
+            )
+        )
+        transfers = result.scalar_one()
+        result = await self.uow.execute(
+            select(func.count())
+            .select_from(MediaJobTable)
+            .where(
+                or_(
+                    col(MediaJobTable.status) == "planning",
+                    (col(MediaJobTable.status) == "queued")
+                    & (col(MediaJobTable.total) == 0)
+                    & (col(MediaJobTable.lease_until) > now),
+                )
+            )
+        )
+        return transfers + result.scalar_one()
+
+    async def ready_items(
+        self, now: datetime, limit: int
+    ) -> list[MediaTransferTicket]:
+        result = await self.uow.execute(
+            select(col(MediaItemTable.id), col(MediaItemTable.job_id))
+            .join(
+                MediaJobTable,
+                col(MediaItemTable.job_id) == col(MediaJobTable.id),
+            )
+            .where(
+                col(MediaJobTable.status).in_(["queued", "running"]),
+                col(MediaItemTable.status) == "queued",
+                or_(
+                    col(MediaItemTable.available_at).is_(None),
+                    col(MediaItemTable.available_at) <= now,
+                ),
+            )
+            .order_by(col(MediaJobTable.id), col(MediaItemTable.position))
+            .limit(limit)
+        )
+        return [
+            MediaTransferTicket(item_id=item_id, job_id=job_id)
+            for item_id, job_id in result.all()
+        ]
+
+    async def finished_jobs(self) -> list[int]:
+        pending = select(col(MediaItemTable.job_id)).where(
+            col(MediaItemTable.status).in_(
+                ["queued", "reserved", "downloading", "ready", "sending"]
+            )
+        )
+        result = await self.uow.execute(
+            select(col(MediaJobTable.id)).where(
+                col(MediaJobTable.total) > 0,
+                col(MediaJobTable.status).in_(["queued", "running"]),
+                col(MediaJobTable.id).not_in(pending),
+            )
+        )
+        return list(result.scalars().all())
 
     async def active_ids(self) -> set[int]:
         result = await self.uow.execute(
@@ -130,3 +214,39 @@ class MediaReader:
             )
         )
         return set(result.scalars().all())
+
+    async def ready_deliveries(self, now: datetime) -> list[int]:
+        result = await self.uow.execute(
+            select(col(MediaItemTable.job_id))
+            .where(
+                col(MediaItemTable.status) == "ready",
+                or_(
+                    col(MediaItemTable.available_at).is_(None),
+                    col(MediaItemTable.available_at) <= now,
+                ),
+            )
+            .distinct()
+        )
+        return list(result.scalars().all())
+
+    async def transfers(self, ids: Sequence[int]) -> list[MediaDownloadInput]:
+        if not ids:
+            return []
+        result = await self.uow.execute(
+            select(MediaJobTable, MediaItemTable)
+            .join(
+                MediaItemTable,
+                col(MediaItemTable.job_id) == col(MediaJobTable.id),
+            )
+            .where(col(MediaItemTable.id).in_(ids))
+            .order_by(col(MediaJobTable.id), col(MediaItemTable.id))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return [
+            MediaDownloadInput(
+                job=MediaJobModel.model_validate(job, from_attributes=True),
+                item=MediaItemModel.model_validate(item, from_attributes=True),
+            )
+            for job, item in result.all()
+        ]

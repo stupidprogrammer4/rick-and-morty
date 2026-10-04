@@ -1,10 +1,20 @@
 from papilio_tasks.apps.schedulers.backends.redis import RedisScheduler
 
-from src.modules.media.interfaces import IMediaExecutor, IMediaMaintenance
+from src.modules.media.domain.dtos import MediaDownloadOutcome
+from src.modules.media.interfaces import (
+    IMediaCompletion,
+    IMediaDelivery,
+    IMediaDispatch,
+    IMediaDownloadRecorder,
+    IMediaMaintenance,
+    IMediaPlanner,
+    IMediaTransfer,
+    IMediaTransferBatch,
+)
 
 
 class ExecuteMedia(RedisScheduler):
-    def __init__(self, executor: IMediaExecutor):
+    def __init__(self, executor: IMediaPlanner):
         self.executor = executor
 
     async def run(self, job_id: int) -> None:
@@ -12,7 +22,7 @@ class ExecuteMedia(RedisScheduler):
 
 
 class RecoverMedia(RedisScheduler):
-    schedule = [{"interval": 5}]
+    schedule = [{"interval": 30}]
 
     def __init__(self, maintenance: IMediaMaintenance):
         self.maintenance = maintenance
@@ -29,3 +39,51 @@ class CleanMedia(RedisScheduler):
 
     async def run(self) -> None:
         await self.maintenance.clean()
+
+
+class TransferMedia(RedisScheduler):
+    def __init__(self, transfer: IMediaTransfer):
+        self.transfer = transfer
+
+    async def run(self, item_id: int) -> None:
+        await self.transfer.execute(item_id)
+
+
+class TransferMediaBatch(RedisScheduler):
+    def __init__(self, transfer: IMediaTransferBatch):
+        self.transfer = transfer
+
+    async def run(self, item_ids: list[int]) -> None:
+        await self.transfer.execute(item_ids)
+
+
+class DispatchMedia(RedisScheduler):
+    def __init__(self, dispatch: IMediaDispatch):
+        self.dispatcher = dispatch
+
+    async def run(self) -> None:
+        await self.dispatcher.dispatch()
+
+
+class CompleteMedia(RedisScheduler):
+    def __init__(self, completion: IMediaCompletion):
+        self.completion = completion
+
+    async def run(self, job_id: int) -> None:
+        await self.completion.refresh(job_id)
+
+
+class SendMedia(RedisScheduler):
+    def __init__(self, delivery: IMediaDelivery):
+        self.delivery = delivery
+
+    async def run(self, job_id: int) -> None:
+        await self.delivery.execute(job_id)
+
+
+class RecordMediaDownload(RedisScheduler):
+    def __init__(self, recorder: IMediaDownloadRecorder):
+        self.recorder = recorder
+
+    async def run(self, data: MediaDownloadOutcome) -> None:
+        await self.recorder.record(data)

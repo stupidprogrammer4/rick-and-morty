@@ -92,7 +92,7 @@ services:
         condition: service_healthy
   media-worker:
     <<: *api
-    command: ["taskiq", "worker", "src.apps.media:broker", "--workers", "1", "--max-async-tasks", "1"]
+    command: ["taskiq", "worker", "src.apps.media:broker", "--workers", "1", "--max-async-tasks", "4"]
     mem_limit: 640m
     cpus: 0.75
     pids_limit: 160

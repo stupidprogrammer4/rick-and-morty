@@ -51,6 +51,8 @@ class MediaPresentation(BaseModel):
         "unknown": "❔ وضعیت ارسال نامشخص",
         "downloading": "📥 در حال دانلود",
         "sending": "📤 در حال ارسال",
+        "reserved": "🚀 نوبت دانلود رسید",
+        "ready": "✅ آمادهٔ ارسال",
     }
 
 
@@ -73,6 +75,16 @@ class MediaPolicy(BaseModel):
     max_playlist_items: int = Field(default=500, ge=1, le=5000)
     max_duration_seconds: int = Field(default=3600, ge=30, le=14400)
     item_timeout_seconds: int = Field(default=240, ge=30, le=900)
+    concurrent_downloads: int = Field(default=2, ge=1, le=4)
+    source_timeout_seconds: int = Field(default=10, ge=5, le=60)
+    source_retries: int = Field(default=0, ge=0, le=3)
+    extractor_request_interval: float = Field(default=0, ge=0, le=30)
+    http_user_agent: str = Field(
+        default="AMU-Downloader/1.0 (+https://github.com/stupidprogrammer4/rick-and-morty)",
+        min_length=8,
+        max_length=250,
+        pattern=r"^[^\r\n]+$",
+    )
     active_per_user: int = Field(default=2, ge=1, le=10)
     active_global: int = Field(default=30, ge=1, le=200)
     requests_per_hour: int = Field(default=10, ge=1, le=100)

@@ -66,7 +66,10 @@ class ExternalTelegramHandler(BaseHTTPRequestHandler):
         elif self.path == "/internal/media/files":
             assert self.media_directory is not None
             path = (
-                self.media_directory / str(body["job_id"]) / body["filename"]
+                self.media_directory
+                / str(body["job_id"])
+                / str(body["item_id"])
+                / body["filename"]
             )
             assert path.is_file() and path.stat().st_size > 0
             type(self).media_files.append(body)
@@ -145,7 +148,7 @@ class Harness:
                 "--workers",
                 "1",
                 "--max-async-tasks",
-                "1" if application == "src.apps.media" else "8",
+                "4" if application == "src.apps.media" else "8",
             ],
             env=env,
             stdout=worker_log,

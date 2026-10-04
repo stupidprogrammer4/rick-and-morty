@@ -1,9 +1,13 @@
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from portal_contracts.media import MediaPolicy
+from src.modules.media.domain.models import MediaItemModel, MediaJobModel
+
+DownloadStage = Literal["video", "gallery", "browser", "direct", "spotify"]
 
 
 class DownloadItem(BaseModel):
@@ -29,6 +33,22 @@ class DownloadedFile(BaseModel):
     performer: str | None = None
 
 
+class MediaDownloadInput(BaseModel):
+    job: MediaJobModel
+    item: MediaItemModel
+
+
+class MediaDownloadOutcome(BaseModel):
+    item_id: int
+    job_id: int
+    lease_until: datetime | None = None
+    downloaded: DownloadedFile | None = None
+    error: str | None = None
+
+
+MediaDownloadSink = Callable[[MediaDownloadOutcome], Awaitable[None]]
+
+
 class MediaDiskUsage(BaseModel):
     used_bytes: int
     free_bytes: int
@@ -43,6 +63,7 @@ class DownloadProcessRequest(BaseModel):
     directory: str
     item: DownloadItem | None = None
     cookie_file: str | None = None
+    stages: list[DownloadStage] = Field(default_factory=list)
 
 
 class MediaJobChange(BaseModel):
@@ -62,3 +83,6 @@ class MediaItemChange(BaseModel):
     file_id: str | None = None
     source_url: str | None = None
     error: str | None = None
+    lease_until: datetime | None = None
+    available_at: datetime | None = None
+    downloaded_payload: str | None = None

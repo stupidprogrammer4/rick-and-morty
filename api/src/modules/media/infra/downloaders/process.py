@@ -22,48 +22,33 @@ def plan(request: DownloadProcessRequest) -> DownloadPlan:
     from src.modules.media.infra.downloaders.spotify import SpotifyDownloader
     from src.modules.media.infra.downloaders.video import VideoDownloader
 
-    if request.provider == "spotify":
-        return SpotifyDownloader(request).plan()
     errors: list[str] = []
-    stages = (
-        [("gallery", GalleryDownloader), ("video", VideoDownloader)]
-        if request.provider == "instagram"
-        else [("video", VideoDownloader), ("gallery", GalleryDownloader)]
-    )
-    for provider, downloader in stages:
-        if (
-            provider not in request.policy.providers
-            and request.provider not in request.policy.providers
-        ):
-            continue
-        try:
-            return downloader(request).plan()
-        except Exception as exc:
-            errors.append(type(exc).__name__)
-    if "direct" in request.policy.providers and urlsplit(
-        request.url
-    ).path.lower().endswith(
-        (".mp4", ".mp3", ".m4a", ".jpg", ".png", ".webm", ".ogg", ".pdf")
-    ):
-        return DownloadPlan(
-            items=[
-                DownloadItem(
-                    url=request.url,
-                    source_url=request.url,
-                    engine="direct",
-                    title=urlsplit(request.url).path.rsplit("/", 1)[-1][:200],
-                )
-            ]
-        )
-    if (
-        request.policy.browser_enabled
-        and "browser" in request.policy.providers
-    ):
-        from src.modules.media.infra.downloaders.browser import (
-            BrowserDownloader,
-        )
+    from src.modules.media.infra.downloaders.browser import BrowserDownloader
 
-        return BrowserDownloader(request).plan()
+    engines = {
+        "video": VideoDownloader,
+        "gallery": GalleryDownloader,
+        "browser": BrowserDownloader,
+        "spotify": SpotifyDownloader,
+    }
+    for stage in request.stages:
+        if stage == "direct":
+            return DownloadPlan(
+                items=[
+                    DownloadItem(
+                        url=request.url,
+                        source_url=request.url,
+                        engine="direct",
+                        title=urlsplit(request.url).path.rsplit("/", 1)[-1][
+                            :200
+                        ],
+                    )
+                ]
+            )
+        try:
+            return engines[stage](request).plan()
+        except Exception as exc:
+            errors.append(stage + ": " + str(exc)[:220])
     raise ValueError("No extractor succeeded: " + ", ".join(errors))
 
 

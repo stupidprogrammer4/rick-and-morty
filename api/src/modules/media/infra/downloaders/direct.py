@@ -45,10 +45,9 @@ class DirectDownloader:
             if duration > self.request.policy.max_duration_seconds:
                 raise ValueError("Media exceeds configured duration limit")
         if (
-            self.request.mode == "audio"
-            and kind in {"audio", "video"}
-            and path.suffix not in {".mp3", ".m4a"}
-        ):
+            kind == "audio"
+            or (self.request.mode == "audio" and kind == "video")
+        ) and path.suffix not in {".mp3", ".m4a"}:
             output = path.with_suffix(".mp3")
             subprocess.run(
                 [
@@ -97,7 +96,11 @@ class DirectDownloader:
 
     def download(self, item: DownloadItem) -> DownloadedFile:
         url = item.url
-        with httpx.Client(trust_env=False, timeout=25) as client:
+        with httpx.Client(
+            trust_env=False,
+            timeout=self.request.policy.source_timeout_seconds,
+            headers={"User-Agent": self.request.policy.http_user_agent},
+        ) as client:
             for _ in range(6):
                 validate_url(url)
                 with client.stream(
@@ -122,6 +125,7 @@ class DirectDownloader:
                         "audio/mpeg": "mp3",
                         "audio/mp4": "m4a",
                         "audio/ogg": "ogg",
+                        "application/ogg": "ogg",
                         "application/pdf": "pdf",
                     }
                     extension = extensions.get(content_type)

@@ -33,7 +33,11 @@ class SpotifyDownloader:
             "SPOTIPY_CLIENT_SECRET"
         ):
             return self.official(parts[0], parts[1])
-        with httpx.Client(trust_env=False, timeout=25) as client:
+        with httpx.Client(
+            trust_env=False,
+            timeout=self.request.policy.source_timeout_seconds,
+            headers={"User-Agent": self.request.policy.http_user_agent},
+        ) as client:
             response = client.get(
                 "https://open.spotify.com/embed/" + "/".join(parts)
             )
@@ -45,9 +49,18 @@ class SpotifyDownloader:
                 "Spotify metadata requires a session "
                 "or configured API credentials"
             )
-        entity = json.loads(node.get_text())["props"]["pageProps"]["state"][
-            "data"
-        ]["entity"]
+        state = (
+            json.loads(node.get_text())
+            .get("props", {})
+            .get("pageProps", {})
+            .get("state", {})
+        )
+        entity = state.get("data", {}).get("entity")
+        if not entity:
+            raise ValueError(
+                "Spotify did not expose collection metadata; "
+                "a session or API credentials are required"
+            )
         rows = entity.get("trackList")
         if rows is None:
             rows = [entity] if parts[0] == "track" else []
@@ -98,8 +111,8 @@ class SpotifyDownloader:
 
         client = spotipy.Spotify(
             auth_manager=SpotifyClientCredentials(),
-            requests_timeout=20,
-            retries=2,
+            requests_timeout=self.request.policy.source_timeout_seconds,
+            retries=self.request.policy.source_retries,
         )
         rows: list[dict[str, Any]] = []
         if kind == "track":
@@ -157,7 +170,7 @@ class SpotifyDownloader:
             "logger": ExtractorLogger(),
             "extract_flat": True,
             "skip_download": True,
-            "socket_timeout": 20,
+            "socket_timeout": self.request.policy.source_timeout_seconds,
             "cachedir": False,
         }
         with YoutubeDL(options) as downloader:

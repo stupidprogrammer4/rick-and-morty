@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from urllib.parse import urlsplit
 
@@ -11,10 +12,12 @@ from portal_contracts.media import (
 )
 from src.modules.media.domain.dtos import MediaJobChange
 from src.modules.media.infra.readers import MediaReader
-from src.modules.media.interfaces import IMediaJobService
+from src.modules.media.interfaces import IMediaJobService, IMediaQueue
 from src.modules.ops.interfaces import IPortalGuard
 from src.shared.dates import utc_now
 from src.shared.errors import conflict
+
+logger = logging.getLogger(__name__)
 
 
 def media_provider(url: str) -> str:
@@ -38,11 +41,13 @@ class MediaCommands:
         reader: MediaReader,
         guard: IPortalGuard,
         policy: MediaPolicy,
+        queue: IMediaQueue,
     ):
         self.jobs = jobs
         self.reader = reader
         self.guard = guard
         self.policy = policy
+        self.queue = queue
 
     async def accept(self, data: MediaCreate) -> MediaAccepted:
         provider = media_provider(data.url)
@@ -63,14 +68,20 @@ class MediaCommands:
                     raise conflict(
                         "سقف درخواست‌ها پر شده؛ کمی بعد دوباره امتحان کن."
                     )
+        try:
+            await self.queue.dispatch()
+        except Exception:
+            logger.exception("Media dispatch deferred to recovery")
         return result
 
     async def cancel(self, id: int, owner_id: int) -> MediaJobOut:
         async with transaction():
+            await self.guard.lock("media-dispatch")
             job = await self.jobs.record(id, lock=True)
             await self.jobs.get(id, owner_id)
             if job.status not in {"queued", "planning", "running"}:
                 raise conflict("این دانلود دیگر قابل لغو نیست.")
             await self.jobs.change(id, MediaJobChange(status="cancelled"))
+        await self.queue.dispatch()
         result = await self.jobs.get(id, owner_id)
         return result

@@ -71,6 +71,9 @@ class MediaJobService:
     ) -> None:
         await self.repo.dispatch_many(ids, lease_until)
 
+    async def start_many(self, ids: Sequence[int]) -> None:
+        await self.repo.start_many(ids)
+
 
 class MediaItemService:
     def __init__(self, repo: MediaItemRepository):
@@ -94,8 +97,16 @@ class MediaItemService:
         result = await self.repo.next(job_id)
         return result
 
-    async def get(self, id: int) -> MediaItemModel:
-        result = await self.repo.get(id)
+    async def next_delivery(self, job_id: int) -> MediaItemModel | None:
+        result = await self.repo.next_delivery(job_id)
+        return result
+
+    async def ready(self, job_id: int) -> MediaItemModel | None:
+        result = await self.repo.ready(job_id)
+        return result
+
+    async def get(self, id: int, lock: bool = False) -> MediaItemModel:
+        result = await self.repo.get(id, lock)
         if result is None:
             raise missing("media_item", id)
         return result
@@ -108,3 +119,14 @@ class MediaItemService:
 
     async def interrupt_many(self, ids: Sequence[int]) -> None:
         await self.repo.interrupt_many(ids)
+
+    async def reserve_many(
+        self, ids: Sequence[int], lease_until: datetime
+    ) -> None:
+        await self.repo.reserve_many(ids, lease_until)
+
+    async def recover(self, now: datetime) -> None:
+        await self.repo.recover(now)
+
+    async def save_many(self, rows: Sequence[MediaItemModel]) -> None:
+        await self.repo.save_many(rows)

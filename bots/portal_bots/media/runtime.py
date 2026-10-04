@@ -103,7 +103,7 @@ class MediaRuntime:
         if not authorized.get("authorized"):
             raise web.HTTPForbidden()
         root = Path(self.settings.media_directory).resolve()
-        path = root / str(data.job_id) / data.filename
+        path = root / str(data.job_id) / str(data.item_id) / data.filename
         if (
             not path.is_file()
             or path.is_symlink()

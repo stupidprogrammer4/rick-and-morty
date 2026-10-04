@@ -40,3 +40,6 @@ class MediaItemModel(PersistenceEntity):
     message_id: int | None = BigIntField(default=None, nullable=True)
     file_id: str | None = CharField(512, default=None, nullable=True)
     error: str | None = CharField(500, default=None, nullable=True)
+    lease_until: datetime | None = TimestampField(default=None, nullable=True)
+    available_at: datetime | None = TimestampField(default=None, nullable=True)
+    downloaded_payload: str | None = TextField(default=None, nullable=True)

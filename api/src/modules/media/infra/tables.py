@@ -16,4 +16,5 @@ class MediaItemTable(MediaItemModel, BaseTable, table=True):
     __table_args__ = (
         UniqueConstraint("job_id", "position"),
         Index("ix_media_items_due", "job_id", "status", "position"),
+        Index("ix_media_items_lease", "status", "lease_until"),
     )

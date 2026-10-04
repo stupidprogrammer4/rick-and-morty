@@ -151,7 +151,7 @@ into a future second by MySQL.
 
 ## Public media bot
 
-The media release requires `20261004_media` before either media service starts.
+The media release requires `20261004_media_parallel` before either media service starts.
 It adds independent jobs/items tables and preserves existing settings, market
 history, missions and publications. Downgrade refuses recorded download history.
 The seed creates missing `media.policy/global` without overwriting edited values.
@@ -161,8 +161,19 @@ Install the updated shared-MySQL override when using an existing database.
 application; the ordinary mission worker does not execute downloads. Their
 shared `media-data` volume is writable by UID 10001 and mounted read-only in
 the bot gateway. The image includes FFmpeg and Chromium headless shell.
-Allow for the browser's additional memory and image storage; only one download
-executes at a time on the supplied small-server configuration.
+Allow for the browser's additional memory and image storage. The worker allows
+four asynchronous tasks, with actual extraction/download capacity limited by
+`media.policy.concurrent_downloads` in MySQL (default two). Remaining capacity
+keeps dispatch, recovery and ordered sends responsive. Each file streams through
+its own temporary directory; completing one file cannot delete another's files.
+
+Before upgrading from the first media release, stop admission and let active
+transfers finish, then stop the media worker. The migration preserves recorded
+items and copies existing active leases; new code stores prepared files under
+`job_id/item_id` and resumes ordered delivery without downloading them again.
+Deploy the API, media worker and bot gateway together because their shared-file
+layout changes. Downgrade refuses active transfers; do not run an older gateway
+against prepared files from the new worker.
 
 Set the new bot token and its independent webhook secret in the private runtime
 environment. Add the exact `/telegram/media` ingress, validate Nginx and reload
