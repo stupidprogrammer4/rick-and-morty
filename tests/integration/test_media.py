@@ -862,26 +862,27 @@ def external_media(
             elif portrait and self.path.startswith("/portrait-"):
                 value = (tmp_path / self.path.lstrip("/")).read_bytes()
             self.send_response(200)
-            self.send_header(
-                "Content-Type",
-                "application/octet-stream"
-                if self.path.startswith("/tunnel-")
-                else "application/vnd.apple.mpegurl"
-                if self.path.endswith(".m3u8")
-                else "video/mp2t"
-                if self.path.endswith(".ts")
-                else "text/html"
-                if self.path.endswith(".html")
-                else "image/png"
-                if self.path == "/cover.png"
-                else "application/ogg"
-                if self.path == "/direct.ogg"
-                else "video/mp4"
-                if self.path == "/direct.mp4"
-                else "audio/mp4"
-                if self.path == "/direct.m4a"
-                else "audio/mpeg",
-            )
+            if not self.path.startswith("/tunnel-"):
+                self.send_header(
+                    "Content-Type",
+                    "application/octet-stream"
+                    if self.path.startswith("/tunnel-")
+                    else "application/vnd.apple.mpegurl"
+                    if self.path.endswith(".m3u8")
+                    else "video/mp2t"
+                    if self.path.endswith(".ts")
+                    else "text/html"
+                    if self.path.endswith(".html")
+                    else "image/png"
+                    if self.path == "/cover.png"
+                    else "application/ogg"
+                    if self.path == "/direct.ogg"
+                    else "video/mp4"
+                    if self.path == "/direct.mp4"
+                    else "audio/mp4"
+                    if self.path == "/direct.m4a"
+                    else "audio/mpeg",
+                )
             declared = len(value)
             if (
                 (

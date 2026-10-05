@@ -196,6 +196,8 @@ class DirectDownloader:
         }
         mime = content_type.split(";", 1)[0].strip().lower()
         extension = extensions.get(mime)
+        if not mime:
+            extension = expected
         if extension is None and mime == "application/octet-stream":
             candidate = urlsplit(url).path.rsplit(".", 1)[-1].lower()
             extension = (
