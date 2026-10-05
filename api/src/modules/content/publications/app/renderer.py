@@ -16,11 +16,14 @@ class PostRenderer:
             f"{escape(style.separator)}\n{escape(style.footer)}\n\n"
             f"{escape(style.hashtags)}"
         )
-        if category == Category.OCCASIONS:
+        if category in {Category.OCCASIONS, Category.NEWS}:
             output = "\n\n".join(
                 part
                 for part in (
                     f"<b>{escape(style.heading)}</b>" if style.heading else "",
+                    f"<b>{escape(title)}</b>"
+                    if category == Category.NEWS
+                    else "",
                     escape(text),
                     escape(style.footer),
                     escape(style.hashtags),

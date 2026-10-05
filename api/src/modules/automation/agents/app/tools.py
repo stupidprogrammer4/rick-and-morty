@@ -46,20 +46,8 @@ def calendar_evidence(history: AgentHistory) -> OccasionDay | None:
     return None
 
 
-def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:
-    ids = [comment.event_id for comment in draft.comments]
-    if (
-        draft.date != day.date
-        or len(ids) != len(set(ids))
-        or set(ids) != {event.id for event in day.events}
-    ):
-        raise ValueError("Include every calendar event exactly once")
-    if not day.events:
-        raise ValueError("No selected occasions to announce")
-    public_fields = [draft.intro, draft.outro] + [
-        comment.text for comment in draft.comments
-    ]
-    for text in public_fields:
+def validate_public_voice(texts: list[str]) -> None:
+    for text in texts:
         normalized = " ".join(
             text.replace("\u200c", " ")
             .replace("ي", "ی")
@@ -76,6 +64,22 @@ def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:
             raise ValueError(
                 "Write in character without sources or persona labels"
             )
+
+
+def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:
+    ids = [comment.event_id for comment in draft.comments]
+    if (
+        draft.date != day.date
+        or len(ids) != len(set(ids))
+        or set(ids) != {event.id for event in day.events}
+    ):
+        raise ValueError("Include every calendar event exactly once")
+    if not day.events:
+        raise ValueError("No selected occasions to announce")
+    public_fields = [draft.intro, draft.outro] + [
+        comment.text for comment in draft.comments
+    ]
+    validate_public_voice(public_fields)
     comments = {comment.event_id: comment.text for comment in draft.comments}
     lines = [draft.intro]
     lines.extend(
@@ -236,17 +240,37 @@ class AgentToolCommands:
             raise ValueError("Draft contains evidence outside this mission")
         lines: list[str] = []
         style = self.presentation
+        spoken = mission.intent == "news"
+        if spoken:
+            if len(used) > 2:
+                raise ValueError("News drafts may use at most two articles")
+            validate_public_voice(
+                [draft.title, draft.editorial_note or ""]
+                + [
+                    field
+                    for item in draft.items
+                    for field in (item.title, item.summary)
+                ]
+            )
         for index, item in enumerate(draft.items):
-            emoji = style.item_emojis[index % len(style.item_emojis)]
-            lines.append(
-                f"{emoji} {item.title}\n{style.summary_label} {item.summary}"
-            )
-            lines.extend(
-                f"{style.source_label}: {by_id[id].url}"
-                for id in item.evidence_ids
-            )
+            if spoken:
+                lines.append(f"{item.title}\n{item.summary}")
+            else:
+                emoji = style.item_emojis[index % len(style.item_emojis)]
+                lines.append(
+                    f"{emoji} {item.title}\n"
+                    f"{style.summary_label} {item.summary}"
+                )
+                lines.extend(
+                    f"{style.source_label}: {by_id[id].url}"
+                    for id in item.evidence_ids
+                )
         if draft.editorial_note:
-            lines.append(style.editorial_label + ": " + draft.editorial_note)
+            lines.append(
+                draft.editorial_note
+                if spoken
+                else style.editorial_label + ": " + draft.editorial_note
+            )
         async with transaction():
             current = await self.missions.get(mission.id, lock=True)
             if (

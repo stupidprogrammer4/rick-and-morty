@@ -78,7 +78,7 @@ API credentials remain in the private runtime environment.
 
 `automation.policy/global` owns the allowlisted administrator and independent news,
 price and chart rules. Each rule has `enabled`, `interval_seconds`, an aware `starts_at`,
-`topic`, `lookback_seconds` and `prompt`. The requested cadence uses prices every
+`topic`, `lookback_seconds`, `prompt` and optional `system_prompt`. The requested cadence uses prices every
 7200 seconds, standalone charts every 25200 seconds and news every 10800 seconds,
 anchored at 10:00 Tehran time. Intervals continue across midnight. Seeds leave
 all rules disabled. Configure an owner and channel before enabling.
@@ -97,6 +97,16 @@ still require approval. Pause, daily quota and quiet hours apply to all schedule
 30 accommodates this cadence; equal quiet boundaries disable the quiet window.
 Absent evidence or invalid required quotes prevents publication. Source reports
 retain the other accepted providers when one source fails.
+
+News uses its dedicated `automation.policy.news.system_prompt` plus a separate
+news-reading task in `news.prompt`, for both manual and scheduled missions.
+The agent reads collected article evidence and writes the facts and its reaction
+together, with evidence-backed excitement or criticism. Article IDs remain linked
+internally; source links and persona labels are excluded from channel text.
+`python -m src.cli.rick_voice` updates the existing news and general Rick prompts,
+clears the news wrapper, cancels queued news in the old format, and applies prices
+every 7200 seconds and charts every 25200 seconds while preserving anchors,
+enabled flags and the remaining settings.
 
 `post.style/news`, `post.style/market` and `post.style/charts` own category hashtags.
 When the standalone chart rule is enabled, price reports do not attach charts;

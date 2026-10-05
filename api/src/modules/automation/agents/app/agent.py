@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,7 @@ from portal_contracts.automation import AgentOutcome, AgentRequest
 from portal_contracts.configuration import PortalConfiguration
 from portal_contracts.enums import BotRole
 from portal_contracts.presentation import PortalPresentation
+from portal_contracts.rick_voice import RICK_NEWS_SYSTEM_PROMPT
 from src.modules.automation.agents.app.context import ToolContext
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
@@ -68,20 +70,46 @@ class MissionAgentCommands:
         if checkpoint is None:
             role = "morty" if mission.actor == "morty" else "rick"
             system = self.presentation.voices[BotRole(role)].system_prompt
+            user_text = mission.text
             if mission.intent == "occasions":
                 system = self.settings.occasions.system_prompt
-            user_text = (
-                self.settings.occasions.prompt
-                if mission.intent == "occasions"
-                else mission.text
-            )
+                target = mission.text
+                if mission.automation_key is not None:
+                    stamp = int(mission.automation_key.split(":", 1)[1])
+                    target = datetime.fromtimestamp(stamp / 1_000_000, UTC)
+                    target = (
+                        target.astimezone(
+                            ZoneInfo(self.settings.portal.timezone)
+                        )
+                        .date()
+                        .isoformat()
+                    )
+                elif target == "today":
+                    target = (
+                        utc_now()
+                        .astimezone(ZoneInfo(self.settings.portal.timezone))
+                        .date()
+                        .isoformat()
+                    )
+                user_text = (
+                    self.settings.occasions.prompt
+                    + f"\nتاریخ همین مأموریت: {target}. "
+                    + "get_calendar_occasions را با آرگومان‌های خالی {} "
+                    "بخوان؛ ابزار خودش تاریخ درست را می‌داند."
+                )
+            elif mission.intent == "news":
+                rule = self.settings.automation.news
+                system = rule.system_prompt or RICK_NEWS_SYSTEM_PROMPT
+                user_text = rule.prompt
+                if mission.automation_key is None:
+                    user_text += f"\nموضوع درخواست: {mission.text}"
             history = AgentHistory(
                 messages=[
                     AgentMessage(role="system", content=system),
                     AgentMessage(role="user", content=user_text),
                 ]
             )
-            if mission.automation_key is not None and mission.intent == "news":
+            if mission.intent == "news":
                 evidence = await self.articles.list(mission.id)
                 history.messages.append(
                     AgentMessage(
@@ -108,10 +136,10 @@ class MissionAgentCommands:
         async with self.mcp.connect(context) as session:
             discovered = await self.mcp.tools(session)
             tools = discovered if tools_enabled else []
-            if (
-                mission.automation_key is not None
-                or mission.intent == "occasions"
-            ):
+            if mission.automation_key is not None or mission.intent in {
+                "news",
+                "occasions",
+            }:
                 allowed_tools = (
                     {"get_calendar_occasions", "create_occasion_draft"}
                     if mission.intent == "occasions"

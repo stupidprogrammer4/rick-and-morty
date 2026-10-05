@@ -149,6 +149,9 @@ class ContentSchedule(BaseModel):
     topic: str = Field(min_length=1, max_length=64)
     lookback_seconds: int = Field(ge=60, le=604800)
     prompt: str = Field(min_length=1, max_length=4000)
+    system_prompt: str | None = Field(
+        default=None, min_length=1, max_length=12000
+    )
 
 
 class AutomationPolicy(BaseModel):

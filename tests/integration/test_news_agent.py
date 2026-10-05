@@ -8,6 +8,7 @@ from papilio.infra.db.transaction import transaction
 
 from portal_contracts.configuration import SettingScope
 from portal_contracts.enums import BotRole
+from portal_contracts.rick_voice import RICK_NEWS_SYSTEM_PROMPT
 from src.config.providers import task_providers
 from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
@@ -48,6 +49,10 @@ def test_news_corrects_parallel_model_calls_before_publication(
 
         async def complete(self, history, tools):
             self.responses += 1
+            assert history.messages[0].content == RICK_NEWS_SYSTEM_PROMPT
+            assert {tool["function"]["name"] for tool in tools} == {
+                "create_post_draft"
+            }
             evidence = json.loads(history.messages[2].content)[
                 "untrusted_article_evidence"
             ][0]
@@ -194,6 +199,8 @@ def test_news_corrects_parallel_model_calls_before_publication(
     result = portal.until(publication, lambda row: row[0] == "sent")
     assert result[1] is not None
     assert len(ExternalTelegramHandler.messages) == 1
-    assert "Rick's evidence-based summary" in unescape(
-        ExternalTelegramHandler.messages[0]["text"]
-    )
+    text = unescape(ExternalTelegramHandler.messages[0]["text"])
+    assert "Rick's evidence-based summary" in text
+    assert "http" not in text
+    assert "برداشت ریک" not in text
+    assert "منبع:" not in text

@@ -59,7 +59,10 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
             assert (
                 history.messages[0].content == OccasionPolicy().system_prompt
             )
-            assert history.messages[1].content == OccasionPolicy().prompt
+            assert history.messages[1].content.startswith(
+                OccasionPolicy().prompt
+            )
+            assert "2026-10-05" in history.messages[1].content
             if history.messages[-1].role != "tool":
                 name, arguments = "get_calendar_occasions", {}
             else:
