@@ -914,6 +914,10 @@ def external_media(
                 value = mp4.read_bytes()
             if native_youtube_api == "html" and self.path == "/tunnel-video":
                 value = b"<html>Upstream unavailable</html>"
+            if native_youtube_api == "empty" and self.path.startswith(
+                "/tunnel-"
+            ):
+                value = b""
             if self.path == "/direct.m4a":
                 value = m4a.read_bytes()
             if portrait and self.path == "/portrait.m3u8":
@@ -1849,6 +1853,18 @@ def test_incomplete_stream_is_failed_without_sending_partial_file(
         ("https://www.youtube.com/watch?v=abc123DEF45", "audio", False, True),
         ("https://www.youtube.com/watch?v=abc123DEF45", "media", False, False),
         ("https://www.youtube.com/watch?v=abc123DEF45", "media", False, True),
+        (
+            "https://www.youtube.com/watch?v=abc123DEF45",
+            "media",
+            False,
+            "empty",
+        ),
+        (
+            "https://www.youtube.com/watch?v=abc123DEF45",
+            "audio",
+            False,
+            "empty",
+        ),
         ("https://open.spotify.com/track/NativeTrack1", "audio", False, False),
         ("https://open.spotify.com/track/NativeTrack1", "audio", True, False),
     ],
@@ -1928,13 +1944,18 @@ def test_native_music_download_delivery_and_reuse_without_child_processes(
             0,
         ), (result.error, portal.run(errors(first)), server.media_requests)
         assert len(ExternalTelegramHandler.media_files) == 1
-        if api:
+        if api is True:
             assert not any(
                 "/youtubei/" in path for _, _, path in server.media_requests
             )
             assert (
                 sum(path == "/cobalt" for _, _, path in server.media_requests)
                 == 1
+            )
+        if api == "empty":
+            assert any(
+                "/youtubei/v1/player" in path
+                for _, _, path in server.media_requests
             )
         original = ExternalTelegramHandler.media_files[0]
         assert not original.get("file_id")
@@ -2219,8 +2240,16 @@ def test_youtube_tunnel_failure_never_sends_a_partial_file(
             lambda job: job.status in {"completed", "partial", "failed"},
             timeout=40,
         )
-        assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
-        assert not ExternalTelegramHandler.media_files
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            1,
+            0,
+        )
+        assert len(ExternalTelegramHandler.media_files) == 1
+        assert ExternalTelegramHandler.media_files[0]["kind"] == "video"
+        assert any(
+            path == "/direct.mp4" for _, _, path in server.media_requests
+        )
         assert not (Path(portal.settings.media.directory) / str(id)).exists()
     finally:
         server.shutdown()
