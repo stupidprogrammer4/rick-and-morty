@@ -167,6 +167,10 @@ class Harness:
             if condition(last):
                 return last
             time.sleep(0.15)
+        for log in self.logs:
+            log.flush()
+            log.seek(0)
+            print(log.read()[-6000:])
         pytest.fail(f"Background condition did not complete: {last}")
 
 

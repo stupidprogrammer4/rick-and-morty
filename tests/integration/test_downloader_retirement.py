@@ -146,6 +146,56 @@ def test_retirement_preserves_previous_data_and_refuses_active_jobs(
             await connection.execute(text(f"DROP DATABASE `{name}`"))
         await admin.dispose()
 
+    async def add_conflicting_setting():
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "INSERT INTO tbl_setting_definitions "
+                    "(id, `key`, title, kind) "
+                    "VALUES (101, 'portal.policy', 'Live setting', 'json')"
+                )
+            )
+
+    async def remove_conflicting_setting():
+        async with engine.begin() as connection:
+            row = (
+                await connection.execute(
+                    text(
+                        "SELECT title FROM tbl_setting_definitions "
+                        "WHERE id=101"
+                    )
+                )
+            ).scalar_one()
+            assert row == "Live setting"
+            await connection.execute(
+                text("DELETE FROM tbl_setting_definitions WHERE id=101")
+            )
+
+    async def verify_restored():
+        async with engine.connect() as connection:
+            item = (
+                await connection.execute(
+                    text(
+                        "SELECT i.id, i.title, j.id, j.owner_id "
+                        "FROM tbl_media_items i JOIN tbl_media_jobs j "
+                        "ON j.id=i.job_id"
+                    )
+                )
+            ).one()
+            assert item == (104, "Original item", 103, 140001)
+            policy = (
+                await connection.execute(
+                    text("SELECT value, revision FROM tbl_setting_values")
+                )
+            ).one()
+            assert policy == ('{"custom":true}', 23)
+            asset = (
+                await connection.execute(
+                    text("SELECT id, file_id FROM tbl_media_assets")
+                )
+            ).one()
+            assert asset == (105, "original-file")
+
     runner.run(create_database())
     try:
         command.upgrade(config, "20261005_media_exit")
@@ -153,6 +203,16 @@ def test_retirement_preserves_previous_data_and_refuses_active_jobs(
         with pytest.raises(RuntimeError, match="active downloads"):
             command.upgrade(config, "head")
         runner.run(finish_job())
+        command.upgrade(config, "head")
+        command.check(config)
+        runner.run(verify())
+        runner.run(add_conflicting_setting())
+        with pytest.raises(RuntimeError, match="conflict"):
+            command.downgrade(config, "20261005_media_exit")
+        runner.run(verify())
+        runner.run(remove_conflicting_setting())
+        command.downgrade(config, "20261005_media_exit")
+        runner.run(verify_restored())
         command.upgrade(config, "head")
         command.check(config)
         runner.run(verify())

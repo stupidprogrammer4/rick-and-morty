@@ -70,4 +70,41 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    raise RuntimeError("Restore the archived downloader data before rollback")
+    connection = op.get_bind()
+    definitions = connection.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM archive_downloader_definitions a "
+            "JOIN tbl_setting_definitions d ON d.id=a.id OR d.`key`=a.`key`"
+        )
+    ).scalar_one()
+    values = connection.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM archive_downloader_values a "
+            "JOIN tbl_setting_values v ON v.id=a.id"
+        )
+    ).scalar_one()
+    if definitions or values:
+        raise RuntimeError(
+            "Live settings conflict with the archived identifiers"
+        )
+    op.execute(
+        sa.text(
+            "RENAME TABLE archive_downloader_jobs TO tbl_media_jobs, "
+            "archive_downloader_items TO tbl_media_items, "
+            "archive_downloader_assets TO tbl_media_assets"
+        )
+    )
+    op.execute(
+        sa.text(
+            "INSERT INTO tbl_setting_definitions "
+            "SELECT * FROM archive_downloader_definitions"
+        )
+    )
+    op.execute(
+        sa.text(
+            "INSERT INTO tbl_setting_values "
+            "SELECT * FROM archive_downloader_values"
+        )
+    )
+    op.drop_table("archive_downloader_values")
+    op.drop_table("archive_downloader_definitions")
