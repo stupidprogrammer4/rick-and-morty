@@ -11,6 +11,7 @@ from portal_contracts.configuration import (
     SettingValueOut,
 )
 from portal_contracts.enums import BotRole, Category
+from portal_contracts.occasions import OccasionPolicy
 from portal_contracts.presentation import (
     PortalPresentation,
     PostStyle,
@@ -115,6 +116,9 @@ class ConfigurationQueries:
                 market=market,
                 automation=AutomationPolicy.model_validate_json(
                     value(SettingKey.AUTOMATION)
+                ),
+                occasions=OccasionPolicy.model_validate_json(
+                    value(SettingKey.OCCASIONS)
                 ),
             ),
             presentation=PortalPresentation(

@@ -82,6 +82,7 @@ for these tokens while webhooks are active.
 | `/team text`, `/news python ai` | Collected article evidence and a news draft |
 | `/summarize https://...` | Read an allowed source and draft its summary |
 | `/prices` | Fetch accepted market rates and prepare a source or aggregate report |
+| `/occasions [YYYY-MM-DD]` | Rick reads the calendar and drafts every recorded occasion for today or a Gregorian date |
 | `/jobs [page]`, `/job id`, `/cancel id` | Inspect or cancel owned missions |
 | `/drafts [page]`, `/draft id` | Inspect draft content and its revision |
 | `/approve id [revision]`, `/reject id [revision]` | Decide on a specific revision |
@@ -107,6 +108,34 @@ and scoped values, plus news and market sources and their configurations. The
 initial `api/seeds/defaults.json` creates missing records; restarting or seeding never
 overwrites administrator changes. Credentials and transport belong in private
 environment variables; `config.yml` contains framework and infrastructure setup.
+
+Recurring prices, charts and news have independent two-, seven- and three-hour
+intervals anchored at 10:00 Tehran time. After seeding,
+`python -m src.cli.content_schedule` activates this cadence for an existing
+channel and administrator, preserves content settings, disables quiet hours
+and raises the daily cap to at least 30.
+
+Daily occasions use `occasions.policy/global`. Its initial schedule is disabled;
+set an allowlisted `owner_id` and `enabled: true` to enable it. Rick prepares
+the draft at 10:00 and schedules delivery at a random time between 15:00 and
+18:00 in the portal timezone. The selected time persists across restarts.
+Rick reads the calendar through
+`get_calendar_occasions`, then writes his commentary with
+`create_occasion_draft`. The calendar supplies all event names, dates and sources;
+the draft tool rejects missing or invented event IDs. Scheduled drafts use the
+existing channel workflow, quiet hours and shared daily cap. Private `/occasions`
+drafts require the normal approval and publication commands.
+
+The bundled calendar prioritizes unofficial social and internet occasions,
+including Girlfriends Day and the October 5 anti-prostitution observance,
+with explicit unofficial labels and source links. It also covers Iranian solar
+and lunar occasions, ancient Iranian festivals and international observances
+from the Persian Calendar dataset.
+Additional categories and custom events are configurable. Coverage follows the
+recorded sources; it does not claim every informal observance worldwide.
+Missing lunar coverage is shown explicitly. See
+[calendar configuration](docs/configuration.md#daily-occasions) for setup and
+the packaged calendar provenance for source versions and refresh instructions.
 
 Read `ai.model/global` using `/settings ai.model global`. Its initial live mode
 is OpenRouter with `openai/gpt-4.1-mini`, price ceilings of $0.40 input and $1.60

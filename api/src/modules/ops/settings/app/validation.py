@@ -13,6 +13,7 @@ from portal_contracts.configuration import (
     SettingScope,
 )
 from portal_contracts.media import MediaPolicy
+from portal_contracts.occasions import OccasionPolicy
 from portal_contracts.presentation import (
     PostStyle,
     PresentationSettings,
@@ -33,6 +34,7 @@ class SettingValueValidator:
         SettingKey.AUTOMATION: AutomationPolicy,
         SettingKey.ENGINE: MarketEnginePolicy,
         SettingKey.MEDIA: MediaPolicy,
+        SettingKey.OCCASIONS: OccasionPolicy,
     }
 
     def validate(
@@ -46,6 +48,7 @@ class SettingValueValidator:
                 SettingScope.NEWS,
                 SettingScope.TECH,
                 SettingScope.MARKET,
+                SettingScope.CHARTS,
                 SettingScope.MUSIC,
                 SettingScope.NOTICE,
             }

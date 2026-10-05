@@ -3,6 +3,7 @@ from typing import Any, Protocol
 
 from portal_contracts.automation import AgentOutcome, AgentRequest
 from portal_contracts.content import DraftOut
+from portal_contracts.occasions import OccasionDay, OccasionDraft
 from portal_contracts.telegram import ReactionEmoji
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
@@ -34,6 +35,14 @@ class IAgentToolCommands(Protocol):
     async def read_article(self, article_id: int) -> ArticleEvidence: ...
 
     async def get_market_prices(self) -> str: ...
+
+    async def get_calendar_occasions(
+        self, on_date: str | None = None
+    ) -> OccasionDay: ...
+
+    async def create_occasion_draft(
+        self, draft: OccasionDraft
+    ) -> DraftOut: ...
 
     async def react_to_message(self, emoji: ReactionEmoji) -> str: ...
 

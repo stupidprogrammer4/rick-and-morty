@@ -20,7 +20,7 @@ async def start(message: Message, role: BotRole, voice: BotVoice):
 async def help_message(message: Message):
     await message.answer(
         "/ask rick متن · /ask morty متن\n/team python ai · /news python ai\n"
-        "/summarize https://… · /prices\n"
+        "/summarize https://… · /prices · /occasions [YYYY-MM-DD]\n"
         "/jobs [صفحه] · /job شناسه · /cancel شناسه\n"
         "/drafts [صفحه] · /draft شناسه\n"
         "/approve شناسه [نسخه] · /reject شناسه [نسخه]\n"

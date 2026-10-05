@@ -17,6 +17,8 @@ class Intent(StrEnum):
     NEWS = "news"
     SUMMARY = "summary"
     PRICES = "prices"
+    CHARTS = "charts"
+    OCCASIONS = "occasions"
 
 
 class Category(StrEnum):
@@ -24,4 +26,5 @@ class Category(StrEnum):
     TECH = "tech"
     MUSIC = "music"
     MARKET = "market"
+    CHARTS = "charts"
     NOTICE = "notice"

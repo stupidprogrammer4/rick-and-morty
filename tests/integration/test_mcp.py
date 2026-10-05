@@ -42,5 +42,7 @@ async def test_mcp_discovers_tools_through_native_stdio(monkeypatch):
         "get_market_prices",
         "react_to_message",
         "create_post_draft",
+        "get_calendar_occasions",
+        "create_occasion_draft",
     }
     assert not any("publish" in name for name in names)

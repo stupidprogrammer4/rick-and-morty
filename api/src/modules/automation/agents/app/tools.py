@@ -1,13 +1,20 @@
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from papilio.infra.db.transaction import transaction
 
+from portal_contracts.configuration import PortalConfiguration
 from portal_contracts.content import DraftCreate, DraftOut
 from portal_contracts.enums import BotRole, Category
+from portal_contracts.occasions import OccasionDay, OccasionDraft
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.telegram import ReactionEmoji, ReactionRequest
 from src.modules.automation.agents.app.context import ToolContext
-from src.modules.automation.agents.domain.dtos import AuthorizedMission
+from src.modules.automation.agents.domain.dtos import (
+    AgentHistory,
+    AuthorizedMission,
+)
+from src.modules.automation.agents.infra.mysql import CheckpointRepository
 from src.modules.automation.missions.infra.mysql import MissionRepository
 from src.modules.content.drafts.domain.models import DraftEvidenceModel
 from src.modules.content.drafts.infra.mysql import DraftEvidenceRepository
@@ -18,10 +25,52 @@ from src.modules.content.news.domain.dtos import (
     NewsDraft,
 )
 from src.modules.content.news.interfaces import IArticleService
+from src.modules.content.occasions.app.calendar import OccasionCalendar
 from src.modules.content.publications.interfaces import ITelegramGateway
 from src.modules.pricing.reports.interfaces import IMarketQuery
 from src.shared.dates import as_utc, utc_now
 from src.shared.errors import conflict, missing
+
+
+def calendar_evidence(history: AgentHistory) -> OccasionDay | None:
+    calls = {
+        call.id
+        for message in history.messages
+        for call in message.tool_calls or []
+        if call.function.name == "get_calendar_occasions"
+    }
+    for message in reversed(history.messages):
+        if message.role == "tool" and message.tool_call_id in calls:
+            return OccasionDay.model_validate_json(message.content or "")
+    return None
+
+
+def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:
+    ids = [comment.event_id for comment in draft.comments]
+    if (
+        draft.date != day.date
+        or len(ids) != len(set(ids))
+        or set(ids) != {event.id for event in day.events}
+    ):
+        raise ValueError("Include every calendar event exactly once")
+    comments = {comment.event_id: comment.text for comment in draft.comments}
+    lines = [draft.intro]
+    for event in day.events:
+        holiday = " · تعطیل" if event.holiday and event.type == "Iran" else ""
+        status = " · غیررسمی" if event.status == "unofficial" else ""
+        region = f" · {event.region}" if event.region else ""
+        note = f"\n{event.note}" if event.note else ""
+        lines.append(
+            f"• {event.title}{status}{region}{holiday}{note}"
+            f"\n{comments[event.id]}"
+        )
+    if not day.events:
+        lines.append("برای این تاریخ، مناسبتی در تقویم ثبت نشده است.")
+    lines.extend(f"وضعیت تقویم: {warning}" for warning in day.warnings)
+    lines.append(draft.outro)
+    sources = dict.fromkeys(event.source for event in day.events)
+    lines.extend(f"منبع تقویم: {source}" for source in sources)
+    return "\n\n".join(line for line in lines if line)
 
 
 class AgentToolCommands:
@@ -35,6 +84,9 @@ class AgentToolCommands:
         links: DraftEvidenceRepository,
         gateway: ITelegramGateway,
         presentation: PortalPresentation,
+        calendar: OccasionCalendar,
+        checkpoints: CheckpointRepository,
+        settings: PortalConfiguration,
     ):
         self.context = context
         self.missions = missions
@@ -44,6 +96,9 @@ class AgentToolCommands:
         self.links = links
         self.gateway = gateway
         self.presentation = presentation
+        self.calendar = calendar
+        self.checkpoints = checkpoints
+        self.settings = settings
 
     async def authorize(self) -> AuthorizedMission:
         mission = await self.missions.get(self.context.mission_id)
@@ -82,6 +137,70 @@ class AgentToolCommands:
         await self.authorize()
         result = await self.market.report()
         return result
+
+    async def get_calendar_occasions(
+        self, on_date: str | None = None
+    ) -> OccasionDay:
+        mission = await self.authorize()
+        requested = date.fromisoformat(on_date) if on_date else None
+        target = None
+        if mission.intent == "occasions":
+            if mission.automation_key is not None:
+                slot = int(mission.automation_key.split(":", 1)[1])
+                target = datetime.fromtimestamp(slot / 1_000_000, UTC)
+                target = target.astimezone(
+                    ZoneInfo(self.settings.portal.timezone)
+                ).date()
+            elif mission.text != "today":
+                target = date.fromisoformat(mission.text)
+            else:
+                target = (
+                    utc_now()
+                    .astimezone(ZoneInfo(self.settings.portal.timezone))
+                    .date()
+                )
+            if requested is not None and requested != target:
+                raise ValueError("Use the mission's calendar date")
+        return self.calendar.day(target or requested)
+
+    async def create_occasion_draft(self, draft: OccasionDraft) -> DraftOut:
+        mission = await self.authorize()
+        if mission.intent != "occasions":
+            raise conflict("Use an occasions mission to create this draft")
+        checkpoint = await self.checkpoints.get(mission.id)
+        day = (
+            calendar_evidence(
+                AgentHistory.model_validate_json(checkpoint.history)
+            )
+            if checkpoint is not None
+            else None
+        )
+        if day is None:
+            raise ValueError("Read get_calendar_occasions before drafting")
+        data = DraftCreate(
+            category=Category.NOTICE,
+            title=(
+                f"🧪 مناسبت‌های {day.persian[0]}/{day.persian[1]:02}/"
+                f"{day.persian[2]:02} · {day.date.isoformat()}"
+            ),
+            text=occasion_text(day, draft),
+            publisher_bot=BotRole.RICK,
+        )
+        async with transaction():
+            current = await self.missions.get(mission.id, lock=True)
+            if (
+                current is None
+                or current.status != "running"
+                or as_utc(current.deadline) <= utc_now()
+            ):
+                raise conflict("مأموریت لغو یا منقضی شده.")
+            return await self.drafts.create(
+                mission.owner_id,
+                BotRole(mission.origin_bot),
+                data,
+                key=f"mission:{mission.id}:occasions",
+                mission_id=mission.id,
+            )
 
     async def react_to_message(self, emoji: ReactionEmoji) -> str:
         mission = await self.authorize()

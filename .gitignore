@@ -10,3 +10,7 @@ config.yml
 data/
 deploy/private/
 *.log
+
+# Packaged occasion calendar sources
+!api/src/modules/content/occasions/data/
+!api/src/modules/content/occasions/data/**

@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import UTC, datetime, time
 from decimal import Decimal
 from enum import StrEnum
 from typing import Literal, Self
@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 from portal_contracts.charts import AssetChartPolicy
+from portal_contracts.occasions import OccasionPolicy
 from portal_contracts.presentation import PortalPresentation
 
 
@@ -21,6 +22,7 @@ class SettingKey(StrEnum):
     AUTOMATION = "automation.policy"
     ENGINE = "market.engine"
     MEDIA = "media.policy"
+    OCCASIONS = "occasions.policy"
 
 
 class SettingScope(StrEnum):
@@ -30,6 +32,7 @@ class SettingScope(StrEnum):
     NEWS = "news"
     TECH = "tech"
     MARKET = "market"
+    CHARTS = "charts"
     MUSIC = "music"
     NOTICE = "notice"
     GOLD = "gold"
@@ -152,11 +155,21 @@ class AutomationPolicy(BaseModel):
     owner_id: int | None = Field(default=None, gt=0)
     news: ContentSchedule
     prices: ContentSchedule
+    charts: ContentSchedule = Field(
+        default_factory=lambda: ContentSchedule(
+            enabled=False,
+            interval_seconds=25200,
+            starts_at=datetime(2026, 10, 5, 6, 30, tzinfo=UTC),
+            topic="charts",
+            lookback_seconds=86400,
+            prompt="نمودارهای خطی و کندلی دارایی‌های بازار را منتشر کن.",
+        )
+    )
 
     @model_validator(mode="after")
     def enabled_schedules_have_owner(self) -> Self:
         if (
-            self.news.enabled or self.prices.enabled
+            self.news.enabled or self.prices.enabled or self.charts.enabled
         ) and self.owner_id is None:
             raise ValueError("Enabled schedules require an owner")
         return self
@@ -167,6 +180,7 @@ class PortalConfiguration(BaseModel):
     ai: AIModelPolicy
     market: MarketPolicy
     automation: AutomationPolicy
+    occasions: OccasionPolicy = Field(default_factory=OccasionPolicy)
 
 
 class SettingDefinitionCreate(BaseModel):

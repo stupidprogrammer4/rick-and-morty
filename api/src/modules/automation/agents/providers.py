@@ -2,6 +2,7 @@ import os
 
 from dishka import Provider, Scope, provide
 
+from portal_contracts.configuration import PortalConfiguration
 from src.modules.automation.agents.app.agent import MissionAgentCommands
 from src.modules.automation.agents.app.context import ToolContext
 from src.modules.automation.agents.app.tools import AgentToolCommands
@@ -17,6 +18,7 @@ from src.modules.automation.agents.interfaces import (
     ILLMClient,
     IRickAgent,
 )
+from src.modules.content.occasions.app.calendar import OccasionCalendar
 
 
 class RickProvider(Provider):
@@ -28,6 +30,10 @@ class RickProvider(Provider):
     agent = provide(MissionAgentCommands, provides=IRickAgent)
     mcp = provide(MissionMCPClient, scope=Scope.APP)
     tools = provide(AgentToolCommands, provides=IAgentToolCommands)
+
+    @provide
+    def calendar(self, settings: PortalConfiguration) -> OccasionCalendar:
+        return OccasionCalendar(settings.occasions, settings.portal.timezone)
 
     @provide(scope=Scope.APP)
     def context(self) -> ToolContext:
