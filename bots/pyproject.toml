@@ -13,6 +13,3 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["portal_bots*"]
-
-[tool.setuptools.package-data]
-"portal_bots.media" = ["assets/*.png"]

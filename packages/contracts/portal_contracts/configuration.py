@@ -21,7 +21,6 @@ class SettingKey(StrEnum):
     QUOTE = "market.quote"
     AUTOMATION = "automation.policy"
     ENGINE = "market.engine"
-    MEDIA = "media.policy"
     OCCASIONS = "occasions.policy"
 
 

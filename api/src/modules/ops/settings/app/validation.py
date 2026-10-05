@@ -12,7 +12,6 @@ from portal_contracts.configuration import (
     SettingKey,
     SettingScope,
 )
-from portal_contracts.media import MediaPolicy
 from portal_contracts.occasions import OccasionPolicy
 from portal_contracts.presentation import (
     PostStyle,
@@ -33,7 +32,6 @@ class SettingValueValidator:
         SettingKey.QUOTE: QuoteMapping,
         SettingKey.AUTOMATION: AutomationPolicy,
         SettingKey.ENGINE: MarketEnginePolicy,
-        SettingKey.MEDIA: MediaPolicy,
         SettingKey.OCCASIONS: OccasionPolicy,
     }
 

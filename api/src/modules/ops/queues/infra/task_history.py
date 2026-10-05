@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime
 
 from papilio.infra.redis.client import RedisClient, resolve
@@ -13,28 +12,16 @@ class TaskHistoryStore:
 
     async def prune(self, before: datetime) -> int:
         threshold = f"{int(before.timestamp() * 1000)}-0"
-        main, media = await asyncio.gather(
-            resolve(
-                self.redis.client.execute_command(
-                    "XTRIM",
-                    self.streams.main,
-                    "MINID",
-                    "=",
-                    threshold,
-                    "ACKED",
-                )
-            ),
-            resolve(
-                self.redis.client.execute_command(
-                    "XTRIM",
-                    self.streams.media,
-                    "MINID",
-                    "=",
-                    threshold,
-                    "ACKED",
-                )
-            ),
+        removed = await resolve(
+            self.redis.client.execute_command(
+                "XTRIM",
+                self.streams.main,
+                "MINID",
+                "=",
+                threshold,
+                "ACKED",
+            )
         )
-        if not isinstance(main, int) or not isinstance(media, int):
+        if not isinstance(removed, int):
             raise RuntimeError("Redis did not return a stream trim count")
-        return main + media
+        return removed

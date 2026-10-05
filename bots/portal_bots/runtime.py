@@ -26,7 +26,6 @@ from pydantic import ValidationError
 from portal_bots.app.pages import page_keyboard
 from portal_bots.config.settings import BotSettings
 from portal_bots.infra.backend import BackendClient, BackendUnavailable
-from portal_bots.media.runtime import MediaRuntime
 from portal_bots.routers import drafts, missions, ops, pages
 from portal_bots.routers import settings as settings_router
 from portal_bots.routers.auth import PrivateAdminMiddleware
@@ -58,11 +57,6 @@ class BotRuntime:
         }
         self.client = httpx.AsyncClient(trust_env=False)
         self.backend = BackendClient(self.client, settings)
-        self.media = (
-            MediaRuntime(settings, self.backend)
-            if settings.media_token is not None
-            else None
-        )
         # Roles and updates stay local to each dispatcher request.
         self.dispatcher = Dispatcher()
         self.dispatcher.message.outer_middleware(
@@ -98,15 +92,6 @@ class BotRuntime:
             for role, identity in zip(self.bots, identities, strict=True)
         }
         await self.dispatcher.emit_startup()
-        if self.media is not None:
-            identity = await self.media.bot.get_me()
-            if identity.id in {bot.id for bot in self.bots.values()}:
-                raise RuntimeError("Media needs an independent bot identity")
-            self.identities["media"] = {
-                "id": identity.id,
-                "username": identity.username,
-            }
-            await self.media.dispatcher.emit_startup()
 
     async def cleanup(self, app: web.Application):
         await self.dispatcher.emit_shutdown()
@@ -114,9 +99,6 @@ class BotRuntime:
             *(bot.session.close() for bot in self.bots.values())
         )
         await self.client.aclose()
-        if self.media is not None:
-            await self.media.dispatcher.emit_shutdown()
-            await self.media.bot.session.close()
 
     async def webhook(self, request: web.Request):
         role = BotRole(request.match_info["role"])
@@ -281,8 +263,6 @@ class BotRuntime:
 
     def application(self):
         app = web.Application(client_max_size=512 * 1024)
-        if self.media is not None:
-            self.media.attach(app)
         app.router.add_post("/telegram/{role:rick|morty}", self.webhook)
         app.router.add_post("/internal/messages", self.send)
         app.router.add_post("/internal/photos", self.send_photo)

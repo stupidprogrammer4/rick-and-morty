@@ -21,8 +21,18 @@ if settings.db is None:
 url = context.config.get_main_option("sqlalchemy.url") or settings.db.dsn
 
 
+def include_name(name, type_, parent_names):
+    if type_ == "table" and name is not None:
+        return not name.startswith("archive_downloader_")
+    return True
+
+
 def run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_name=include_name,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
@@ -42,6 +52,7 @@ if context.is_offline_mode():
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
