@@ -19,7 +19,10 @@ from src.modules.automation.agents.domain.models import (
     AgentCheckpointModel,
     LLMRunModel,
 )
-from src.modules.automation.agents.infra.mcp import MissionMCPClient
+from src.modules.automation.agents.infra.mcp import (
+    MCPToolError,
+    MissionMCPClient,
+)
 from src.modules.automation.agents.infra.mysql import (
     AIBudgetRepository,
     CheckpointRepository,
@@ -238,9 +241,25 @@ class MissionAgentCommands:
                 checkpoint.tools += 1
                 async with transaction():
                     await self.checkpoints.save(checkpoint)
-                content = await self.mcp.execute(
-                    session, call.function.name, call.function.arguments
-                )
+                try:
+                    content = await self.mcp.execute(
+                        session, call.function.name, call.function.arguments
+                    )
+                except MCPToolError as error:
+                    history.messages.append(
+                        AgentMessage(
+                            role="tool",
+                            tool_call_id=call.id,
+                            content=json.dumps(
+                                {"error": str(error), "saved": False},
+                                ensure_ascii=False,
+                            ),
+                        )
+                    )
+                    checkpoint.history = history.model_dump_json()
+                    async with transaction():
+                        await self.checkpoints.save(checkpoint)
+                    return AgentOutcome(waiting=True)
                 history.messages.append(
                     AgentMessage(
                         role="tool", content=content, tool_call_id=call.id

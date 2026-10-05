@@ -11,6 +11,10 @@ from mcp.client.stdio import stdio_client
 from src.modules.automation.agents.app.context import ToolContext
 
 
+class MCPToolError(ValueError):
+    """A rejected tool call that the model can correct within its budget."""
+
+
 class MissionMCPClient:
     @asynccontextmanager
     async def connect(
@@ -55,7 +59,10 @@ class MissionMCPClient:
             raise ValueError("Tool arguments must be an object")
         result = await session.call_tool(name, data)
         if result.is_error:
-            raise ValueError("MCP tool failed")
+            detail = " ".join(
+                item.text for item in result.content if item.type == "text"
+            )
+            raise MCPToolError(detail[:1500] or "MCP tool failed")
         if result.structured_content is not None:
             return json.dumps(result.structured_content, ensure_ascii=False)
         texts = [item.text for item in result.content if item.type == "text"]

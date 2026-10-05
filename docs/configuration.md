@@ -101,8 +101,9 @@ retain the other accepted providers when one source fails.
 News uses its dedicated `automation.policy.news.system_prompt` plus a separate
 news-reading task in `news.prompt`, for both manual and scheduled missions.
 The agent reads collected article evidence and writes the facts and its reaction
-together, with evidence-backed excitement or criticism. Article IDs remain linked
-internally; source links and persona labels are excluded from channel text.
+together, with evidence-backed excitement or criticism. Rejected MCP tool arguments return corrective feedback within the existing
+request and tool budgets; only an accepted draft can reach publication.
+Article IDs remain linked internally; source links and persona labels are excluded from channel text.
 `python -m src.cli.rick_voice` updates the existing news and general Rick prompts,
 clears the news wrapper, cancels queued news in the old format, and applies prices
 every 7200 seconds and charts every 25200 seconds while preserving anchors,

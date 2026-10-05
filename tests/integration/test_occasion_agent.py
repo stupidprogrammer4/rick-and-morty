@@ -33,8 +33,9 @@ from tests.integration.conftest import OWNER, ExternalTelegramHandler
 pytestmark = pytest.mark.integration
 
 
+@pytest.mark.parametrize("duplicate_comment", [False, True])
 def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
-    portal, monkeypatch
+    portal, monkeypatch, duplicate_comment
 ):
     monkeypatch.setenv("PORTAL_DRY_RUN", "false")
     portal.environment["PORTAL_DRY_RUN"] = "false"
@@ -66,9 +67,16 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
             if history.messages[-1].role != "tool":
                 name, arguments = "get_calendar_occasions", {}
             else:
-                day = OccasionDay.model_validate_json(
-                    history.messages[-1].content
+                rejected = '"saved": false' in (
+                    history.messages[-1].content or ""
                 )
+                if rejected:
+                    assert "unique event IDs" in history.messages[-1].content
+                    day = day_evidence[-1]
+                else:
+                    day = OccasionDay.model_validate_json(
+                        history.messages[-1].content
+                    )
                 day_evidence.append(day)
                 name = "create_occasion_draft"
                 arguments = {
@@ -89,6 +97,8 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
                         "outro": "بریم سراغ بُعد بعدی.",
                     }
                 }
+                if duplicate_comment and not rejected:
+                    arguments["draft"]["comments"] *= 2
             return LLMReply(
                 message=AgentMessage(
                     role="assistant",
@@ -150,7 +160,7 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
             *task_providers(portal.settings), ExternalProvider()
         )
         try:
-            for _ in range(2):
+            for _ in range(3 if duplicate_comment else 2):
                 async with container() as scope:
                     await (await scope.get(IMissionExecutor)).execute(
                         mission_id
