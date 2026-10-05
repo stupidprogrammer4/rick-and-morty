@@ -25,12 +25,23 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
 ):
     async def workflow():
         calls = []
+        unchanged = {"next": False}
 
         async def telegram(request):
             fields = await request.post()
             method = request.match_info["method"]
             if method == "answerCallbackQuery":
                 return web.json_response({"ok": True, "result": True})
+            if method.startswith("editMessage") and unchanged["next"]:
+                unchanged["next"] = False
+                return web.json_response(
+                    {
+                        "ok": False,
+                        "error_code": 400,
+                        "description": "Bad Request: message is not modified",
+                    },
+                    status=400,
+                )
             result = {
                 "message_id": len(calls) + 1,
                 "date": int(datetime.now(UTC).timestamp()),
@@ -51,6 +62,16 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                     }
                 ]
                 result["caption"] = fields["caption"]
+            elif method == "editMessageCaption":
+                result["caption"] = fields["caption"]
+                result["photo"] = [
+                    {
+                        "file_id": "avatar",
+                        "file_unique_id": "avatar-test",
+                        "width": 1254,
+                        "height": 1254,
+                    }
+                ]
             else:
                 result["text"] = fields.get("text", "")
             calls.append((method, dict(fields)))
@@ -68,6 +89,7 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
             service_key=portal.settings.security.service_key,
             admin_ids={OWNER},
             media_directory=portal.settings.media.directory,
+            redis_url=portal.settings.tasks.url,
         )
         api = create_app(
             portal.settings,
@@ -103,6 +125,42 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                             "first_name": "Public user",
                         },
                     }
+
+                    async def press(data, photo=False, user=USER):
+                        content = {"text": "Previous screen"}
+                        if photo:
+                            content = {
+                                "caption": "Previous screen",
+                                "photo": [
+                                    {
+                                        "file_id": "avatar",
+                                        "file_unique_id": "avatar-test",
+                                        "width": 1254,
+                                        "height": 1254,
+                                    }
+                                ],
+                            }
+                        result = await gateway.post(
+                            "/telegram/media",
+                            headers=headers,
+                            json={
+                                "update_id": 500 + len(calls),
+                                "callback_query": {
+                                    "id": str(len(calls)),
+                                    "chat_instance": "private-ui",
+                                    "from": {**base["from"], "id": user},
+                                    "data": data,
+                                    "message": {
+                                        **base,
+                                        "message_id": len(calls),
+                                        **content,
+                                    },
+                                },
+                            },
+                        )
+                        assert result.status == 200
+                        return calls[-1]
+
                     rejected = await gateway.post(
                         "/telegram/media",
                         json={
@@ -139,6 +197,41 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                         "/telegram/media",
                         headers=headers,
                         json={
+                            "update_id": 100,
+                            "message": {**base, "text": "↩️ بازگشت"},
+                        },
+                    )
+                    assert response.status == 200
+                    assert "reply_markup" in calls[-1][1]
+                    assert "keyboard" in json.loads(
+                        calls[-1][1]["reply_markup"]
+                    )
+                    assert menu["keyboard"][0][0]["style"] == "primary"
+                    assert menu["keyboard"][0][1]["style"] == "success"
+                    method, fields = await press("media:sources", photo=True)
+                    assert method == "editMessageCaption"
+                    assert "Instagram" in fields["caption"]
+                    assert r"\n" not in fields["caption"]
+                    unchanged["next"] = True
+                    await press("media:sources", photo=True)
+                    method, fields = await press("media:home", photo=True)
+                    assert method == "editMessageCaption"
+                    root = json.loads(fields["reply_markup"])[
+                        "inline_keyboard"
+                    ]
+                    assert root[0][1]["callback_data"] == "media:audio"
+                    method, fields = await press("media:audio")
+                    assert "موزیک" in fields["text"]
+                    assert (
+                        json.loads(fields["reply_markup"])["inline_keyboard"][
+                            0
+                        ][0]["callback_data"]
+                        == "media:home"
+                    )
+                    response = await gateway.post(
+                        "/telegram/media",
+                        headers=headers,
+                        json={
                             "update_id": 2,
                             "message": {
                                 **base,
@@ -156,6 +249,7 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                         queries = await request.get(IMediaQueries)
                         jobs = await queries.page(USER, 1, 5)
                     assert jobs.total == 1 and jobs.items[0].status == "queued"
+                    assert jobs.items[0].mode == "audio"
                     id = jobs.items[0].id
                     response = await gateway.post(
                         "/telegram/media",
@@ -182,6 +276,50 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                         jobs = await queries.page(USER, 1, 5)
                     assert jobs.items[0].status == "cancelled"
                     assert "🛑" in calls[-1][1]["text"]
+                    method, fields = await press(f"media:items:{id}:1")
+                    buttons = json.loads(fields["reply_markup"])[
+                        "inline_keyboard"
+                    ]
+                    assert (
+                        buttons[-1][0]["callback_data"] == f"media:status:{id}"
+                    )
+                    method, fields = await press(f"media:status:{id}")
+                    buttons = json.loads(fields["reply_markup"])[
+                        "inline_keyboard"
+                    ]
+                    assert buttons[-1][0]["callback_data"] == "media:jobs:1"
+                    method, fields = await press("media:jobs:1")
+                    buttons = json.loads(fields["reply_markup"])[
+                        "inline_keyboard"
+                    ]
+                    assert (
+                        buttons[0][0]["callback_data"] == f"media:status:{id}"
+                    )
+                    assert buttons[-1][-1]["callback_data"] == "media:home"
+                    await press("media:home")
+                    response = await gateway.post(
+                        "/telegram/media",
+                        headers=headers,
+                        json={
+                            "update_id": 400,
+                            "message": {
+                                **base,
+                                "text": "https://example.com/second.mp4",
+                            },
+                        },
+                    )
+                    assert response.status == 200
+                    async with portal.request() as request:
+                        queries = await request.get(IMediaQueries)
+                        page = await queries.page(USER, 1, 5)
+                    assert page.total == 2
+                    assert (
+                        next(job for job in page.items if job.id != id).mode
+                        == "media"
+                    )
+                    count = len(calls)
+                    await press("media:home", user=USER + 1)
+                    assert len(calls) == count
                     denied = await client.get(
                         f"/internal/media/jobs/{id}",
                         headers={
@@ -192,6 +330,7 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                     )
                     assert denied.status_code == 404
             finally:
+                await runtime.dispatcher.emit_shutdown()
                 await runtime.bot.session.close()
 
     portal.run(workflow())
@@ -305,6 +444,7 @@ def test_cached_delivery_authorizes_persisted_file_and_reports_invalid_id(
             service_key=portal.settings.security.service_key,
             admin_ids={OWNER},
             media_directory=portal.settings.media.directory,
+            redis_url=portal.settings.tasks.url,
         )
         api = create_app(
             portal.settings,
@@ -358,6 +498,7 @@ def test_cached_delivery_authorizes_persisted_file_and_reports_invalid_id(
                     assert (await response.json())["status"] == "cache_miss"
                     assert len(calls) == 1
             finally:
+                await runtime.dispatcher.emit_shutdown()
                 await runtime.bot.session.close()
 
     portal.run(workflow())

@@ -10,6 +10,8 @@ from aiogram.exceptions import (
     TelegramNetworkError,
     TelegramRetryAfter,
 )
+from aiogram.fsm.storage.base import DefaultKeyBuilder
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import FSInputFile, Update
 from aiohttp import web
 from pydantic import BaseModel, Field
@@ -46,7 +48,16 @@ class MediaRuntime:
                 parse_mode="HTML", link_preview_is_disabled=True
             ),
         )
-        self.dispatcher = Dispatcher()
+        storage = RedisStorage.from_url(
+            settings.redis_url,
+            key_builder=DefaultKeyBuilder(
+                prefix="portal-media-fsm", with_bot_id=True
+            ),
+            data_ttl=3600,
+        )
+        self.dispatcher = Dispatcher(
+            storage=storage, events_isolation=storage.create_isolation()
+        )
         configuration = MediaConfigurationMiddleware()
         self.dispatcher.message.outer_middleware(CommandErrorMiddleware())
         self.dispatcher.callback_query.outer_middleware(

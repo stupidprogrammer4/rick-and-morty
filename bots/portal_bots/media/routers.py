@@ -3,9 +3,9 @@ from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
-    ForceReply,
     FSInputFile,
     InaccessibleMessage,
     Message,
@@ -13,11 +13,15 @@ from aiogram.types import (
 
 from portal_bots.interfaces import IBackendClient
 from portal_bots.media.presentation import (
+    home_keyboard,
     job_keyboard,
     job_text,
+    jobs_keyboard,
     jobs_text,
     main_keyboard,
+    navigation_keyboard,
     page_keyboard,
+    show_screen,
 )
 from portal_contracts.media import (
     MediaAccepted,
@@ -34,9 +38,20 @@ def make_router() -> Router:
 
     @router.message(Command("start", "help"))
     async def welcome(
-        message: Message, backend: IBackendClient, media_policy: MediaPolicy
+        message: Message,
+        backend: IBackendClient,
+        media_policy: MediaPolicy,
+        state: FSMContext,
+        command: CommandObject,
     ):
         if message.chat.type != "private":
+            return
+        await state.clear()
+        if command.command == "help":
+            await message.answer(
+                media_policy.presentation.help_text,
+                reply_markup=navigation_keyboard(media_policy.presentation),
+            )
             return
         if media_policy.presentation.show_avatar:
             await message.answer_photo(
@@ -52,19 +67,23 @@ def make_router() -> Router:
 
     @router.message(Command("jobs"))
     async def jobs(
-        message: Message, backend: IBackendClient, media_policy: MediaPolicy
+        message: Message,
+        backend: IBackendClient,
+        media_policy: MediaPolicy,
+        state: FSMContext,
     ):
         if message.chat.type != "private":
             return
+        await state.clear()
         raw = await backend.request(
-            "GET", "/media/jobs?page=1", message.chat.id
+            "GET",
+            f"/media/jobs?page=1&per_page={media_policy.presentation.jobs_per_page}",
+            message.chat.id,
         )
         page = MediaJobPage.model_validate(raw)
         await message.answer(
             jobs_text(page, media_policy.presentation),
-            reply_markup=page_keyboard(
-                "media:jobs", page.page, page.per_page, page.total
-            ),
+            reply_markup=jobs_keyboard(page, media_policy.presentation),
         )
 
     @router.message(Command("status", "cancel"))
@@ -91,12 +110,13 @@ def make_router() -> Router:
         job = MediaJobOut.model_validate(raw)
         await message.answer(
             job_text(job, media_policy.presentation),
-            reply_markup=job_keyboard(job),
+            reply_markup=job_keyboard(job, media_policy.presentation),
         )
 
     @router.callback_query(F.data.startswith("media:"))
     async def callback(
         query: CallbackQuery,
+        state: FSMContext,
         backend: IBackendClient,
         media_policy: MediaPolicy,
     ):
@@ -108,6 +128,36 @@ def make_router() -> Router:
         ):
             await query.answer("دسترسی مجاز نیست.", show_alert=True)
             return
+        style = media_policy.presentation
+        if query.data in {
+            "media:home",
+            "media:help",
+            "media:sources",
+            "media:video",
+            "media:audio",
+        }:
+            await query.answer()
+            if query.data in {"media:video", "media:audio"}:
+                audio = query.data == "media:audio"
+                await state.set_data({"mode": "audio" if audio else "media"})
+                text = style.audio_hint if audio else style.video_hint
+                keyboard = navigation_keyboard(style)
+            else:
+                await state.clear()
+                text = (
+                    media_policy.welcome
+                    if query.data == "media:home"
+                    else style.help_text
+                    if query.data == "media:help"
+                    else style.sources_text
+                )
+                keyboard = (
+                    home_keyboard(style)
+                    if query.data == "media:home"
+                    else navigation_keyboard(style)
+                )
+            await show_screen(query.message, text, keyboard)
+            return
         parts = (query.data or "").split(":")
         if len(parts) not in {3, 4} or not parts[2].isdecimal():
             await query.answer()
@@ -115,17 +165,21 @@ def make_router() -> Router:
         id = int(parts[2])
         owner = query.from_user.id
         if parts[1] == "jobs":
-            raw = await backend.request("GET", f"/media/jobs?page={id}", owner)
+            raw = await backend.request(
+                "GET",
+                f"/media/jobs?page={id}&per_page={style.jobs_per_page}",
+                owner,
+            )
             page = MediaJobPage.model_validate(raw)
             text, keyboard = (
                 jobs_text(page, media_policy.presentation),
-                page_keyboard(
-                    "media:jobs", page.page, page.per_page, page.total
-                ),
+                jobs_keyboard(page, style),
             )
         elif parts[1] == "items" and len(parts) == 4 and parts[3].isdecimal():
             raw = await backend.request(
-                "GET", f"/media/jobs/{id}/items?page={parts[3]}", owner
+                "GET",
+                f"/media/jobs/{id}/items?page={parts[3]}&per_page={style.jobs_per_page}",
+                owner,
             )
             items = MediaItemPage.model_validate(raw)
             labels = media_policy.presentation.status_labels
@@ -135,7 +189,12 @@ def make_router() -> Router:
                 for item in items.items
             )
             keyboard = page_keyboard(
-                f"media:items:{id}", items.page, items.per_page, items.total
+                f"media:items:{id}",
+                items.page,
+                items.per_page,
+                items.total,
+                style,
+                f"media:status:{id}",
             )
         elif parts[1] in {"status", "cancel"}:
             raw = await backend.request(
@@ -147,23 +206,20 @@ def make_router() -> Router:
             job = MediaJobOut.model_validate(raw)
             text, keyboard = (
                 job_text(job, media_policy.presentation),
-                job_keyboard(job),
+                job_keyboard(job, style),
             )
         else:
             await query.answer()
             return
         await query.answer()
-        if (
-            text != query.message.html_text
-            or keyboard != query.message.reply_markup
-        ):
-            await query.message.edit_text(text, reply_markup=keyboard)
+        await show_screen(query.message, text, keyboard)
 
     @router.message(F.text)
     async def download(
         message: Message,
         backend: IBackendClient,
         update_id: int,
+        state: FSMContext,
         media_policy: MediaPolicy,
     ):
         if (
@@ -174,41 +230,52 @@ def make_router() -> Router:
             return
         text = (message.text or "").strip()
         style = media_policy.presentation
-        if text in {style.video_button, style.audio_button}:
-            await message.answer(
-                style.audio_hint
-                if text == style.audio_button
-                else style.video_hint,
-                reply_markup=ForceReply(
-                    selective=True,
-                    input_field_placeholder="🔗 لینک را اینجا بفرست…",
-                ),
-            )
-            return
-        if text == style.sources_button:
-            await message.answer(
-                style.sources_text, reply_markup=main_keyboard(style)
-            )
-            return
-        if text == style.help_button:
+        if text in {style.back_button, style.home_button}:
+            await state.clear()
             await message.answer(
                 media_policy.welcome, reply_markup=main_keyboard(style)
             )
             return
+        if text in {style.video_button, style.audio_button}:
+            await state.set_data(
+                {"mode": "audio" if text == style.audio_button else "media"}
+            )
+            await message.answer(
+                style.audio_hint
+                if text == style.audio_button
+                else style.video_hint,
+                reply_markup=navigation_keyboard(style),
+            )
+            return
+        if text == style.sources_button:
+            await state.clear()
+            await message.answer(
+                style.sources_text, reply_markup=navigation_keyboard(style)
+            )
+            return
+        if text == style.help_button:
+            await state.clear()
+            await message.answer(
+                style.help_text, reply_markup=navigation_keyboard(style)
+            )
+            return
         if text == style.jobs_button:
+            await state.clear()
             raw = await backend.request(
-                "GET", "/media/jobs?page=1", message.chat.id
+                "GET",
+                f"/media/jobs?page=1&per_page={style.jobs_per_page}",
+                message.chat.id,
             )
             page = MediaJobPage.model_validate(raw)
             await message.answer(
                 jobs_text(page, style),
-                reply_markup=page_keyboard(
-                    "media:jobs", page.page, page.per_page, page.total
-                ),
+                reply_markup=jobs_keyboard(page, style),
             )
             return
-        audio = text.startswith("/audio ")
-        url = text.split(maxsplit=1)[1].strip() if audio else text
+        explicit_audio = text.startswith("/audio ")
+        selection = await state.get_data()
+        audio = explicit_audio or selection.get("mode") == "audio"
+        url = text.split(maxsplit=1)[1].strip() if explicit_audio else text
         bot = message.bot
         if bot is None:
             return
@@ -240,7 +307,7 @@ def make_router() -> Router:
         accepted = MediaAccepted.model_validate(raw)
         await message.answer(
             job_text(accepted.job, media_policy.presentation),
-            reply_markup=job_keyboard(accepted.job),
+            reply_markup=job_keyboard(accepted.job, style),
         )
 
     return router

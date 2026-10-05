@@ -2323,6 +2323,7 @@ def test_spotify_catalog_keeps_all_pages_or_rejects_incomplete_plan(
             ["music_sources", "file_cache_seconds", "hls_max_segments"],
         ),
         ("20261005_media_policy", ["youtube_api_url"]),
+        ("20261005_youtube_api", ["presentation"]),
     ],
 )
 def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
@@ -2353,6 +2354,13 @@ def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
                 value = json.loads(raw)
                 for key in missing:
                     value.pop(key)
+                if missing == ["presentation"]:
+                    value["presentation"] = {
+                        "audio_button": "CUSTOM AUDIO",
+                        "back_button": "CUSTOM BACK",
+                        "video_hint": r"First\nSecond\u200cLine",
+                        "status_labels": {"queued": r"Custom\nQueue"},
+                    }
                 value["requests_per_hour"] = 7
                 value["music_match_threshold"] = 0.95
                 await unit.execute(
@@ -2381,7 +2389,21 @@ def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
     command.upgrade(config, "head")
     command.check(config)
     saved, revision = portal.run(read_policy())
-    assert all(saved[key] == value for key, value in before.items())
+    assert all(
+        saved[key] == value
+        for key, value in before.items()
+        if key != "presentation"
+    )
+    if missing == ["presentation"]:
+        presentation = saved["presentation"]
+        assert presentation["audio_button"] == "CUSTOM AUDIO"
+        assert presentation["back_button"] == "CUSTOM BACK"
+        assert presentation["video_hint"] == r"First\nSecond\u200cLine"
+        assert presentation["status_labels"]["queued"] == r"Custom\nQueue"
+        assert presentation["button_styles"]["cancel"] == "danger"
+        assert presentation["jobs_per_page"] == 5
+    else:
+        assert saved["presentation"] == before["presentation"]
     assert saved["music_sources"] == ["soundcloud", "youtube"]
     assert saved["file_cache_seconds"] == 604800
     assert saved["hls_max_segments"] == 512

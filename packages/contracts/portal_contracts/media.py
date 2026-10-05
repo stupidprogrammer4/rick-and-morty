@@ -22,6 +22,31 @@ class MediaPresentation(BaseModel):
     jobs_button: str = "📦 دانلودهای من"
     sources_button: str = "🌐 منابع و امکانات"
     help_button: str = "💡 راهنما"
+    back_button: str = "↩️ بازگشت"
+    home_button: str = "🏠 منوی اصلی"
+    refresh_button: str = "🔄 تازه‌سازی"
+    items_button: str = "📋 فایل‌ها"
+    cancel_button: str = "🛑 لغو دانلود"
+    previous_button: str = "⬅️ قبلی"
+    next_button: str = "بعدی ➡️"
+    jobs_per_page: int = Field(default=5, ge=1, le=10)
+    button_styles: dict[str, Literal["primary", "success", "danger"]] = Field(
+        default_factory=lambda: {
+            "video": "primary",
+            "audio": "success",
+            "jobs": "primary",
+            "cancel": "danger",
+            "back": "primary",
+        }
+    )
+    help_text: str = (
+        "💡 <b>دانلود در سه قدم</b>\n\n"
+        "① 🎬 ویدئو و عکس یا 🎧 دانلود موزیک را انتخاب کن.\n"
+        "② 🔗 لینک پست، آهنگ یا پلی‌لیست را بفرست.\n"
+        "③ 📥 فایل‌ها به‌ترتیب همین‌جا می‌رسند.\n\n"
+        "📦 از «دانلودهای من» وضعیت و فایل‌ها را ببین.\n"
+        "↩️ بازگشت، انتخاب حالت دانلود را پاک می‌کند."
+    )
     video_hint: str = (
         "🎬 <b>بیا یک دانلود تازه شروع کنیم!</b>\n\n"
         "🔗 لینک ویدئو، ریلز، عکس یا پست اسلایدی را بفرست.\n"
@@ -30,7 +55,7 @@ class MediaPresentation(BaseModel):
     )
     audio_hint: str = (
         "🎧 <b>وقت موزیکه!</b>\n\n"
-        "🎵 لینک آهنگ، آلبوم یا پلی‌لیست را در پاسخ به همین پیام بفرست.\n"
+        "🎵 لینک آهنگ، آلبوم یا پلی‌لیست را بفرست.\n"
         "📀 فایل‌ها جداگانه و قابل پخش در موزیک‌پلیر ارسال می‌شوند.\n"
         "✨ یا بنویس: /audio لینک"
     )
