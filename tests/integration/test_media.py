@@ -27,6 +27,7 @@ from src.modules.media.downloads.domain.dtos import (
 )
 from src.modules.media.downloads.interfaces import (
     IMediaCommands,
+    IMediaDelivery,
     IMediaItemService,
     IMediaJobService,
     IMediaMaintenance,
@@ -41,6 +42,87 @@ from tests.integration.conftest import ExternalTelegramHandler
 
 pytestmark = pytest.mark.integration
 USER = 140099
+
+
+def test_delivery_claim_uses_current_status_after_an_older_snapshot(portal):
+    async def workflow():
+        async with portal.request() as request:
+            accepted = await (await request.get(IMediaCommands)).accept(
+                MediaCreate(
+                    owner_id=USER,
+                    chat_id=USER,
+                    bot_id=140003,
+                    update_id=401,
+                    url="https://example.com/track.mp3",
+                    mode="audio",
+                )
+            )
+            jobs = await request.get(IMediaJobService)
+            items = await request.get(IMediaItemService)
+            async with transaction():
+                await items.create_many(
+                    accepted.job.id,
+                    DownloadPlan(
+                        items=[
+                            DownloadItem(
+                                url="https://example.com/track.mp3",
+                                source_url="https://example.com/track.mp3",
+                                kind="audio",
+                            )
+                        ]
+                    ),
+                )
+                item = await items.next(accepted.job.id)
+                assert item is not None
+                downloaded = DownloadedFile(
+                    filename="0" * 32 + ".mp3",
+                    kind="audio",
+                    title="Already claimed",
+                    source_url="https://example.com/track.mp3",
+                )
+                directory = (
+                    Path(portal.settings.media.directory)
+                    / str(accepted.job.id)
+                    / str(item.id)
+                )
+                directory.mkdir(parents=True)
+                (directory / downloaded.filename).write_bytes(
+                    b"previously prepared media"
+                )
+                await items.change(
+                    item.id,
+                    MediaItemChange(
+                        status="ready",
+                        filename=downloaded.filename,
+                        downloaded_payload=downloaded.model_dump_json(),
+                    ),
+                )
+                await jobs.change(
+                    accepted.job.id, MediaJobChange(status="running", total=1)
+                )
+        async with portal.request() as stale:
+            delivery = await stale.get(IMediaDelivery)
+            reader = await stale.get(IMediaItemService)
+            before = await reader.get(item.id)
+            assert before.status == "ready"
+            async with portal.request() as claimant:
+                claim_items = await claimant.get(IMediaItemService)
+                async with transaction():
+                    await claim_items.change(
+                        item.id,
+                        MediaItemChange(
+                            status="sending",
+                            lease_until=datetime.now(UTC)
+                            + timedelta(minutes=5),
+                        ),
+                    )
+            await delivery.execute(accepted.job.id)
+        async with portal.request() as fresh:
+            current = await (await fresh.get(IMediaItemService)).get(item.id)
+            assert current.status == "sending"
+        assert not ExternalTelegramHandler.media_files
+
+    portal.run(workflow())
 
 
 def test_media_migration_preserves_populated_previous_schema(portal):
