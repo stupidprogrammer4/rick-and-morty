@@ -48,7 +48,7 @@ class MediaRuntime:
                 parse_mode="HTML", link_preview_is_disabled=True
             ),
         )
-        storage = RedisStorage.from_url(
+        self.storage = RedisStorage.from_url(
             settings.redis_url,
             key_builder=DefaultKeyBuilder(
                 prefix="portal-media-fsm", with_bot_id=True
@@ -56,8 +56,10 @@ class MediaRuntime:
             data_ttl=3600,
         )
         self.dispatcher = Dispatcher(
-            storage=storage, events_isolation=storage.create_isolation()
+            storage=self.storage,
+            events_isolation=self.storage.create_isolation(),
         )
+        self.dispatcher.startup.register(self.check_storage)
         configuration = MediaConfigurationMiddleware()
         self.dispatcher.message.outer_middleware(CommandErrorMiddleware())
         self.dispatcher.callback_query.outer_middleware(
@@ -66,6 +68,9 @@ class MediaRuntime:
         self.dispatcher.include_router(make_router())
         self.dispatcher.message.outer_middleware(configuration)
         self.dispatcher.callback_query.outer_middleware(configuration)
+
+    async def check_storage(self):
+        await self.storage.redis.ping()
 
     async def webhook(self, request: web.Request):
         secret = self.settings.media_webhook_secret

@@ -145,12 +145,15 @@ services:
       PORTAL_MORTY_WEBHOOK_SECRET: ${PORTAL_MORTY_WEBHOOK_SECRET:?Set PORTAL_MORTY_WEBHOOK_SECRET}
       PORTAL_ADMIN_USER_IDS: ${PORTAL_ADMIN_USER_IDS:?Set PORTAL_ADMIN_USER_IDS}
       PORTAL_API_URL: http://api:8000
+      PORTAL_REDIS_URL: ${PORTAL_REDIS_URL:-redis://redis:6379/0}
       PORTAL_WEBHOOK_BASE_URL: ${PORTAL_WEBHOOK_BASE_URL:-https://bot.amupouya.org}
-    networks: [application]
+    networks: [application, database]
     volumes:
       - media-data:/app/data/media:ro
     depends_on:
       api:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports: ["127.0.0.1:18011:8080"]
     init: true
