@@ -17,6 +17,7 @@ from src.modules.media.sources.domain.dtos import SourceJob
 from src.modules.media.sources.interfaces import IMediaSourcePlanner
 from src.modules.media.storage.infra.files import MediaFiles
 from src.modules.media.storage.interfaces import IMediaWorkspace
+from src.modules.ops.guards.interfaces import IPortalGuard
 from src.shared.dates import utc_now
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class MediaPlanner:
         workspace: IMediaWorkspace,
         queue: IMediaQueue,
         sources: MediaSourceStrategy,
+        guard: IPortalGuard,
     ):
         self.jobs = jobs
         self.items = items
@@ -44,9 +46,11 @@ class MediaPlanner:
         self.workspace = workspace
         self.queue = queue
         self.sources = sources
+        self.guard = guard
 
     async def execute(self, job_id: int) -> None:
         async with transaction():
+            await self.guard.lock("media-dispatch")
             row = await self.jobs.record(job_id, lock=True)
             if row.status != "queued" or row.total or not self.policy.enabled:
                 return
@@ -72,6 +76,7 @@ class MediaPlanner:
             ):
                 raise ValueError("Empty or oversized media collection")
             async with transaction():
+                await self.guard.lock("media-dispatch")
                 current = await self.jobs.record(job_id, lock=True)
                 if current.status == "cancelled":
                     return
@@ -92,6 +97,7 @@ class MediaPlanner:
             )
         except Exception as exc:
             async with transaction():
+                await self.guard.lock("media-dispatch")
                 current = await self.jobs.record(job_id, lock=True)
                 if current.status != "cancelled":
                     await self.jobs.change(

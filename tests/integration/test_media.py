@@ -1923,6 +1923,107 @@ def test_native_music_download_delivery_and_reuse_without_child_processes(
         server.server_close()
 
 
+def test_planning_and_dispatch_complete_concurrent_jobs_without_deadlocks(
+    portal, tmp_path
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path, native_catalog=True, native_youtube_api=True
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    try:
+
+        async def prepare():
+            async with portal.request() as request:
+                unit = await request.get(MySQLUnitOfWork)
+                await unit.execute(
+                    text("""
+                    CREATE TRIGGER portal_test_plan_wait
+                    BEFORE UPDATE ON tbl_media_jobs
+                    FOR EACH ROW BEGIN
+                      IF OLD.status='queued' AND NEW.status='planning' THEN
+                        DO SLEEP(3);
+                      END IF;
+                    END
+                """)
+                )
+
+        async def accept(update_id, video):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=update_id,
+                        url="https://www.youtube.com/watch?v=" + video,
+                    )
+                )
+                return result.job.id
+
+        async def waiting_claim():
+            async with portal.request() as request:
+                unit = await request.get(MySQLUnitOfWork)
+                result = await unit.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.processlist "
+                        "WHERE DB=DATABASE() AND STATE='User sleep'"
+                    )
+                )
+                return result.scalar_one() > 0
+
+        async def read(ids):
+            async with portal.request() as request:
+                query = await request.get(IMediaQueries)
+                page = await query.page(USER, 1, 50)
+                return [job for job in page.items if job.id in ids]
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(
+                    youtube_api_url="https://media.portal-test.example/cobalt"
+                ).model_dump(mode="json"),
+            )
+        )
+        portal.run(prepare())
+        first = portal.run(accept(781, "abc123DEF45"))
+        portal.start_workers("src.apps.media")
+        portal.until(waiting_claim, bool, timeout=20)
+        second = portal.run(accept(782, "abc123DEF46"))
+        result = portal.until(
+            lambda: read({first, second}),
+            lambda jobs: (
+                len(jobs) == 2
+                and all(
+                    job.status in {"completed", "failed", "partial"}
+                    for job in jobs
+                )
+            ),
+            timeout=25,
+        )
+        assert [(job.status, job.sent, job.failed) for job in result] == [
+            ("completed", 1, 0),
+            ("completed", 1, 0),
+        ]
+        assert len(ExternalTelegramHandler.media_files) == 2
+        assert not (
+            Path(portal.settings.media.directory) / str(first)
+        ).exists()
+        assert not (
+            Path(portal.settings.media.directory) / str(second)
+        ).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 @pytest.mark.parametrize("fault", ["html", "truncated"])
 def test_youtube_tunnel_failure_never_sends_a_partial_file(
     portal, tmp_path, fault
