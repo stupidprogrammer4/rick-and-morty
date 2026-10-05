@@ -63,7 +63,6 @@ class CobaltMediaExtraction:
                 "title": filename.stem[:200],
                 "kind": "audio" if request.mode == "audio" else "video",
                 "file_extension": extension,
-                "duration": None,
                 "headers": {},
             }
         )

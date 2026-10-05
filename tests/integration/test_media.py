@@ -2024,6 +2024,85 @@ def test_planning_and_dispatch_complete_concurrent_jobs_without_deadlocks(
         server.server_close()
 
 
+def test_youtube_api_checks_known_source_duration_before_delivery(
+    portal, tmp_path
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path, native_catalog=True, native_youtube_api=True
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    try:
+
+        async def prepare():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=791,
+                        url="https://www.youtube.com/watch?v=abc123DEF45",
+                    )
+                )
+                jobs = await request.get(IMediaJobService)
+                items = await request.get(IMediaItemService)
+                async with transaction():
+                    await items.create_many(
+                        result.job.id,
+                        DownloadPlan(
+                            items=[
+                                DownloadItem(
+                                    url=result.job.url,
+                                    source_url=result.job.url,
+                                    engine="youtube",
+                                    title="Full source",
+                                    duration=60,
+                                )
+                            ]
+                        ),
+                    )
+                    await jobs.change(
+                        result.job.id, MediaJobChange(status="queued", total=1)
+                    )
+                return result.job.id
+
+        async def read(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(
+                    youtube_api_url="https://media.portal-test.example/cobalt"
+                ).model_dump(mode="json"),
+            )
+        )
+        id = portal.run(prepare())
+        portal.start_workers("src.apps.media")
+        result = portal.until(
+            lambda: read(id),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=30,
+        )
+        assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
+        assert not ExternalTelegramHandler.media_files
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 @pytest.mark.parametrize("fault", ["html", "truncated"])
 def test_youtube_tunnel_failure_never_sends_a_partial_file(
     portal, tmp_path, fault
