@@ -47,6 +47,7 @@ mcp==2.2.0
 mcp-types==2.2.0
 mdurl==0.1.2
 multidict==6.9.0
+mutagen==1.48.1
 numpy==2.5.3
 opentelemetry-api==1.45.0
 orjson==3.12.0
@@ -78,7 +79,6 @@ rpds-py==2026.6.3
 shellingham==1.5.4
 six==1.17.0
 soupsieve==2.10
-spotipy==2.26.0
 sqlalchemy==2.0.54
 sqlmodel==0.0.42
 sse-starlette==3.4.11

@@ -333,7 +333,14 @@ def test_prepared_audio_retries_rate_limit_without_downloading_again(
 
 
 def external_media(
-    tmp_path, slow_release=None, audio_seconds=1, portrait=False
+    tmp_path,
+    slow_release=None,
+    audio_seconds=1,
+    portrait=False,
+    native_catalog=False,
+    native_hls=False,
+    native_hls_fault=None,
+    native_spotify_api=None,
 ):
     audio = tmp_path / "sample.mp3"
     subprocess.run(
@@ -348,6 +355,7 @@ def external_media(
             f"sine=frequency=440:duration={audio_seconds}",
             "-threads",
             "1",
+            *(["-write_xing", "0"] if native_hls else []),
             str(audio),
         ],
         check=True,
@@ -369,6 +377,38 @@ def external_media(
         check=True,
     )
     ogg = tmp_path / "sample.ogg"
+    m4a = tmp_path / "sample.m4a"
+    m4a.write_bytes(mp4.read_bytes())
+    if native_catalog:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=640x360:r=25",
+                "-i",
+                str(audio),
+                "-t",
+                str(audio_seconds),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                "-threads",
+                "1",
+                "-c:a",
+                "aac",
+                str(mp4),
+            ],
+            check=True,
+        )
     subprocess.run(
         [
             "ffmpeg",
@@ -428,7 +468,93 @@ def external_media(
     class Source(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
+        def send_json(self, payload):
+            raw = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def track(self, identifier=1):
+            return {
+                "id": identifier,
+                "title": "Native Song",
+                "duration": 8000 if native_hls else 1000,
+                "permalink_url": "https://soundcloud.com/native-artist/native-song",
+                "uri": "https://api-v2.soundcloud.com/tracks/"
+                + str(identifier),
+                "user": {"username": "Native Artist", "id": 1},
+                "media": {
+                    "transcodings": [
+                        {
+                            "url": "https://api-v2.soundcloud.com/transcoding",
+                            "preset": "mp3_0_1",
+                            "format": {
+                                "protocol": "hls"
+                                if native_hls
+                                else "progressive",
+                                "mime_type": "audio/mpeg",
+                            },
+                        }
+                    ]
+                },
+            }
+
         def do_POST(self):
+            if native_spotify_api and self.path == "/api/token":
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.send_json({"access_token": "external-test-access"})
+                return
+            if native_catalog and self.path == "/get_pot":
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.send_json({"poToken": "ZXh0ZXJuYWwtdGVzdC10b2tlbg=="})
+                return
+            if native_catalog and self.path.startswith("/youtubei/v1/next"):
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.send_json({})
+                return
+            if native_catalog and self.path.startswith("/youtubei/v1/player"):
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.send_json(
+                    {
+                        "playabilityStatus": {"status": "OK"},
+                        "videoDetails": {
+                            "videoId": "abc123DEF45",
+                            "title": "Native Video",
+                            "lengthSeconds": "1",
+                            "author": "Native Artist",
+                        },
+                        "streamingData": {
+                            "formats": [
+                                {
+                                    "itag": 18,
+                                    "url": "https://media.portal-test.example/direct.mp4",
+                                    "mimeType": (
+                                        'video/mp4; codecs="avc1.42001E, '
+                                        'mp4a.40.2"'
+                                    ),
+                                    "width": 640,
+                                    "height": 360,
+                                    "contentLength": str(mp4.stat().st_size),
+                                }
+                            ],
+                            "adaptiveFormats": [
+                                {
+                                    "itag": 140,
+                                    "url": "https://media.portal-test.example/direct.m4a",
+                                    "mimeType": (
+                                        'audio/mp4; codecs="mp4a.40.2"'
+                                    ),
+                                    "audioQuality": "AUDIO_QUALITY_MEDIUM",
+                                    "audioSampleRate": "44100",
+                                    "contentLength": str(m4a.stat().st_size),
+                                }
+                            ],
+                        },
+                    }
+                )
+                return
             if self.path == "/instagram-query":
                 result = {
                     "data": {
@@ -480,9 +606,111 @@ def external_media(
             self.respond(True)
 
         def respond(self, body):
+            if native_spotify_api and self.path.startswith("/v1/playlists/"):
+                from urllib.parse import parse_qs, urlsplit
+
+                offset = int(parse_qs(urlsplit(self.path).query)["offset"][0])
+                rows = [
+                    {
+                        "item": {
+                            "type": "track",
+                            "id": "NativeTrack" + str(position),
+                            "name": "Native Song",
+                            "duration_ms": 1000,
+                            "artists": [{"name": "Native Artist"}],
+                            "track_number": position,
+                            "album": {"name": "Native Album", "images": []},
+                        }
+                    }
+                    for position in range(offset + 1, min(offset + 51, 52))
+                ]
+                if offset and native_spotify_api == "missing":
+                    rows = []
+                self.send_json(
+                    {
+                        "items": rows,
+                        "limit": 50,
+                        "total": 52
+                        if offset and native_spotify_api == "changed"
+                        else 51,
+                    }
+                )
+                return
+            if native_catalog:
+                if self.path.startswith("/search/tracks"):
+                    self.send_json(
+                        {"collection": [self.track()], "next_href": None}
+                    )
+                    return
+                if self.path.startswith(("/tracks/", "/resolve")):
+                    self.send_json(self.track())
+                    return
+                if self.path.startswith("/transcoding"):
+                    self.send_json(
+                        {
+                            "url": "https://media.portal-test.example/"
+                            + ("native.m3u8" if native_hls else "direct.mp3")
+                        }
+                    )
+                    return
+                if self.path.startswith("/embed/track/"):
+                    entity = {
+                        "uri": "spotify:track:NativeTrack1",
+                        "name": "Native Song",
+                        "artists": [{"name": "Native Artist"}],
+                        "duration": 8000 if native_hls else 1000,
+                        "visualIdentity": {
+                            "image": [
+                                {
+                                    "url": "https://media.portal-test.example/artwork.png"
+                                }
+                            ]
+                        },
+                    }
+                    state = {
+                        "props": {
+                            "pageProps": {
+                                "state": {"data": {"entity": entity}}
+                            }
+                        }
+                    }
+                    raw = (
+                        '<html><script id="__NEXT_DATA__" '
+                        'type="application/json">'
+                        + json.dumps(state)
+                        + "</script></html>"
+                    ).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(raw)
+                    return
+                if (
+                    self.path == "/"
+                    and self.headers.get("Host") == "soundcloud.com"
+                ):
+                    raw = b'<html><script src="https://soundcloud.com/asset.js"></script></html>'
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    self.wfile.write(raw)
+                    return
+                if self.path == "/asset.js":
+                    raw = b'client_id:"abcdefghijklmnopqrstuvwxyz123456"'
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    self.wfile.write(raw)
+                    return
             if body and self.path == "/slow.mp3" and slow_release is not None:
                 slow_release.wait(15)
-            if body and self.path in {"/parallel-1.mp3", "/parallel-2.mp3"}:
+            if body and self.path in {
+                "/parallel-1.mp3",
+                "/parallel-2.mp3",
+                "/native-1.mp3",
+                "/native-2.mp3",
+            }:
                 with arrival_lock:
                     arrivals.add(self.path)
                     if len(arrivals) == 2:
@@ -563,10 +791,34 @@ def external_media(
                 value = Path(
                     "bots/portal_bots/media/assets/avatar.png"
                 ).read_bytes()
+            if self.path == "/artwork.png":
+                import base64
+
+                value = base64.b64decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8"
+                    "/x8AAwMCAO+aB9sAAAAASUVORK5CYII="
+                )
+            if self.path == "/native.m3u8":
+                value = (
+                    b"#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\n"
+                    b"native-1.mp3\n#EXTINF:4,\nnative-2.mp3\n"
+                    b"#EXT-X-ENDLIST\n"
+                )
+                if native_hls_fault == "private":
+                    value = value.replace(
+                        b"native-1.mp3", b"https://127.0.0.1/private.mp3"
+                    )
+                elif native_hls_fault == "encrypted":
+                    value = value.replace(
+                        b"#EXTM3U\n",
+                        b'#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key"\n',
+                    )
             if self.path == "/direct.ogg":
                 value = ogg.read_bytes()
             if self.path == "/direct.mp4":
                 value = mp4.read_bytes()
+            if self.path == "/direct.m4a":
+                value = m4a.read_bytes()
             if portrait and self.path == "/portrait.m3u8":
                 value = (
                     b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300000,"
@@ -590,10 +842,15 @@ def external_media(
                 if self.path == "/direct.ogg"
                 else "video/mp4"
                 if self.path == "/direct.mp4"
+                else "audio/mp4"
+                if self.path == "/direct.m4a"
                 else "audio/mpeg",
             )
             declared = len(value)
-            if self.path == "/truncated.mp3":
+            if self.path == "/truncated.mp3" or (
+                native_hls_fault == "truncated"
+                and self.path == "/native-2.mp3"
+            ):
                 declared += 1024
                 self.close_connection = True
                 self.send_header("Connection", "close")
@@ -603,13 +860,31 @@ def external_media(
                 self.wfile.write(value)
 
         def log_message(self, *args):
-            pass
+            self.server.media_requests.append(
+                (self.command, self.headers.get("Host"), self.path)
+            )
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name(
         [x509.NameAttribute(NameOID.COMMON_NAME, "media.portal-test.example")]
     )
     now = datetime.now(UTC)
+    hosts = (
+        "media.portal-test.example",
+        "www.instagram.com",
+        "www.pinterest.com",
+    )
+    if native_catalog:
+        hosts += (
+            "www.youtube.com",
+            "m.youtube.com",
+            "soundcloud.com",
+            "api-v2.soundcloud.com",
+            "api.soundcloud.com",
+            "open.spotify.com",
+            "accounts.spotify.com",
+            "api.spotify.com",
+        )
     certificate = (
         x509.CertificateBuilder()
         .subject_name(name)
@@ -620,11 +895,7 @@ def external_media(
         .not_valid_after(now + timedelta(hours=1))
         .add_extension(
             x509.SubjectAlternativeName(
-                [
-                    x509.DNSName("media.portal-test.example"),
-                    x509.DNSName("www.instagram.com"),
-                    x509.DNSName("www.pinterest.com"),
-                ]
+                [x509.DNSName(host) for host in hosts]
             ),
             critical=False,
         )
@@ -644,6 +915,7 @@ def external_media(
         )
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), Source)
+    server.media_requests = []
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(cert, secret)
     server.socket = context.wrap_socket(server.socket, server_side=True)
@@ -651,11 +923,6 @@ def external_media(
     thread.start()
     boundary = tmp_path / "external-network"
     boundary.mkdir()
-    hosts = (
-        "media.portal-test.example",
-        "www.instagram.com",
-        "www.pinterest.com",
-    )
     # Redirect only the controlled external hostname; native DB/Redis are real.
     (boundary / "sitecustomize.py").write_text(f"""
 import socket, ssl
@@ -663,6 +930,7 @@ resolve = socket.getaddrinfo
 connect = socket.socket.connect
 load = ssl.SSLContext.load_verify_locations
 def external_resolve(host, port, *args, **kwargs):
+    host = host.decode() if isinstance(host, bytes) else host
     if host in {hosts!r}:
         host = "1.1.1.1"
     return resolve(host, port, *args, **kwargs)
@@ -682,11 +950,24 @@ ssl.SSLContext.load_verify_locations = external_trust
 import asyncio, aiohappyeyeballs, uvloop
 native_resolve = uvloop.Loop.getaddrinfo
 async def external_native_resolve(self, host, port, *args, **kwargs):
+    host = host.decode() if isinstance(host, bytes) else host
     if host in {hosts!r}:
         host = "1.1.1.1"
     result = await native_resolve(self, host, port, *args, **kwargs)
     return result
 uvloop.Loop.getaddrinfo = external_native_resolve
+native_connection = uvloop.Loop.create_connection
+async def external_native_connection(
+    self, factory, host=None, port=None, **kwargs
+):
+    name = host.decode() if isinstance(host, bytes) else host
+    if (name in {hosts!r} or name == "1.1.1.1") and port == 443:
+        if kwargs.get("ssl") and not kwargs.get("server_hostname"):
+            kwargs["server_hostname"] = name
+        host, port = "127.0.0.1", {server.server_port}
+    result = await native_connection(self, factory, host, port, **kwargs)
+    return result
+uvloop.Loop.create_connection = external_native_connection
 start_connection = aiohappyeyeballs.start_connection
 async def external_async_connection(*, addr_infos, **kwargs):
     redirected = [
@@ -701,6 +982,11 @@ async def external_async_connection(*, addr_infos, **kwargs):
     result = await start_connection(addr_infos=records, **kwargs)
     return result
 aiohappyeyeballs.start_connection = external_async_connection
+import os, subprocess
+if os.getenv("PORTAL_NATIVE_NO_PROCESS") == "1":
+    def reject_process(*args, **kwargs):
+        raise RuntimeError("Native media workflow started a child process")
+    subprocess.Popen.__init__ = reject_process
 """)
     return server, boundary
 
@@ -1444,6 +1730,281 @@ def test_incomplete_stream_is_failed_without_sending_partial_file(
         assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
         assert not ExternalTelegramHandler.media_files
         assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize(
+    "url,mode,hls",
+    [
+        ("https://www.youtube.com/watch?v=abc123DEF45", "audio", False),
+        ("https://www.youtube.com/watch?v=abc123DEF45", "media", False),
+        ("https://open.spotify.com/track/NativeTrack1", "audio", False),
+        ("https://open.spotify.com/track/NativeTrack1", "audio", True),
+    ],
+)
+def test_native_music_download_delivery_and_reuse_without_child_processes(
+    portal, tmp_path, url, mode, hls
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path,
+        native_catalog=True,
+        native_hls=hls,
+        audio_seconds=4 if hls else 1,
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    portal.environment["PORTAL_YOUTUBE_TOKEN_PROVIDER_URL"] = (
+        "https://media.portal-test.example"
+    )
+    try:
+
+        async def accept(update_id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=update_id,
+                        url=url,
+                        mode=mode,
+                    )
+                )
+                return result.job.id
+
+        async def read(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        async def errors(id):
+            async with portal.request() as request:
+                page = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                return [item.error for item in page.items]
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(youtube_clients=["mweb"]).model_dump(mode="json"),
+            )
+        )
+        first = portal.run(accept(501))
+        portal.start_workers("src.apps.media")
+        result = portal.until(
+            lambda: read(first),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=40,
+        )
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            1,
+            0,
+        ), (result.error, portal.run(errors(first)), server.media_requests)
+        assert len(ExternalTelegramHandler.media_files) == 1
+        original = ExternalTelegramHandler.media_files[0]
+        assert not original.get("file_id")
+        assert not (
+            Path(portal.settings.media.directory) / str(first)
+        ).exists()
+        if "spotify" in url:
+            assert original["title"] == "Native Song"
+            assert original["performer"] == "Native Artist"
+            assert "soundcloud.com" in original["caption"]
+        second = portal.run(accept(502))
+        result = portal.until(
+            lambda: read(second),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=40,
+        )
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            1,
+            0,
+        ), (result.error, portal.run(errors(second)))
+        assert len(ExternalTelegramHandler.media_files) == 2
+        assert (
+            ExternalTelegramHandler.media_files[1]["file_id"]
+            == "external-test-media-file"
+        )
+        ExternalTelegramHandler.media_cache_miss_once = True
+        third = portal.run(accept(503))
+        result = portal.until(
+            lambda: read(third),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=40,
+        )
+        assert (result.status, result.sent, result.failed) == (
+            "completed",
+            1,
+            0,
+        )
+        assert len(ExternalTelegramHandler.media_files) == 4
+        assert ExternalTelegramHandler.media_files[2]["file_id"]
+        assert not ExternalTelegramHandler.media_files[3].get("file_id")
+        assert not (
+            Path(portal.settings.media.directory) / str(third)
+        ).exists()
+        assert not (
+            Path(portal.settings.media.directory) / str(second)
+        ).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("fault", ["private", "encrypted", "truncated"])
+def test_native_hls_rejects_unsafe_or_incomplete_audio_and_cleans_files(
+    portal, tmp_path, fault
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path,
+        native_catalog=True,
+        native_hls=True,
+        native_hls_fault=fault,
+        audio_seconds=4,
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=701,
+                        url="https://open.spotify.com/track/NativeTrack1",
+                        mode="audio",
+                    )
+                )
+                return result.job.id
+
+        async def read(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(music_sources=["soundcloud"]).model_dump(
+                    mode="json"
+                ),
+            )
+        )
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+        result = portal.until(
+            lambda: read(id),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=40,
+        )
+        assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
+        assert not ExternalTelegramHandler.media_files
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("catalog", ["complete", "missing", "changed"])
+def test_spotify_catalog_keeps_all_pages_or_rejects_incomplete_plan(
+    portal, tmp_path, catalog
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path, native_catalog=True, native_spotify_api=catalog
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    portal.environment["SPOTIPY_CLIENT_ID"] = "external-test-client"
+    portal.environment["SPOTIPY_CLIENT_SECRET"] = "external-test-secret"
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=801,
+                        url="https://open.spotify.com/playlist/NativePlaylist1",
+                        mode="audio",
+                    )
+                )
+                return result.job.id
+
+        async def read(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        async def cancel_and_read_pages(id):
+            async with portal.request() as request:
+                await (await request.get(IMediaCommands)).cancel(id, USER)
+            async with portal.request() as request:
+                queries = await request.get(IMediaQueries)
+                first = await queries.items(id, USER, 1, 50)
+                last = await queries.items(id, USER, 2, 50)
+                return first, last
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(music_sources=["soundcloud"]).model_dump(
+                    mode="json"
+                ),
+            )
+        )
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+        job = portal.until(
+            lambda: read(id),
+            lambda job: job.total == 51 or job.status == "failed",
+            timeout=40,
+        )
+        if catalog == "complete":
+            assert job.total == 51
+            first, last = portal.run(cancel_and_read_pages(id))
+            assert first.total == last.total == 51
+            assert [item.position for item in first.items] == list(
+                range(1, 51)
+            )
+            assert [item.position for item in last.items] == [51]
+            assert (portal.run(read(id))).status == "cancelled"
+        else:
+            assert (job.status, job.total, job.sent) == ("failed", 0, 0)
+            assert not ExternalTelegramHandler.media_files
     finally:
         server.shutdown()
         server.server_close()

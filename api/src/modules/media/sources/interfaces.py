@@ -5,12 +5,26 @@ from src.modules.media.sources.domain.dtos import (
     DownloadedFile,
     DownloadItem,
     DownloadPlan,
+    DownloadProcessRequest,
     DownloadStage,
     MediaDownloadOutcome,
     MediaDownloadSink,
     SourceDownloadInput,
     SourceJob,
 )
+from src.modules.media.sources.domain.music import ResolvedMedia
+
+
+class IMusicSourceResolver(Protocol):
+    def resolve(
+        self, request: DownloadProcessRequest, item: DownloadItem
+    ) -> Awaitable[ResolvedMedia]: ...
+
+
+class IMediaSourceTransfer(Protocol):
+    def fetch(
+        self, request: DownloadProcessRequest
+    ) -> Awaitable[DownloadedFile]: ...
 
 
 class IMediaSourcePlanner(Protocol):

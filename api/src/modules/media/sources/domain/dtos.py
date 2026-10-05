@@ -12,12 +12,17 @@ DownloadStage = MediaExtractor
 class DownloadItem(BaseModel):
     url: str
     title: str = "Media"
-    engine: Literal["video", "direct", "spotify"] = "video"
+    engine: Literal["video", "direct", "spotify", "youtube"] = "video"
     source_url: str
     kind: Literal["audio", "video", "photo", "document"] = "video"
     performer: str | None = None
     duration: float | None = None
     headers: dict[str, str] = Field(default_factory=dict)
+    album: str | None = None
+    cover_url: str | None = None
+    isrc: str | None = None
+    track_number: int | None = None
+    transport: Literal["direct", "hls_mp3"] = "direct"
 
 
 class DownloadPlan(BaseModel):
@@ -30,6 +35,8 @@ class DownloadedFile(BaseModel):
     title: str
     source_url: str
     performer: str | None = None
+    file_id: str | None = None
+    cache_key: str | None = None
 
 
 class MediaDownloadOutcome(BaseModel):
@@ -50,6 +57,7 @@ class DownloadProcessRequest(BaseModel):
     item: DownloadItem | None = None
     cookie_file: str | None = None
     stages: list[DownloadStage] = Field(default_factory=list)
+    youtube_po_token: str | None = None
 
 
 MediaDownloadSink = Callable[[MediaDownloadOutcome], Awaitable[None]]
@@ -57,6 +65,7 @@ MediaDownloadSink = Callable[[MediaDownloadOutcome], Awaitable[None]]
 
 class SourceJob(BaseModel):
     id: int
+    bot_id: int = 0
     url: str
     provider: str
     mode: Literal["media", "audio"]
@@ -71,3 +80,4 @@ class SourceItem(BaseModel):
 class SourceDownloadInput(BaseModel):
     job: SourceJob
     item: SourceItem
+    cached: DownloadedFile | None = None

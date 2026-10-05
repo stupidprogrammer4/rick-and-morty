@@ -21,8 +21,6 @@ class MediaExtractorProcess:
                 "LC_ALL",
                 "PLAYWRIGHT_BROWSERS_PATH",
                 "PORTAL_BROWSER_EXECUTABLE",
-                "SPOTIPY_CLIENT_ID",
-                "SPOTIPY_CLIENT_SECRET",
             }
         }
         environment["XDG_CACHE_HOME"] = str(Path(request.directory) / "cache")

@@ -123,6 +123,24 @@ class MediaPolicy(BaseModel):
     orphan_age_seconds: int = Field(default=3600, ge=1800, le=86400)
     browser_enabled: bool = True
     video_height: int = Field(default=720, ge=144, le=1080)
+    youtube_clients: list[str] = Field(
+        default_factory=lambda: ["mweb", "web_safari", "android_vr"],
+        min_length=1,
+        max_length=4,
+    )
+    music_sources: list[Literal["soundcloud", "youtube"]] = Field(
+        default_factory=lambda: ["soundcloud", "youtube"],
+        min_length=1,
+        max_length=2,
+    )
+    music_search_results: int = Field(default=5, ge=1, le=10)
+    music_match_threshold: float = Field(default=0.8, ge=0.5, le=1)
+    music_duration_tolerance: float = Field(default=0.08, ge=0.01, le=0.2)
+    file_cache_seconds: int = Field(default=604800, ge=0, le=2592000)
+    hls_max_segments: int = Field(default=512, ge=1, le=2048)
+    hls_segment_concurrency: int = Field(default=2, ge=1, le=4)
+    spotify_auth_url: str = "https://accounts.spotify.com/api/token"
+    spotify_api_url: str = "https://api.spotify.com/v1"
     welcome: str = (
         "🦋 <b>به AMU Downloader خوش اومدی!</b>\n"
         "━━━━━━ ✨ ━━━━━━\n\n"
@@ -218,10 +236,11 @@ class MediaFileDelivery(BaseModel):
     caption: str = Field(max_length=4096)
     title: str = Field(max_length=200)
     performer: str | None = Field(default=None, max_length=200)
+    file_id: str | None = Field(default=None, min_length=1, max_length=512)
 
 
 class MediaFileResult(BaseModel):
-    status: Literal["sent", "failed", "unknown", "rate_limited"]
+    status: Literal["sent", "failed", "unknown", "rate_limited", "cache_miss"]
     message_id: int | None = None
     file_id: str | None = None
     retry_after: int | None = None

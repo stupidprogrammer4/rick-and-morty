@@ -19,7 +19,7 @@ from src.modules.media.sources.infra.downloaders.network import (
 
 
 def plan(request: DownloadProcessRequest) -> DownloadPlan:
-    from src.modules.media.sources.infra.downloaders import spotify, video
+    from src.modules.media.sources.infra.downloaders import video
     from src.modules.media.sources.infra.downloaders.gallery import (
         GalleryDownloader,
     )
@@ -39,9 +39,12 @@ def plan(request: DownloadProcessRequest) -> DownloadPlan:
         "video": video.VideoDownloader,
         "gallery": GalleryDownloader,
         "browser": BrowserDownloader,
-        "spotify": spotify.SpotifyDownloader,
     }
     for stage in request.stages:
+        if stage == "spotify":
+            raise ValueError(
+                "Spotify catalog extraction requires the async worker"
+            )
         if stage == "direct":
             return DownloadPlan(
                 items=[
@@ -87,12 +90,8 @@ def main() -> None:
                     raise ValueError("Download item required")
                 validate_url(request.item.url)
                 if request.item.engine == "spotify":
-                    from src.modules.media.sources.infra.downloaders import (
-                        spotify,
-                    )
-
-                    result = spotify.SpotifyDownloader(request).download(
-                        request.item
+                    raise ValueError(
+                        "Spotify audio resolution requires the async worker"
                     )
                 elif request.item.engine == "direct":
                     result = asyncio.run(

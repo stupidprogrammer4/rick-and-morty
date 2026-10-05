@@ -1,3 +1,5 @@
+from papilio.errors.exceptions import NotFoundException
+
 from portal_contracts.media import (
     MediaFileDelivery,
     MediaItemPage,
@@ -8,6 +10,7 @@ from src.modules.media.downloads.interfaces import (
     IMediaItemService,
     IMediaJobService,
 )
+from src.modules.media.sources.domain.dtos import DownloadedFile
 
 
 class MediaQueries:
@@ -35,11 +38,20 @@ class MediaQueries:
         return result
 
     async def authorize_file(self, data: MediaFileDelivery) -> bool:
-        job = await self.jobs.get(data.job_id, data.owner_id)
-        item = await self.item_service.get(data.item_id)
-        return (
+        try:
+            job = await self.jobs.get(data.job_id, data.owner_id)
+            item = await self.item_service.get(data.item_id)
+        except NotFoundException:
+            return False
+        allowed = (
             job.status == "running"
             and item.job_id == job.id
             and item.status == "sending"
             and item.filename == data.filename
         )
+        if not allowed:
+            return False
+        downloaded = DownloadedFile.model_validate_json(
+            item.downloaded_payload or ""
+        )
+        return downloaded.file_id == data.file_id

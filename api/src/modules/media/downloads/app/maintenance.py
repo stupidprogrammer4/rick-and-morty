@@ -9,6 +9,7 @@ from src.modules.media.downloads.interfaces import (
     IMediaJobService,
     IMediaQueue,
 )
+from src.modules.media.library.interfaces import IMediaAssetService
 from src.modules.media.storage.infra.files import MediaFiles
 from src.modules.ops.guards.interfaces import IPortalGuard
 from src.shared.dates import utc_now
@@ -24,6 +25,7 @@ class MediaMaintenance:
         policy: MediaPolicy,
         queue: IMediaQueue,
         guard: IPortalGuard,
+        assets: IMediaAssetService,
     ):
         self.jobs = jobs
         self.items = items
@@ -32,6 +34,7 @@ class MediaMaintenance:
         self.policy = policy
         self.queue = queue
         self.guard = guard
+        self.assets = assets
 
     async def recover(self) -> None:
         async with transaction():
@@ -46,6 +49,7 @@ class MediaMaintenance:
     async def clean(self) -> None:
         async with transaction():
             active = await self.reader.active_ids()
+            await self.assets.prune()
         await self.files.clean(
             active, time.time() - self.policy.orphan_age_seconds
         )

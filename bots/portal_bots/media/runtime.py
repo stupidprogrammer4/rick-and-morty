@@ -104,7 +104,7 @@ class MediaRuntime:
             raise web.HTTPForbidden()
         root = Path(self.settings.media_directory).resolve()
         path = root / str(data.job_id) / str(data.item_id) / data.filename
-        if (
+        if not data.file_id and (
             not path.is_file()
             or path.is_symlink()
             or path.parent.is_symlink()
@@ -113,7 +113,7 @@ class MediaRuntime:
             raise web.HTTPBadRequest()
         raw = await self.backend.request("GET", "/media/policy", data.owner_id)
         policy = MediaPolicy.model_validate(raw)
-        if path.stat().st_size > policy.max_file_bytes:
+        if not data.file_id and path.stat().st_size > policy.max_file_bytes:
             raise web.HTTPRequestEntityTooLarge(
                 max_size=policy.max_file_bytes, actual_size=path.stat().st_size
             )
@@ -121,7 +121,7 @@ class MediaRuntime:
             re.sub(r'[\x00-\x1f\\/:*?"<>|]', "-", data.title).strip()[:120]
             or "AMU media"
         )
-        file = FSInputFile(path, filename=label + path.suffix)
+        file = data.file_id or FSInputFile(path, filename=label + path.suffix)
         try:
             if data.kind == "audio":
                 message = await self.bot.send_audio(
@@ -144,7 +144,7 @@ class MediaRuntime:
                 file_id = message.video.file_id if message.video else None
             elif (
                 data.kind == "photo"
-                and path.stat().st_size < 10_000_000
+                and (data.file_id or path.stat().st_size < 10_000_000)
                 and path.suffix in {".jpg", ".jpeg", ".png"}
             ):
                 message = await self.bot.send_photo(
@@ -174,8 +174,22 @@ class MediaRuntime:
                 reason="telegram_rate_limit",
             )
         except (TelegramBadRequest, TelegramForbiddenError) as exc:
+            invalid_cache = (
+                data.file_id
+                and isinstance(exc, TelegramBadRequest)
+                and any(
+                    marker in str(exc).lower()
+                    for marker in (
+                        "wrong file identifier",
+                        "file_id not found",
+                        "wrong remote file identifier",
+                        "file reference expired",
+                    )
+                )
+            )
             result = MediaFileResult(
-                status="failed", reason=type(exc).__name__
+                status="cache_miss" if invalid_cache else "failed",
+                reason=type(exc).__name__,
             )
         except (TelegramNetworkError, TimeoutError):
             result = MediaFileResult(

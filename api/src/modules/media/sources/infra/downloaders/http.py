@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import ssl
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ import certifi
 from yarl import URL
 
 from src.modules.media.sources.domain.dtos import DownloadProcessRequest
+from src.modules.media.sources.infra.downloaders.network import public_address
 from src.shared.http import PublicResolver
 
 
@@ -30,6 +32,12 @@ class MediaHTTP:
             or parsed.port not in {None, 443}
         ):
             raise ValueError("Only public HTTPS media URLs are supported")
+        try:
+            address = ipaddress.ip_address(parsed.hostname)
+        except ValueError:
+            address = None
+        if address is not None and not public_address(str(address)):
+            raise ValueError("Private network destinations are blocked")
 
     async def redirect(
         self,
@@ -45,6 +53,7 @@ class MediaHTTP:
         trace = aiohttp.TraceConfig()
         trace.on_request_redirect.append(self.redirect)
         connector = aiohttp.TCPConnector(
+            limit=self.request.policy.concurrent_downloads,
             resolver=PublicResolver(),
             ssl=ssl.create_default_context(cafile=certifi.where()),
         )

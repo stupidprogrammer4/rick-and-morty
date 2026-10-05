@@ -36,6 +36,7 @@ OWNER = 140001
 class ExternalTelegramHandler(BaseHTTPRequestHandler):
     media_files = []
     media_delivery_status = "sent"
+    media_cache_miss_once = False
     media_directory = None
     messages = []
     photos = []
@@ -71,10 +72,31 @@ class ExternalTelegramHandler(BaseHTTPRequestHandler):
                 / str(body["item_id"])
                 / body["filename"]
             )
-            assert path.is_file() and path.stat().st_size > 0
+            if body.get("file_id"):
+                assert body["file_id"] == "external-test-media-file"
+            else:
+                assert path.is_file() and path.stat().st_size > 0
+                if (
+                    body["title"] in {"Native Song", "Native Video"}
+                    and body["kind"] == "audio"
+                ):
+                    from mutagen import File
+
+                    media = File(path)
+                    assert media is not None and media.tags is not None
+                    key = "TIT2" if path.suffix == ".mp3" else "\xa9nam"
+                    assert str(media.tags[key][0]) == body["title"]
+                    if body["title"] == "Native Song":
+                        assert media.tags["APIC:Cover"].data.startswith(
+                            b"\x89PNG"
+                        )
             type(self).media_files.append(body)
+            status = self.media_delivery_status
+            if body.get("file_id") and self.media_cache_miss_once:
+                type(self).media_cache_miss_once = False
+                status = "cache_miss"
             response = {
-                "status": self.media_delivery_status,
+                "status": status,
                 "message_id": 200 + len(self.media_files),
                 "file_id": "external-test-media-file",
             }
@@ -220,6 +242,7 @@ def portal(tmp_path, tmp_path_factory, monkeypatch):
     ExternalTelegramHandler.delivery_status = "sent"
     ExternalTelegramHandler.media_files = []
     ExternalTelegramHandler.media_delivery_status = "sent"
+    ExternalTelegramHandler.media_cache_miss_once = False
     media_directory = tmp_path_factory.mktemp("media")
     ExternalTelegramHandler.media_directory = media_directory
     gateway = ThreadingHTTPServer(("127.0.0.1", 0), ExternalTelegramHandler)

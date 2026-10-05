@@ -16,15 +16,26 @@ from src.modules.media.sources.infra.downloaders.http import (
     MediaBodyReader,
     MediaHTTP,
 )
+from src.modules.media.sources.infra.downloaders.native import (
+    NativeMediaMetadata,
+)
 
 
 class DirectDownloader:
-    def __init__(self, request: DownloadProcessRequest):
+    def __init__(
+        self,
+        request: DownloadProcessRequest,
+        metadata: NativeMediaMetadata | None = None,
+    ):
         self.request = request
+        self.metadata = metadata
 
     async def finish(
         self, path: Path, item: DownloadItem, kind: str
     ) -> DownloadedFile:
+        if self.metadata is not None:
+            result = await self.metadata.finish(path, item, kind)
+            return result
         if kind in {"audio", "video"}:
             probe = await self.execute(
                 [

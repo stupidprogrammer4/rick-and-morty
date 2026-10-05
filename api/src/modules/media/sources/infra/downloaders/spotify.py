@@ -1,92 +1,87 @@
+import asyncio
 import json
-import os
-from typing import Any
 from urllib.parse import urlsplit
 
-import httpx
+import aiohttp
 from bs4 import BeautifulSoup
 
+from src.config.settings import PortalAppSettings
 from src.modules.media.sources.domain.dtos import (
     DownloadItem,
     DownloadPlan,
     DownloadProcessRequest,
 )
-from src.modules.media.sources.infra.downloaders.video import (
-    ExtractorLogger,
-    VideoDownloader,
-)
+from src.modules.media.sources.infra.downloaders.http import MediaHTTP
+from src.modules.media.sources.infra.threads import MediaMetadataThreads
 
 
-class SpotifyDownloader:
-    def __init__(self, request: DownloadProcessRequest):
-        self.request = request
+class SpotifyCatalog:
+    def __init__(
+        self, threads: MediaMetadataThreads, settings: PortalAppSettings
+    ):
+        self.threads = threads
+        self.settings = settings
 
-    def plan(self) -> DownloadPlan:
-        parts = urlsplit(self.request.url).path.strip("/").split("/")
+    def identity(self, url: str) -> tuple[str, str]:
+        parsed = urlsplit(url)
+        if parsed.hostname != "open.spotify.com":
+            raise ValueError(
+                "Send an open.spotify.com track, album or playlist"
+            )
+        parts = parsed.path.strip("/").split("/")
+        if parts[0].startswith("intl-"):
+            parts = parts[1:]
         if (
             len(parts) != 2
             or parts[0] not in {"track", "album", "playlist"}
             or not parts[1].isalnum()
         ):
             raise ValueError("Send a Spotify track, album or playlist URL")
-        if os.getenv("SPOTIPY_CLIENT_ID") and os.getenv(
-            "SPOTIPY_CLIENT_SECRET"
-        ):
-            return self.official(parts[0], parts[1])
-        with httpx.Client(
-            trust_env=False,
-            timeout=self.request.policy.source_timeout_seconds,
-            headers={"User-Agent": self.request.policy.http_user_agent},
-        ) as client:
-            response = client.get(
-                "https://open.spotify.com/embed/" + "/".join(parts)
-            )
-            response.raise_for_status()
-        document = BeautifulSoup(response.text, "html.parser")
+        return parts[0], parts[1]
+
+    def embedded(self, raw: bytes, kind: str) -> DownloadPlan:
+        document = BeautifulSoup(raw, "html.parser")
         node = document.find("script", id="__NEXT_DATA__")
         if node is None:
-            raise ValueError(
-                "Spotify metadata requires a session "
-                "or configured API credentials"
-            )
-        state = (
+            raise ValueError("Spotify did not expose public catalog metadata")
+        entity = (
             json.loads(node.get_text())
             .get("props", {})
             .get("pageProps", {})
             .get("state", {})
+            .get("data", {})
+            .get("entity")
         )
-        entity = state.get("data", {}).get("entity")
         if not entity:
-            raise ValueError(
-                "Spotify did not expose collection metadata; "
-                "a session or API credentials are required"
-            )
+            raise ValueError("Spotify public catalog metadata is unavailable")
         rows = entity.get("trackList")
         if rows is None:
-            rows = [entity] if parts[0] == "track" else []
-        total = entity.get("totalTracks") or entity.get("total") or len(rows)
-        if (
-            parts[0] == "playlist"
-            and not entity.get("totalTracks")
-            and not entity.get("total")
-        ):
+            rows = [entity] if kind == "track" else []
+        total = entity.get("totalTracks") or entity.get("total")
+        if kind == "playlist" and total is None:
             raise ValueError(
-                "Spotify did not expose the full playlist count; "
-                "API credentials are required to verify completeness"
+                "Spotify public playlist count is unavailable;"
+                " full catalog API access is required"
             )
-        if total > len(rows):
+        if total is not None and int(total) != len(rows):
             raise ValueError(
-                "Spotify embedded page is incomplete; "
-                "API credentials are needed for the full playlist"
+                "Spotify public collection is incomplete;"
+                " nothing was truncated"
             )
+        images = entity.get("coverArt", {}).get("sources") or entity.get(
+            "visualIdentity", {}
+        ).get("image", [])
+        cover = images[0].get("url") if images else None
         items = []
-        for row in rows:
+        for position, row in enumerate(rows, 1):
             uri = row.get("uri") or row.get("id")
-            if not uri or not str(uri).startswith("spotify:track:"):
-                raise ValueError("Spotify page contains an unavailable track")
+            if not str(uri).startswith("spotify:track:"):
+                raise ValueError(
+                    "Spotify collection contains an unavailable track"
+                )
             url = "https://open.spotify.com/track/" + uri.rsplit(":", 1)[-1]
             artist = row.get("subtitle") or ", ".join(
-                a.get("name", "") for a in row.get("artists", [])
+                artist.get("name", "") for artist in row.get("artists", [])
             )
             items.append(
                 DownloadItem(
@@ -99,51 +94,30 @@ class SpotifyDownloader:
                     duration=(row.get("duration") or 0) / 1000 or None,
                     kind="audio",
                     engine="spotify",
+                    cover_url=cover,
+                    album=entity.get("name") if kind == "album" else None,
+                    track_number=position,
                 )
             )
-        if not items or len(items) > self.request.policy.max_playlist_items:
-            raise ValueError("Empty or oversized Spotify collection")
         return DownloadPlan(items=items)
 
-    def official(self, kind: str, id: str) -> DownloadPlan:
-        import spotipy
-        from spotipy.oauth2 import SpotifyClientCredentials
-
-        client = spotipy.Spotify(
-            auth_manager=SpotifyClientCredentials(),
-            requests_timeout=self.request.policy.source_timeout_seconds,
-            retries=self.request.policy.source_retries,
-        )
-        rows: list[dict[str, Any]] = []
-        if kind == "track":
-            track = client.track(id)
-            if track is None:
-                raise ValueError("Spotify track unavailable")
-            rows = [track]
-        else:
-            page = (
-                client.playlist_items(id)
-                if kind == "playlist"
-                else client.album_tracks(id)
-            )
-            while page:
-                rows.extend(
-                    (row.get("track") or row.get("item") or row)
-                    for row in page["items"]
-                )
-                if len(rows) > self.request.policy.max_playlist_items:
-                    raise ValueError(
-                        "Playlist exceeds configured item limit; "
-                        "nothing was truncated"
-                    )
-                page = client.next(page) if page.get("next") else None
+    def tracks(
+        self, rows: list[dict], album: dict | None = None
+    ) -> list[DownloadItem]:
         items = []
         for row in rows:
-            if not row or row.get("is_local") or row.get("type") != "track":
+            row = row.get("track") or row.get("item") or row
+            if (
+                row.get("is_local")
+                or row.get("type") != "track"
+                or not row.get("id")
+            ):
                 raise ValueError(
-                    "Collection includes unavailable or local tracks"
+                    "Spotify collection contains an unavailable track"
                 )
-            url = row["external_urls"]["spotify"]
+            record = row.get("album") or album or {}
+            images = record.get("images") or []
+            url = "https://open.spotify.com/track/" + row["id"]
             items.append(
                 DownloadItem(
                     url=url,
@@ -155,49 +129,129 @@ class SpotifyDownloader:
                     duration=row.get("duration_ms", 0) / 1000 or None,
                     kind="audio",
                     engine="spotify",
+                    album=record.get("name"),
+                    cover_url=images[0].get("url") if images else None,
+                    isrc=row.get("external_ids", {}).get("isrc"),
+                    track_number=row.get("track_number"),
                 )
             )
-        return DownloadPlan(items=items)
+        return items
 
-    def download(self, item: DownloadItem):
-        from yt_dlp import YoutubeDL
-
-        query = (
-            "ytsearch5:" + item.title + " " + (item.performer or "") + " audio"
+    async def api_page(
+        self,
+        http: MediaHTTP,
+        session: aiohttp.ClientSession,
+        url: str,
+        token: str,
+        offset: int,
+    ) -> dict:
+        raw = await http.metadata(
+            session,
+            "GET",
+            url,
+            headers={"Authorization": "Bearer " + token},
+            params={"limit": 50, "offset": offset},
+            allow_redirects=False,
         )
-        options: Any = {
-            "quiet": True,
-            "logger": ExtractorLogger(),
-            "extract_flat": True,
-            "skip_download": True,
-            "socket_timeout": self.request.policy.source_timeout_seconds,
-            "cachedir": False,
-        }
-        with YoutubeDL(options) as downloader:
-            result: Any = downloader.extract_info(query, download=False)
-        candidates = result.get("entries", []) if result else []
-        candidate = next(
-            (
-                row
-                for row in candidates
-                if row
-                and (
-                    not item.duration
-                    or not row.get("duration")
-                    or abs(row["duration"] - item.duration)
-                    < max(15, item.duration * 0.08)
+        result = await self.threads.run(json.loads, raw)
+        return result
+
+    async def official(
+        self, request: DownloadProcessRequest, kind: str, identifier: str
+    ) -> DownloadPlan:
+        http = MediaHTTP(request)
+        async with http.session() as session:
+            raw = await http.metadata(
+                session,
+                "POST",
+                request.policy.spotify_auth_url,
+                auth=aiohttp.BasicAuth(
+                    self.settings.media.spotify_client_id.get_secret_value(),
+                    self.settings.media.spotify_client_secret.get_secret_value(),
+                ),
+                data={"grant_type": "client_credentials"},
+                allow_redirects=False,
+            )
+            token = json.loads(raw)["access_token"]
+            base = request.policy.spotify_api_url.rstrip("/")
+            if kind == "track":
+                raw = await http.metadata(
+                    session,
+                    "GET",
+                    base + "/tracks/" + identifier,
+                    headers={"Authorization": "Bearer " + token},
+                    allow_redirects=False,
                 )
-            ),
-            None,
-        )
-        if candidate is None:
-            raise ValueError("No matching public audio source found")
-        url = (
-            candidate.get("webpage_url")
-            or "https://www.youtube.com/watch?v=" + candidate["id"]
-        )
-        resolved = item.model_copy(
-            update={"url": url, "source_url": url, "engine": "video"}
-        )
-        result = VideoDownloader(self.request).download(resolved)
+                row = await self.threads.run(json.loads, raw)
+                items = await self.threads.run(self.tracks, [row])
+                return DownloadPlan(items=items)
+            album = None
+            if kind == "album":
+                raw = await http.metadata(
+                    session,
+                    "GET",
+                    base + "/albums/" + identifier,
+                    headers={"Authorization": "Bearer " + token},
+                    allow_redirects=False,
+                )
+                album = await self.threads.run(json.loads, raw)
+                first = album["tracks"]
+                url = base + "/albums/" + identifier + "/tracks"
+            else:
+                url = base + "/playlists/" + identifier + "/items"
+                first = await self.api_page(http, session, url, token, 0)
+            total = int(first["total"])
+            if total > request.policy.max_playlist_items:
+                raise ValueError(
+                    "Spotify collection exceeds the item limit;"
+                    " nothing was truncated"
+                )
+            first_rows = first.get("items") or []
+            if len(first_rows) < min(total, int(first.get("limit") or 50)):
+                raise ValueError("Spotify collection has missing items")
+            pages = await asyncio.gather(
+                *(
+                    self.api_page(http, session, url, token, offset)
+                    for offset in range(len(first_rows), total, 50)
+                )
+            )
+            rows = first_rows + [
+                row for page in pages for row in page.get("items", [])
+            ]
+            if len(rows) != total or any(
+                int(page["total"]) != total for page in pages
+            ):
+                raise ValueError(
+                    "Spotify collection changed or is incomplete;"
+                    " retry the request"
+                )
+            items = await self.threads.run(self.tracks, rows, album)
+            return DownloadPlan(items=items)
+
+    async def plan(self, request: DownloadProcessRequest) -> DownloadPlan:
+        kind, identifier = self.identity(request.url)
+        if (
+            self.settings.media.spotify_client_id.get_secret_value()
+            and self.settings.media.spotify_client_secret.get_secret_value()
+        ):
+            result = await self.official(request, kind, identifier)
+        else:
+            http = MediaHTTP(request)
+            async with http.session() as session:
+                raw = await http.metadata(
+                    session,
+                    "GET",
+                    "https://open.spotify.com/embed/"
+                    + kind
+                    + "/"
+                    + identifier,
+                )
+            result = await self.threads.run(self.embedded, raw, kind)
+        if (
+            not result.items
+            or len(result.items) > request.policy.max_playlist_items
+        ):
+            raise ValueError(
+                "Empty or oversized Spotify collection; nothing was truncated"
+            )
         return result

@@ -15,6 +15,7 @@ from src.modules.media.downloads.interfaces import (
     IMediaJobService,
     IMediaQueue,
 )
+from src.modules.media.library.interfaces import IMediaAssetService
 from src.modules.media.sources.domain.dtos import DownloadedFile
 from src.modules.media.storage.infra.files import MediaFiles
 from src.modules.ops.guards.interfaces import IPortalGuard
@@ -34,6 +35,7 @@ class MediaDelivery:
         queue: IMediaQueue,
         guard: IPortalGuard,
         captions: MediaCaptionRenderer,
+        assets: IMediaAssetService,
     ):
         self.jobs = jobs
         self.items = items
@@ -43,6 +45,7 @@ class MediaDelivery:
         self.queue = queue
         self.guard = guard
         self.captions = captions
+        self.assets = assets
 
     async def execute(self, job_id: int) -> None:
         async with transaction():
@@ -101,6 +104,7 @@ class MediaDelivery:
                     caption=caption,
                     title=downloaded.title[:200],
                     performer=(downloaded.performer or "")[:200] or None,
+                    file_id=downloaded.file_id,
                 )
             )
             logger.info(
@@ -117,6 +121,22 @@ class MediaDelivery:
                 else None
             )
             async with transaction():
+                if result.status == "cache_miss":
+                    if downloaded.cache_key:
+                        await self.assets.invalidate(downloaded.cache_key)
+                    await self.items.change(
+                        item.id,
+                        MediaItemChange(
+                            status="queued",
+                            file_id=None,
+                            filename=None,
+                            downloaded_payload=None,
+                            error=None,
+                            lease_until=None,
+                            available_at=None,
+                        ),
+                    )
+                    return
                 await self.items.change(
                     item.id,
                     MediaItemChange(
@@ -128,6 +148,13 @@ class MediaDelivery:
                         available_at=retry_at,
                     ),
                 )
+                if result.status == "sent" and result.file_id:
+                    await self.assets.store(
+                        job.bot_id,
+                        downloaded.model_copy(
+                            update={"file_id": result.file_id}
+                        ),
+                    )
             if retry_at is not None:
                 await self.queue.dispatch_at(retry_at)
         finally:

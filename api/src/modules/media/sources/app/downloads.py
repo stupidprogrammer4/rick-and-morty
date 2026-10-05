@@ -1,6 +1,10 @@
 import asyncio
 from collections.abc import Sequence
 
+from papilio.infra.db.transaction import transaction
+
+from src.modules.media.library.app.keys import MediaAssetKeys
+from src.modules.media.library.interfaces import IMediaAssetService
 from src.modules.media.sources.app.requests import MediaExtractionRequests
 from src.modules.media.sources.domain.dtos import (
     DownloadedFile,
@@ -10,30 +14,59 @@ from src.modules.media.sources.domain.dtos import (
     SourceDownloadInput,
     SourceJob,
 )
-from src.modules.media.sources.infra.transfer import MediaFileTransfer
+from src.modules.media.sources.interfaces import IMediaSourceTransfer
 
 
 class MediaFileDownloads:
     def __init__(
-        self, requests: MediaExtractionRequests, transfer: MediaFileTransfer
+        self,
+        requests: MediaExtractionRequests,
+        transfer: IMediaSourceTransfer,
+        assets: IMediaAssetService,
+        keys: MediaAssetKeys,
     ):
         self.requests = requests
         self.transfer = transfer
+        self.assets = assets
+        self.keys = keys
 
     async def download(
         self, job: SourceJob, item_id: int, item: DownloadItem
     ) -> DownloadedFile:
         request = self.requests.file(job, item_id, item)
+        key = self.keys.key(job, item)
+        if key:
+            async with transaction():
+                cached = await self.assets.get(key)
+            if cached is not None:
+                return cached
         result = await self.transfer.fetch(request)
-        return result
+        return result.model_copy(update={"cache_key": key})
 
     async def download_many(
         self,
         inputs: Sequence[SourceDownloadInput],
         completed: MediaDownloadSink,
     ) -> list[MediaDownloadOutcome]:
+        lookups = {
+            data.item.id: self.keys.key(
+                data.job, DownloadItem.model_validate_json(data.item.payload)
+            )
+            for data in inputs
+        }
+        async with transaction():
+            cached = await self.assets.get_many(
+                [key for key in lookups.values() if key]
+            )
+        available = {row.key: row.downloaded for row in cached}
+        prepared = [
+            data.model_copy(
+                update={"cached": available.get(lookups[data.item.id] or "")}
+            )
+            for data in inputs
+        ]
         responses = await asyncio.gather(
-            *(self.receive(data, completed) for data in inputs),
+            *(self.receive(data, completed) for data in prepared),
             return_exceptions=True,
         )
         if any(isinstance(response, BaseException) for response in responses):
@@ -48,13 +81,16 @@ class MediaFileDownloads:
         self, data: SourceDownloadInput, completed: MediaDownloadSink
     ) -> MediaDownloadOutcome:
         try:
-            downloaded = await self.transfer.fetch(
-                self.requests.file(
-                    data.job,
-                    data.item.id,
-                    DownloadItem.model_validate_json(data.item.payload),
+            item = DownloadItem.model_validate_json(data.item.payload)
+            if data.cached is not None:
+                downloaded = data.cached
+            else:
+                downloaded = await self.transfer.fetch(
+                    self.requests.file(data.job, data.item.id, item)
                 )
-            )
+                downloaded = downloaded.model_copy(
+                    update={"cache_key": self.keys.key(data.job, item)}
+                )
         except Exception as exc:
             outcome = self.outcome(data, exc)
         else:

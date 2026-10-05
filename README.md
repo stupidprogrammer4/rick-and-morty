@@ -137,8 +137,11 @@ SoundCloud collections download concurrently and retain their original numbers
 for ordered delivery; collections exceeding the
 configured limit are rejected rather than silently truncated. Spotify supplies
 track metadata and searches for matching public audio from another source; the
-file caption identifies its actual source. Configure optional free Spotify API
-credentials to enumerate complete collections when public embeds are incomplete.
+file caption identifies its actual source. Matching checks the track title,
+artist, version and full duration; a preview is not a successful download.
+Optional Spotify API credentials provide catalog metadata where permitted.
+Public embeds and API permissions do not guarantee access to a complete playlist;
+incomplete collections are rejected rather than partially reported as complete.
 Login-only sources need an authorized cookie file; DRM and live streams are
 unsupported. Extraction can also fail because a source blocks the server.
 
@@ -152,10 +155,29 @@ cookie paths and the shared volume remain private infrastructure configuration.
 Database source routes choose the ordered extraction methods. Direct files and
 supported Instagram/Pinterest metadata use asynchronous HTTP; file bodies stream
 into bounded temporary storage without starting a Python process per file.
-Synchronous SDKs and browser fallbacks run in killable isolated processes on the
-separate native Papilio Tasks worker. Codec conversion uses asynchronous child
-processes with time and output-size limits. The configured video resolution limit
+YouTube metadata and music searches use bounded AnyIO threads. Spotify catalog
+requests and compatible MP3/M4A or muxed MP4 downloads use asynchronous HTTP;
+Mutagen validates duration and writes audio tags in those same bounded threads.
+SoundCloud MP3 HLS segments stream concurrently into bounded temporary files and
+are joined in their original order in a bounded thread, without transcoding.
+Encrypted, live and unsupported segmented formats are rejected.
+These YouTube and Spotify transfers do not start codec or Python child processes.
+They reject sources that only expose formats requiring conversion or merging.
+Other SDK and browser fallbacks retain isolated processes, and their codec
+conversion retains time and output-size limits. The video resolution limit
 applies to the shorter edge, including portrait videos.
+
+`media.policy/global` also controls YouTube client selection, music search
+sources, matching limits and the lifetime of successful Telegram file references.
+File references are stored in MySQL, isolated by bot and media options, and reused
+without retaining media on disk. An expired Telegram reference triggers a fresh
+download; uncertain sends are never automatically repeated.
+
+Optional private `PORTAL_YOUTUBE_TOKEN_PROVIDER_URL` connects to an existing
+HTTP PO token provider through its `/get_pot` endpoint.
+`PORTAL_YOUTUBE_PROXY_URL` configures an existing YouTube metadata proxy.
+Neither setting starts another service. Source login challenges and unavailable
+direct formats can still prevent downloads, even when metadata extraction works.
 
 Planning, downloading and ordered Telegram delivery have separate application
 owners and native tasks. Collection downloads use `asyncio.gather`; each completed

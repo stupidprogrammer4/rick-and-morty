@@ -7,7 +7,9 @@ from src.modules.media.sources.domain.dtos import (
     DownloadStage,
     SourceJob,
 )
+from src.modules.media.sources.infra.downloaders.spotify import SpotifyCatalog
 from src.modules.media.sources.infra.extraction import PublicMediaExtraction
+from src.modules.media.sources.infra.metadata import MediaMetadataExtraction
 from src.modules.media.sources.infra.process import MediaExtractorProcess
 
 
@@ -17,10 +19,14 @@ class MediaSourcePlanner:
         requests: MediaExtractionRequests,
         public: PublicMediaExtraction,
         process: MediaExtractorProcess,
+        metadata: MediaMetadataExtraction,
+        spotify: SpotifyCatalog,
     ):
         self.requests = requests
         self.public = public
         self.process = process
+        self.metadata = metadata
+        self.spotify = spotify
 
     async def plan(
         self, job: SourceJob, stages: Sequence[DownloadStage]
@@ -29,6 +35,12 @@ class MediaSourcePlanner:
         if not request.stages:
             raise ValueError("No extractors are enabled for this source")
         async with asyncio.timeout(request.policy.item_timeout_seconds):
+            if job.provider == "youtube" and request.stages[0] == "video":
+                result = await self.metadata.plan(request)
+                return result
+            if request.stages[0] == "spotify":
+                result = await self.spotify.plan(request)
+                return result
             if request.stages[0] in {"direct", "instagram", "pinterest"}:
                 try:
                     result = await self.public.plan(request)
