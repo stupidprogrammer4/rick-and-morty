@@ -41,3 +41,5 @@ class AuthorizedMission(BaseModel):
     origin_chat_id: int
     origin_message_id: int
     automation_key: str | None = None
+    intent: str
+    text: str

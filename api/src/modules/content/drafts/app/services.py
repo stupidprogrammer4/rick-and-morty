@@ -11,12 +11,14 @@ from portal_contracts.enums import BotRole
 from portal_contracts.missions import PageRequest
 from src.modules.content.drafts.domain.models import DraftModel
 from src.modules.content.drafts.infra.mysql import DraftRepository
+from src.modules.ops.guards.interfaces import IPortalGuard
 from src.shared.errors import conflict, missing
 
 
 class DraftService:
-    def __init__(self, repo: DraftRepository):
+    def __init__(self, repo: DraftRepository, guard: IPortalGuard):
         self.repo = repo
+        self.guard = guard
 
     @transactional
     async def create(
@@ -32,6 +34,9 @@ class DraftService:
     ) -> DraftOut:
         if data.category == "market" and market_snapshot_id is None:
             raise conflict("قیمت‌ها باید از مأموریت /prices دریافت شوند.")
+        # Absent unique keys share an InnoDB gap. Serialize creation before
+        # locking that gap so simultaneous missions cannot deadlock inserts.
+        await self.guard.lock("drafts:create")
         existing = await self.repo.by_key(key)
         if existing is not None:
             if existing.owner_id != owner_id:

@@ -28,7 +28,9 @@ class MissionService:
     @transactional
     async def create_scheduled(self, data: ScheduledMissionCreate) -> None:
         # Negative bot IDs are reserved for internal schedules, never Telegram.
-        bot_id = -1 if data.intent == "news" else -2
+        bot_id = {"news": -1, "prices": -2, "occasions": -3, "charts": -4}[
+            data.intent
+        ]
         slot = int(data.scheduled_at.timestamp() * 1_000_000)
         existing = await self.repo.by_update(bot_id, slot)
         if existing is not None:

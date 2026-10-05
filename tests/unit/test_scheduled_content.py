@@ -10,17 +10,14 @@ from src.modules.automation.missions.app.scheduled import current_slot
 def test_database_cadence_does_not_reset_after_restart(snapshot):
     rule = snapshot[0].automation.news.model_copy(update={"enabled": True})
     anchor = rule.starts_at
+    interval = timedelta(seconds=rule.interval_seconds)
     assert current_slot(rule, anchor - timedelta(seconds=1)) is None
     assert current_slot(rule, anchor) == anchor
     assert (
-        current_slot(rule, anchor + timedelta(hours=4, minutes=59)) == anchor
+        current_slot(rule, anchor + interval - timedelta(seconds=1)) == anchor
     )
-    assert current_slot(
-        rule, anchor + timedelta(hours=5)
-    ) == anchor + timedelta(hours=5)
-    assert current_slot(
-        rule, anchor + timedelta(hours=17)
-    ) == anchor + timedelta(hours=15)
+    assert current_slot(rule, anchor + interval) == anchor + interval
+    assert current_slot(rule, anchor + interval * 3.5) == anchor + interval * 3
     assert (
         current_slot(rule.model_copy(update={"enabled": False}), anchor)
         is None

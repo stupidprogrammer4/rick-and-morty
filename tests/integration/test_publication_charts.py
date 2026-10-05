@@ -453,6 +453,7 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     command.downgrade(config, "20261003_market_engine")
     command.upgrade(config, "head")
     command.check(config)
+
     assert portal.run(historical()) == before
 
     async def freeze_page():
@@ -487,3 +488,99 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     # MySQL may commit empty descendant downgrades before the chart guard.
     command.upgrade(config, "head")
     command.check(config)
+
+
+async def independent_chart_policy(portal, *, prices: bool = False):
+    await prepare_charts(portal)
+    snapshot = await portal.snapshot()
+    if prices:
+        # This scenario publishes two parents; the harness normally caps one.
+        policy = snapshot.configuration.portal.model_dump(
+            mode="json", exclude={"dry_run"}
+        )
+        policy["daily_post_cap"] = 2
+        await portal.change("portal.policy", SettingScope.GLOBAL, policy)
+    automation = snapshot.configuration.automation.model_dump(mode="json")
+    anchor = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
+    automation["news"]["enabled"] = False
+    automation["prices"].update(
+        enabled=prices, starts_at=anchor, interval_seconds=7200
+    )
+    automation["charts"].update(
+        enabled=True, starts_at=anchor, interval_seconds=25200
+    )
+    await portal.change("automation.policy", SettingScope.GLOBAL, automation)
+
+
+def test_native_independent_chart_scheduler_without_price_mission(portal):
+    portal.run(independent_chart_policy(portal))
+    portal.start_workers()
+    parents, charts = portal.until(
+        lambda: read_publications(portal),
+        lambda state: (
+            len(state[0]) == 1
+            and state[0][0][1] == "sent"
+            and len(state[1]) == 4
+            and all(row[2] == "sent" for row in state[1])
+        ),
+        timeout=90,
+    )
+    assert parents[0][3] is None
+    assert len(ExternalTelegramHandler.messages) == 1
+    assert len(ExternalTelegramHandler.photos) == 4
+    assert "نمودارهای بازار" in ExternalTelegramHandler.messages[0]["text"]
+
+    async def mission_and_draft():
+        from src.modules.content.drafts.infra.tables import DraftTable
+
+        async with portal.request() as scope:
+            uow = await scope.get(MySQLUnitOfWork)
+            mission = (await uow.execute(select(MissionTable))).scalar_one()
+            draft = (await uow.execute(select(DraftTable))).scalar_one()
+            assert mission.intent == "charts" and mission.bot_id == -4
+            assert mission.automation_key.startswith("charts:")
+            assert draft.category == "charts"
+            assert draft.market_snapshot_id is None
+            assert not draft.synthetic
+
+    portal.run(mission_and_draft())
+    for row in charts:
+        card = AssetChartCard.model_validate_json(row[4])
+        assert card.chart.candles and card.asset.id == row[1]
+
+
+def test_native_separate_chart_cadence_avoids_price_chart_duplicates(portal):
+    portal.run(independent_chart_policy(portal, prices=True))
+    portal.start_workers()
+
+    async def checked_state():
+        async with portal.request() as scope:
+            uow = await scope.get(MySQLUnitOfWork)
+            missions = (
+                (await uow.execute(select(MissionTable))).scalars().all()
+            )
+            assert not any(row.status == "failed" for row in missions), [
+                (row.intent, row.status, row.failure_reason)
+                for row in missions
+            ]
+        return await read_publications(portal)
+
+    parents, charts = portal.until(
+        checked_state,
+        lambda state: (
+            len(state[0]) == 2
+            and all(row[1] == "sent" for row in state[0])
+            and len(state[1]) == 4
+            and all(row[2] == "sent" for row in state[1])
+        ),
+        timeout=90,
+    )
+    assert len(ExternalTelegramHandler.messages) == 2
+    assert len(ExternalTelegramHandler.photos) == 4
+    chart_parent = next(row for row in parents if row[3] is None)
+    price_parent = next(row for row in parents if row[3] is not None)
+    assert chart_parent[0] != price_parent[0]
+    assert all(
+        photo["publication_id"] == chart_parent[0]
+        for photo in ExternalTelegramHandler.photos
+    )

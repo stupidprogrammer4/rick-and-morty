@@ -60,6 +60,14 @@ Run `deploy/release.sh <temporary-directory> <full-commit>` from that archive.
 Later releases preserve private settings. CI authenticates GHCR with an ephemeral
 token directory and runs the same release script.
 
+After seeding a release with calendar and standalone chart support, run
+`python -m src.cli.content_schedule` inside the configured API image to activate
+the requested Tehran cadence: prices every two hours, charts every seven hours,
+news every three hours, and daily occasion preparation at 10:00 with random
+publication between 15:00 and 18:00. This command updates existing records;
+restarting or reseeding alone preserves their previous timing. It requires an
+existing publishing channel and an allowlisted administrator.
+
 ### Existing MySQL on a small server
 
 `deploy/compose.server.yml` is an optional override for a server that already

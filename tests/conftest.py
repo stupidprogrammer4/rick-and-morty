@@ -42,7 +42,14 @@ def snapshot(seed):
         voices={role: values["voice", role] for role in ("rick", "morty")},
         posts={
             category: values["post.style", category]
-            for category in ("news", "tech", "market", "music", "notice")
+            for category in (
+                "news",
+                "tech",
+                "market",
+                "music",
+                "notice",
+                "charts",
+            )
         },
     )
     mapping = PriceMapping(

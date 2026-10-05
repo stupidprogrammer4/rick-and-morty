@@ -2,11 +2,42 @@ from dishka import FromDishka
 from papilio.mcp.router import MCPRouter
 
 from portal_contracts.content import DraftOut
+from portal_contracts.occasions import OccasionDay, OccasionDraft
 from portal_contracts.telegram import ReactionEmoji
 from src.modules.automation.agents.interfaces import IAgentToolCommands
 from src.modules.content.news.domain.dtos import ArticleEvidence, NewsDraft
 
 router = MCPRouter()
+
+
+@router.tool(
+    description=(
+        "Read every recorded Iranian, ancient, religious and international "
+        "occasion for an ISO Gregorian date, or today in the portal timezone. "
+        "Scheduled occasions missions are bound to their own date. "
+        "The response "
+        "contains event IDs, calendar sources and coverage warnings."
+    )
+)
+async def get_calendar_occasions(
+    command: FromDishka[IAgentToolCommands], on_date: str | None = None
+) -> OccasionDay:
+    return await command.get_calendar_occasions(on_date)
+
+
+@router.tool(
+    description=(
+        "Save Rick's daily draft after reading get_calendar_occasions. "
+        "Include every returned event_id exactly once with a short Rick-style "
+        "comment, intro and outro. Dates, titles and sources are supplied "
+        "by the calendar. Empty calendar days require an empty comments list. "
+        "This tool does not publish."
+    )
+)
+async def create_occasion_draft(
+    draft: OccasionDraft, command: FromDishka[IAgentToolCommands]
+) -> DraftOut:
+    return await command.create_occasion_draft(draft)
 
 
 @router.tool(

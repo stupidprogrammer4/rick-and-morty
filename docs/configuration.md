@@ -9,12 +9,13 @@
 | `market.policy` | `global` | Backend, report mode, instruments, freshness and asset charts |
 | `market.engine` | `global` | Source timeouts, scheduler defaults, aggregation, outliers and cache age |
 | `automation.policy` | `global` | Owner, enabled rules, anchored intervals, topics and prompts |
+| `occasions.policy` | `global` | Daily Rick calendar schedule, categories, custom events and exclusions |
 | `presentation` | `global` | Reactions, labels, item emojis, pagination and post length |
 | `voice` | `rick`, `morty` | System prompt and persona response templates |
-| `post.style` | `news`, `tech`, `market`, `music`, `notice` | Publisher identity, heading, separators, footer and hashtags |
+| `post.style` | `news`, `tech`, `market`, `charts`, `music`, `notice` | Publisher identity, heading, separators, footer and hashtags |
 | `market.quote` | `gold`, `usd`, `silver` | Endpoint, JSON paths, currency, basis, purity and labels |
 
-The seed contains 9 definitions, 16 scoped values and Hacker News sources.
+The seed contains typed setting definitions, scoped values and Hacker News sources.
 Values use validated JSON text, optimistic revision numbers and a unique
 definition/scope key. Voice templates permit only documented placeholders;
 Python attribute access and formatting expressions are rejected. Business
@@ -75,22 +76,73 @@ API credentials remain in the private runtime environment.
 
 ## Recurring publication
 
-`automation.policy/global` owns the allowlisted administrator and independent news
-and price rules. Each rule has `enabled`, `interval_seconds`, an aware `starts_at`,
-`topic`, `lookback_seconds` and `prompt`. Set the news interval to 18000 seconds
-and prices to 3600 seconds for five-hourly Rick summaries and hourly market reports.
-Seeds leave both rules disabled. Configure an owner and channel before enabling.
+`automation.policy/global` owns the allowlisted administrator and independent news,
+price and chart rules. Each rule has `enabled`, `interval_seconds`, an aware `starts_at`,
+`topic`, `lookback_seconds` and `prompt`. The requested cadence uses prices every
+7200 seconds, standalone charts every 25200 seconds and news every 10800 seconds,
+anchored at 10:00 Tehran time. Intervals continue across midnight. Seeds leave
+all rules disabled. Configure an owner and channel before enabling.
+
+After running the idempotent seed, `python -m src.cli.content_schedule` applies
+this cadence atomically to the existing database records, enables market charts
+and daily occasions, selects the existing schedule owner or an allowlisted
+administrator, and retains prompts, sources, exclusions and the channel. It sets
+the timezone to `Asia/Tehran`, disables quiet hours and raises the daily cap to
+at least 30. Use `--owner-id` to select a specific allowlisted administrator.
 
 Slots remain anchored across restarts. After downtime only the latest slot is
 admitted, with a unique mission key preventing duplicates. Explicitly enabled rules
 authorize their own drafts through the ordinary publication workflow; manual drafts
-still require approval. Pause, daily quota and quiet hours apply to both. A cap of
+still require approval. Pause, daily quota and quiet hours apply to all schedules. A cap of
 30 accommodates this cadence; equal quiet boundaries disable the quiet window.
 Absent evidence or invalid required quotes prevents publication. Source reports
 retain the other accepted providers when one source fails.
 
-`post.style/news` and `post.style/market` own category hashtags. The presentation
+`post.style/news`, `post.style/market` and `post.style/charts` own category hashtags.
+When the standalone chart rule is enabled, price reports do not attach charts;
+the chart rule produces its own parent post and line/candlestick images. The presentation
 record's `asset_styles` maps each asset to its own emoji and hashtag.
+
+## Daily occasions
+
+Run the idempotent seed after upgrading to add `occasions.policy/global`.
+Read it using `/settings occasions.policy global`. Set `owner_id` to an
+allowlisted administrator and `enabled` to `true`. `time: "10:00:00"` controls
+preparation, while `publish_start: "15:00:00"` and `publish_end: "18:00:00"`
+bound random publication; save the complete record with `/set_setting`. The schedule
+uses `portal.policy.timezone`, initially `Asia/Tehran`. Configure the channel,
+live model and delivery mode as usual. The existing shared daily post cap
+must accommodate occasions alongside other enabled schedules.
+
+The scheduler admits at most one occasions mission per local date. Restarting
+between preparation and the publication deadline admits today's slot; it does not
+replay previous days or admit a missed slot after 18:00. The random delivery time
+is chosen once, stored with the publication and retained after restarts. Late
+preparation chooses only a remaining time within the window.
+Rick's agent uses the editable Rick voice, reads `get_calendar_occasions`, and
+calls `create_occasion_draft` with commentary for every event ID. The tool keeps
+calendar titles and source links, rejects omitted or invented IDs, and preserves
+coverage warnings. Dates are bound to the scheduled slot. No model has a direct
+publication tool. Enabled schedules authorize their own drafts; manual
+`/occasions [YYYY-MM-DD]` requests produce drafts for normal human approval.
+
+`types` selects `Informal`, `Iran`, `AncientIran`, `International`, `Afghanistan`,
+or `IranFormer`. Informal occasions come first by default, followed by Iranian,
+ancient Iranian and international records. They include social, relationship
+and internet observances, explicitly labeled unofficial. Rick gives these
+more commentary while retaining every recorded event. `excluded_ids` suppresses
+specific records. `custom_events` adds entries with a unique `id`, `title`,
+`calendar` (`Persian`, `Gregorian`, `Hijri`), `month`, `day`, optional `year`,
+`holiday`, and `source`. Without `year`, an event recurs in its own calendar.
+For example, an annual personal event can use
+`{"id":"portal-day","title":"Portal anniversary","calendar":"Persian","month":7,"day":13,"source":"Personal calendar"}`.
+
+Packaged sources cover the recorded Iranian, ancient and international events,
+including movable calendar rules. Lunar dates use documented Iranian month
+starts, with explicit warnings outside known coverage. These records are a
+versioned catalogue, not an exhaustive registry of every worldwide informal
+event. Refresh the packaged datasets when new annual calendars are released;
+their provenance files record sources, pinned revisions and coverage.
 
 ## Auryx market engine
 

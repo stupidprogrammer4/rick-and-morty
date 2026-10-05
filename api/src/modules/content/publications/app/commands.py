@@ -101,7 +101,10 @@ class PublicationCommands:
                     ),
                 )
             )
-            if draft.category == "market":
+            if draft.category == "charts" or (
+                draft.category == "market"
+                and not self.settings.automation.charts.enabled
+            ):
                 await self.charts.schedule(row)
             result = PublicationOut.model_validate(row, from_attributes=True)
         return result

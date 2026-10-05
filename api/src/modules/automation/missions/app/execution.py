@@ -1,14 +1,14 @@
 import asyncio
 import re
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from html import escape
 
 from papilio.infra.db.transaction import transaction
 
 from portal_contracts.automation import AgentOutcome, AgentRequest
 from portal_contracts.configuration import PortalConfiguration
-from portal_contracts.content import DraftDecision, PublishRequest
-from portal_contracts.enums import BotRole
+from portal_contracts.content import DraftCreate, DraftDecision, PublishRequest
+from portal_contracts.enums import BotRole, Category
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.telegram import (
     ReactionRequest,
@@ -28,12 +28,14 @@ from src.modules.content.drafts.interfaces import (
 )
 from src.modules.content.news.domain.dtos import CollectNews
 from src.modules.content.news.interfaces import IArticleService
+from src.modules.content.occasions.app.timing import occasion_publish_at
 from src.modules.content.publications.interfaces import (
     IPublicationCommands,
     ITelegramGateway,
 )
 from src.modules.content.replies.domain.models import PrivateReplyModel
 from src.modules.content.replies.interfaces import IPrivateReplyService
+from src.modules.pricing.charts.interfaces import IAssetChartQuery
 from src.modules.pricing.reports.domain.dtos import MarketSnapshot
 from src.modules.pricing.reports.interfaces import (
     IMarketQuery,
@@ -55,6 +57,7 @@ class MissionExecutor:
         presentation: PortalPresentation,
         settings: PortalConfiguration,
         publications: IPublicationCommands,
+        charts: IAssetChartQuery,
     ):
         self.repo = repo
         self.articles = articles
@@ -67,6 +70,7 @@ class MissionExecutor:
         self.presentation = presentation
         self.settings = settings
         self.publications = publications
+        self.charts = charts
 
     async def execute(self, mission_id: int) -> None:
         async with transaction():
@@ -105,6 +109,8 @@ class MissionExecutor:
                 if mission.intent == "prices":
                     market_snapshot = await self.market.snapshot()
                     outcome = AgentOutcome()
+                elif mission.intent == "charts":
+                    outcome = await self.chart_draft(mission, role)
                 elif mission.stage == "accepted" and mission.intent == "news":
                     rule = self.settings.automation.news
                     automatic = mission.automation_key is not None
@@ -247,9 +253,33 @@ class MissionExecutor:
         self, mission: MissionModel, draft_id: int, revision: int
     ) -> None:
         policy = self.settings.automation
-        rule = policy.news if mission.intent == "news" else policy.prices
-        if not rule.enabled or policy.owner_id != mission.owner_id:
+        if mission.intent == "occasions":
+            enabled = self.settings.occasions.enabled
+            owner = self.settings.occasions.owner_id
+        else:
+            rule = {
+                "news": policy.news,
+                "prices": policy.prices,
+                "charts": policy.charts,
+            }[mission.intent]
+            enabled, owner = rule.enabled, policy.owner_id
+        if not enabled or owner != mission.owner_id:
             return
+        scheduled_at = None
+        if mission.intent == "occasions":
+            if mission.automation_key is None:
+                return
+            slot = datetime.fromtimestamp(
+                int(mission.automation_key.split(":", 1)[1]) / 1_000_000, UTC
+            )
+            scheduled_at = occasion_publish_at(
+                self.settings.occasions,
+                self.settings.portal.timezone,
+                slot,
+                utc_now(),
+            )
+            if scheduled_at is None:
+                return
         role = BotRole(mission.origin_bot)
         await self.drafts.decide(
             draft_id,
@@ -260,7 +290,37 @@ class MissionExecutor:
         await self.publications.schedule(
             draft_id,
             mission.owner_id,
-            PublishRequest(revision=revision, origin_bot=role),
+            PublishRequest(
+                revision=revision, origin_bot=role, scheduled_at=scheduled_at
+            ),
+        )
+
+    async def chart_draft(
+        self, mission: MissionModel, role: BotRole
+    ) -> AgentOutcome:
+        if not self.settings.market.charts.enabled:
+            raise ValueError("انتشار نمودارها غیرفعال است.")
+        cards = await self.charts.get_all()
+        if not cards:
+            raise ValueError("دارایی ثبت‌شده‌ای برای نمودار وجود ندارد.")
+        labels = "، ".join(card.asset.title for card in cards)
+        draft = await self.drafts.create(
+            mission.owner_id,
+            role,
+            DraftCreate(
+                category=Category.CHARTS,
+                title="نمودارهای بازار",
+                text=f"نمودارهای خطی و کندلی {labels}.\n\n"
+                "بر پایهٔ قیمت‌های محاسبه‌شدهٔ ثبت‌شده و کندل‌های بسته‌شده.",
+                publisher_bot=role,
+            ),
+            key=f"mission:{mission.id}:charts",
+            mission_id=mission.id,
+        )
+        return AgentOutcome(
+            text=self.presentation.voices[role].draft_ready,
+            draft_id=draft.id,
+            revision=draft.revision,
         )
 
     async def interact(self, mission: MissionModel, role: BotRole) -> None:

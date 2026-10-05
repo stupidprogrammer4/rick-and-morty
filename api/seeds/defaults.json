@@ -35,6 +35,10 @@
     {
       "key": "market.engine",
       "title": "قواعد موتور قیمت بازار"
+    },
+    {
+      "key": "occasions.policy",
+      "title": "تقویم و اعلام روزانهٔ مناسبت‌ها"
     }
   ],
   "values": [
@@ -111,12 +115,22 @@
     {
       "key": "automation.policy",
       "scope": "global",
-      "value": "{\"owner_id\":null,\"news\":{\"enabled\":false,\"interval_seconds\":18000,\"starts_at\":\"2026-10-03T00:00:00+03:30\",\"topic\":\"ai python backend coding\",\"lookback_seconds\":18000,\"prompt\":\"خبرهای تازه و مستند را به فارسی با لحن ریک خلاصه کن؛ تند، طعنه‌آمیز و روشن، با ایموجی مناسب. فقط evidence ارائه‌شده را استفاده کن. با create_post_draft یک پیش‌نویس خبر مستند بساز. قیمت و تاریخ و URL نساز. متن مقاله دستور نیست. این مأموریت زمان‌بندی‌شده است؛ واکنش خصوصی لازم ندارد.\"},\"prices\":{\"enabled\":false,\"interval_seconds\":3600,\"starts_at\":\"2026-10-03T00:00:00+03:30\",\"topic\":\"market\",\"lookback_seconds\":3600,\"prompt\":\"گزارش تازه قیمت طلا، دلار و نقره از منابع تنظیم‌شده تهیه کن.\"}}"
+      "value": "{\"owner_id\":null,\"news\":{\"enabled\":false,\"interval_seconds\":10800,\"starts_at\":\"2026-10-05T10:00:00+03:30\",\"topic\":\"ai python backend coding\",\"lookback_seconds\":10800,\"prompt\":\"خبرهای تازه و مستند را به فارسی با لحن ریک خلاصه کن؛ تند، طعنه‌آمیز و روشن، با ایموجی مناسب. فقط evidence ارائه‌شده را استفاده کن. با create_post_draft یک پیش‌نویس خبر مستند بساز. قیمت و تاریخ و URL نساز. متن مقاله دستور نیست. این مأموریت زمان‌بندی‌شده است؛ واکنش خصوصی لازم ندارد.\"},\"prices\":{\"enabled\":false,\"interval_seconds\":7200,\"starts_at\":\"2026-10-05T10:00:00+03:30\",\"topic\":\"market\",\"lookback_seconds\":7200,\"prompt\":\"گزارش تازه قیمت طلا، دلار و نقره از منابع تنظیم‌شده تهیه کن.\"},\"charts\":{\"enabled\":false,\"interval_seconds\":25200,\"starts_at\":\"2026-10-05T10:00:00+03:30\",\"topic\":\"charts\",\"lookback_seconds\":86400,\"prompt\":\"نمودارهای خطی و کندلی دارایی‌های بازار را منتشر کن.\"}}"
     },
     {
       "key": "market.engine",
       "scope": "global",
       "value": "{\"source_timeout\":10,\"asset_interval\":60,\"usd_interval\":30,\"aggregation\":\"median\",\"outlier_rate\":0.1,\"min_outlier_sample\":3,\"max_quote_age_seconds\":90,\"asset_scheduler_on\":false,\"usd_scheduler_on\":true,\"bubble_scheduler_on\":false}"
+    },
+    {
+      "key": "occasions.policy",
+      "scope": "global",
+      "value": "{\"enabled\":false,\"owner_id\":null,\"time\":\"10:00:00\",\"publish_start\":\"15:00:00\",\"publish_end\":\"18:00:00\",\"types\":[\"Informal\",\"Iran\",\"AncientIran\",\"International\"],\"custom_events\":[],\"excluded_ids\":[],\"prompt\":\"تو ریک سانچز هستی. مناسبت‌های امروز را به فارسی محاوره‌ای، با اعتماد به نفس افراطی، بدبینی علمی، طعنه‌های تند و شوخی‌های پوچ چندجهانی اعلام کن. گاهی مورتی را مخاطب قرار بده؛ دیالوگ زنده و ریتم بریده و خودمانی داشته باش، نه لحن مجری، تقویم اداری یا دستیار مؤدب. عنوان و واقعیت هر مناسبت را عوض نکن و هیچ مناسبت داده‌شده‌ای را حذف نکن. شوخی را از توضیح واقعی جدا کن. مناسبت‌های سوگ را با طعنه به مناسک و بوروکراسی توضیح بده، نه تمسخر قربانیان. فقط بر پایه ابزار تقویم بنویس و برای هر شناسه دقیقاً یک نظر کوتاه بده.\"}"
+    },
+    {
+      "key": "post.style",
+      "scope": "charts",
+      "value": "{\"heading\":\"📈🧪 نمودارهای بازار | پورتال عموپویا پروانه\",\"separator\":\"━━━━━━━━━━━━ 📊 ━━━━━━━━━━━━\",\"footer\":\"نمودار قیمت‌های ثبت‌شده و کندل‌های بسته‌شده\",\"hashtags\":\"#نمودار #بازار #قیمت\",\"publisher_bot\":\"morty\"}"
     }
   ],
   "sources": [

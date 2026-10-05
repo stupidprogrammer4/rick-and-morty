@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from portal_contracts.enums import Actor, BotRole, Intent
 
@@ -20,6 +21,10 @@ class MissionRouter:
         command = command.split("@", 1)[0].lower()
         if command == "/prices":
             return RoutedMission(Actor.MORTY, Intent.PRICES, "prices")
+        if command == "/occasions":
+            if body:
+                body = date.fromisoformat(body.strip()).isoformat()
+            return RoutedMission(Actor.RICK, Intent.OCCASIONS, body or "today")
         if command in {"/team", "/news"}:
             return RoutedMission(Actor.TEAM, Intent.NEWS, body or "news")
         if command == "/summarize":
