@@ -9,6 +9,7 @@ from aiogram.types import (
     FSInputFile,
     InaccessibleMessage,
     Message,
+    ReplyKeyboardRemove,
 )
 
 from portal_bots.interfaces import IBackendClient
@@ -35,6 +36,18 @@ from portal_contracts.media import (
 
 def make_router() -> Router:
     router = Router(name="public-media")
+
+    @router.message(Command("exit"))
+    async def exit_menu(
+        message: Message, media_policy: MediaPolicy, state: FSMContext
+    ):
+        if message.chat.type != "private":
+            return
+        await state.clear()
+        await message.answer(
+            media_policy.presentation.exit_text,
+            reply_markup=ReplyKeyboardRemove(),
+        )
 
     @router.message(Command("start", "help"))
     async def welcome(
@@ -129,6 +142,14 @@ def make_router() -> Router:
             await query.answer("دسترسی مجاز نیست.", show_alert=True)
             return
         style = media_policy.presentation
+        if query.data == "media:exit":
+            await query.answer()
+            await state.clear()
+            await query.message.edit_reply_markup(reply_markup=None)
+            await query.message.answer(
+                style.exit_text, reply_markup=ReplyKeyboardRemove()
+            )
+            return
         if query.data in {
             "media:home",
             "media:help",
@@ -230,6 +251,12 @@ def make_router() -> Router:
             return
         text = (message.text or "").strip()
         style = media_policy.presentation
+        if text == style.exit_button:
+            await state.clear()
+            await message.answer(
+                style.exit_text, reply_markup=ReplyKeyboardRemove()
+            )
+            return
         if text in {style.back_button, style.home_button}:
             await state.clear()
             await message.answer(

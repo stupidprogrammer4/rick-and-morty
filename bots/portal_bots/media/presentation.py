@@ -124,11 +124,11 @@ def main_keyboard(style: MediaPresentation) -> ReplyKeyboardMarkup:
             ],
             [
                 KeyboardButton(text=style.help_button),
-                KeyboardButton(text=style.back_button),
+                KeyboardButton(text=style.exit_button),
             ],
         ],
         resize_keyboard=True,
-        is_persistent=True,
+        is_persistent=False,
         input_field_placeholder="🔗 لینک رسانه یا پلی‌لیست…",
     )
 
@@ -161,7 +161,10 @@ def home_keyboard(style: MediaPresentation) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text=style.help_button, callback_data="media:help"
-                )
+                ),
+                InlineKeyboardButton(
+                    text=style.exit_button, callback_data="media:exit"
+                ),
             ],
         ]
     )
@@ -175,6 +178,9 @@ def navigation_keyboard(style: MediaPresentation) -> InlineKeyboardMarkup:
                     text=style.back_button,
                     callback_data="media:home",
                     style=style.button_styles.get("back"),
+                ),
+                InlineKeyboardButton(
+                    text=style.exit_button, callback_data="media:exit"
                 ),
             ]
         ]

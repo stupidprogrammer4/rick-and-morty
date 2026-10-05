@@ -24,6 +24,8 @@ class MediaPresentation(BaseModel):
     help_button: str = "💡 راهنما"
     back_button: str = "↩️ بازگشت"
     home_button: str = "🏠 منوی اصلی"
+    exit_button: str = "✖️ بستن منو"
+    exit_text: str = "✅ منو بسته شد. برای بازکردن دوباره /start را بفرست."
     refresh_button: str = "🔄 تازه‌سازی"
     items_button: str = "📋 فایل‌ها"
     cancel_button: str = "🛑 لغو دانلود"

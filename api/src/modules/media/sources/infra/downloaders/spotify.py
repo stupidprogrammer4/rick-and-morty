@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from urllib.parse import urlsplit
 
@@ -96,6 +97,66 @@ class SpotifyCatalog:
                     engine="spotify",
                     cover_url=cover,
                     album=entity.get("name") if kind == "album" else None,
+                    track_number=position,
+                )
+            )
+        return DownloadPlan(items=items)
+
+    def public_playlist(self, raw: bytes, identifier: str) -> DownloadPlan:
+        document = BeautifulSoup(raw, "html.parser")
+        node = document.find("script", id="initialState")
+        if node is None:
+            raise ValueError("Spotify public playlist metadata is unavailable")
+        state = json.loads(base64.b64decode(node.get_text(), validate=True))
+        uri = "spotify:playlist:" + identifier
+        entity = state.get("entities", {}).get("items", {}).get(uri, {})
+        if entity.get("uri") != uri:
+            raise ValueError("Spotify did not return the requested playlist")
+        content = entity.get("content", {})
+        rows = content.get("items", [])
+        total = content.get("totalCount")
+        if (
+            not isinstance(total, int)
+            or total != len(rows)
+            or content.get("pagingInfo", {}).get("offset", 0) != 0
+        ):
+            raise ValueError(
+                "Spotify public collection is incomplete;"
+                " nothing was truncated"
+            )
+        items = []
+        for position, entry in enumerate(rows, 1):
+            row = entry.get("itemV2", {}).get("data", {})
+            track_uri = row.get("uri", "")
+            if (
+                row.get("__typename") != "Track"
+                or not track_uri.startswith("spotify:track:")
+                or row.get("playability", {}).get("playable") is not True
+                or not row.get("duration", {}).get("totalMilliseconds")
+            ):
+                raise ValueError(
+                    "Spotify collection contains an unavailable track"
+                )
+            album = row.get("albumOfTrack", {})
+            images = album.get("coverArt", {}).get("sources", [])
+            url = (
+                "https://open.spotify.com/track/"
+                + track_uri.rsplit(":", 1)[-1]
+            )
+            items.append(
+                DownloadItem(
+                    url=url,
+                    source_url=url,
+                    title=row["name"][:200],
+                    performer=", ".join(
+                        artist["profile"]["name"]
+                        for artist in row.get("artists", {}).get("items", [])
+                    )[:200],
+                    duration=row["duration"]["totalMilliseconds"] / 1000,
+                    kind="audio",
+                    engine="spotify",
+                    album=album.get("name"),
+                    cover_url=images[0].get("url") if images else None,
                     track_number=position,
                 )
             )
@@ -256,12 +317,18 @@ class SpotifyCatalog:
                 raw = await http.metadata(
                     session,
                     "GET",
-                    "https://open.spotify.com/embed/"
+                    "https://open.spotify.com/"
+                    + ("" if kind == "playlist" else "embed/")
                     + kind
                     + "/"
                     + identifier,
                 )
-            result = await self.threads.run(self.embedded, raw, kind)
+            if kind == "playlist":
+                result = await self.threads.run(
+                    self.public_playlist, raw, identifier
+                )
+            else:
+                result = await self.threads.run(self.embedded, raw, kind)
         if (
             not result.items
             or len(result.items) > request.policy.max_playlist_items

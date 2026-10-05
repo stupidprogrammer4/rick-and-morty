@@ -129,6 +129,8 @@ worker and scheduler. The shared daily cap and quiet hours still apply.
 Set `MEDIA_DOWNLOADER_TG_BOT` and an independent
 `PORTAL_MEDIA_WEBHOOK_SECRET`, then expose `/telegram/media` through HTTPS.
 Start the downloader with `/start`; send a public HTTPS link or use its menu.
+Use the Close Menu button or `/exit` to clear the selected mode and hide the
+keyboard. This leaves accepted downloads running; cancel them from their job.
 `/audio URL` requests audio. `/jobs`, `/status ID` and `/cancel ID` operate only
 on the requesting user's private downloads.
 
@@ -143,7 +145,8 @@ Optional Spotify API credentials provide catalog metadata where permitted.
 Playlist API access requires an authorized user token in private
 `PORTAL_SPOTIFY_ACCESS_TOKEN`; client credentials only enable track and album
 catalog requests. The public bot rejects private playlists even with a token.
-Public embeds and API permissions do not guarantee access to a complete playlist;
+Public playlist pages are read with their declared total track count. Missing
+tracks are rejected; API permissions do not guarantee a complete playlist;
 incomplete collections are rejected rather than partially reported as complete.
 Login-only sources need an authorized cookie file; DRM and live streams are
 unsupported. Extraction can also fail because a source blocks the server.

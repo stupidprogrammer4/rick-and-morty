@@ -208,6 +208,7 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                     )
                     assert menu["keyboard"][0][0]["style"] == "primary"
                     assert menu["keyboard"][0][1]["style"] == "success"
+                    assert menu["is_persistent"] is False
                     method, fields = await press("media:sources", photo=True)
                     assert method == "editMessageCaption"
                     assert "Instagram" in fields["caption"]
@@ -297,6 +298,38 @@ def test_public_webhook_menu_avatar_admission_and_cancel_use_native_api(
                     )
                     assert buttons[-1][-1]["callback_data"] == "media:home"
                     await press("media:home")
+                    await press("media:audio")
+                    method, fields = await press("media:exit")
+                    assert method == "sendMessage"
+                    assert json.loads(fields["reply_markup"])[
+                        "remove_keyboard"
+                    ]
+                    context = runtime.dispatcher.fsm.get_context(
+                        bot=runtime.bot, chat_id=USER, user_id=USER
+                    )
+                    assert not await context.get_data()
+                    response = await gateway.post(
+                        "/telegram/media",
+                        headers=headers,
+                        json={
+                            "update_id": 399,
+                            "message": {
+                                **base,
+                                "text": "/exit",
+                                "entities": [
+                                    {
+                                        "type": "bot_command",
+                                        "offset": 0,
+                                        "length": 5,
+                                    }
+                                ],
+                            },
+                        },
+                    )
+                    assert response.status == 200
+                    assert json.loads(calls[-1][1]["reply_markup"])[
+                        "remove_keyboard"
+                    ]
                     response = await gateway.post(
                         "/telegram/media",
                         headers=headers,

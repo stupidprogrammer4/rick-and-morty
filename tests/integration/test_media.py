@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import ssl
@@ -341,6 +342,7 @@ def external_media(
     native_hls=False,
     native_hls_fault=None,
     native_spotify_api=None,
+    native_spotify_public=None,
     native_youtube_api=False,
 ):
     audio = tmp_path / "sample.mp3"
@@ -629,6 +631,69 @@ def external_media(
             self.respond(True)
 
         def respond(self, body):
+            if native_spotify_public and self.path == "/playlist/PublicList1":
+                rows = [
+                    {
+                        "itemV2": {
+                            "data": {
+                                "__typename": "Track",
+                                "uri": "spotify:track:PublicTrack"
+                                + str(index),
+                                "name": "Native Song",
+                                "artists": {
+                                    "items": [
+                                        {"profile": {"name": "Native Artist"}}
+                                    ]
+                                },
+                                "duration": {"totalMilliseconds": 1000},
+                                "playability": {"playable": True},
+                                "albumOfTrack": {
+                                    "coverArt": {
+                                        "sources": [
+                                            {
+                                                "url": "https://media.portal-test.example/artwork.png"
+                                            }
+                                        ]
+                                    }
+                                },
+                            }
+                        }
+                    }
+                    for index in (1, 2)
+                ]
+                if native_spotify_public == "unavailable":
+                    rows[1]["itemV2"]["data"]["playability"]["playable"] = (
+                        False
+                    )
+                uri = "spotify:playlist:PublicList1"
+                state = {
+                    "entities": {
+                        "items": {
+                            uri: {
+                                "uri": uri,
+                                "content": {
+                                    "totalCount": 3
+                                    if native_spotify_public == "incomplete"
+                                    else 2,
+                                    "items": rows,
+                                    "pagingInfo": {"offset": 0},
+                                },
+                            }
+                        }
+                    }
+                }
+                encoded = base64.b64encode(json.dumps(state).encode()).decode()
+                raw = (
+                    '<script id="initialState" type="text/plain">'
+                    + encoded
+                    + "</script>"
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
             if native_spotify_api and self.path.startswith("/v1/playlists/"):
                 if (
                     self.headers.get("Authorization")
@@ -824,8 +889,6 @@ def external_media(
                     "bots/portal_bots/media/assets/avatar.png"
                 ).read_bytes()
             if self.path == "/artwork.png":
-                import base64
-
                 value = base64.b64decode(
                     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8"
                     "/x8AAwMCAO+aB9sAAAAASUVORK5CYII="
@@ -2229,6 +2292,102 @@ def test_native_hls_rejects_unsafe_or_incomplete_audio_and_cleans_files(
         server.server_close()
 
 
+@pytest.mark.parametrize("catalog", ["complete", "incomplete", "unavailable"])
+def test_public_spotify_playlist_delivers_ordered_tracks_without_token(
+    portal, tmp_path, catalog
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path, native_catalog=True, native_spotify_public=catalog
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=802,
+                        url="https://open.spotify.com/playlist/PublicList1",
+                        mode="audio",
+                    )
+                )
+                return result.job.id
+
+        async def read(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        async def read_items(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                service = await request.get(IMediaItemService)
+                first = await service.get(result.items[0].id)
+                second = await service.get(result.items[1].id)
+                return result, [
+                    json.loads(first.payload),
+                    json.loads(second.payload),
+                ]
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(music_sources=["soundcloud"]).model_dump(
+                    mode="json"
+                ),
+            )
+        )
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+        job = portal.until(
+            lambda: read(id),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=40,
+        )
+        if catalog == "complete":
+            assert (job.status, job.total, job.sent, job.failed) == (
+                "completed",
+                2,
+                2,
+                0,
+            )
+            page, payloads = portal.run(read_items(id))
+            assert [item.position for item in page.items] == [1, 2]
+            assert [item["url"] for item in payloads] == [
+                "https://open.spotify.com/track/PublicTrack1",
+                "https://open.spotify.com/track/PublicTrack2",
+            ]
+            assert [item["track_number"] for item in payloads] == [1, 2]
+            assert all(
+                item.source_url
+                == "https://soundcloud.com/native-artist/native-song"
+                for item in page.items
+            )
+            assert [item.message_id for item in page.items] == [201, 202]
+            assert len(ExternalTelegramHandler.media_files) == 2
+        else:
+            assert (job.status, job.total, job.sent) == ("failed", 0, 0)
+            assert not ExternalTelegramHandler.media_files
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 @pytest.mark.parametrize(
     "catalog", ["complete", "missing", "changed", "private"]
 )
@@ -2408,6 +2567,6 @@ def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
     assert saved["file_cache_seconds"] == 604800
     assert saved["hls_max_segments"] == 512
     assert saved["youtube_api_url"] is None
-    assert revision == 4
+    assert revision == (5 if missing == ["presentation"] else 4)
     command.upgrade(config, "head")
     assert portal.run(read_policy()) == (saved, revision)
