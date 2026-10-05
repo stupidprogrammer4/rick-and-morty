@@ -250,7 +250,9 @@ def test_prepared_audio_retries_rate_limit_without_downloading_again(
         server.server_close()
 
 
-def external_media(tmp_path, slow_release=None):
+def external_media(
+    tmp_path, slow_release=None, audio_seconds=1, portrait=False
+):
     audio = tmp_path / "sample.mp3"
     subprocess.run(
         [
@@ -261,7 +263,7 @@ def external_media(tmp_path, slow_release=None):
             "-f",
             "lavfi",
             "-i",
-            "sine=frequency=440:duration=1",
+            f"sine=frequency=440:duration={audio_seconds}",
             "-threads",
             "1",
             str(audio),
@@ -299,11 +301,51 @@ def external_media(tmp_path, slow_release=None):
         ],
         check=True,
     )
+    if portrait:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=720x1280:r=25",
+                "-i",
+                str(audio),
+                "-t",
+                "1",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                "-threads",
+                "1",
+                "-c:a",
+                "aac",
+                "-hls_time",
+                "1",
+                "-hls_list_size",
+                "0",
+                "-hls_segment_filename",
+                str(tmp_path / "portrait-%02d.ts"),
+                "-f",
+                "hls",
+                str(tmp_path / "portrait-stream.m3u8"),
+            ],
+            check=True,
+        )
+
     arrivals = set()
     arrived = threading.Event()
     arrival_lock = threading.Lock()
 
     class Source(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
         def do_POST(self):
             if self.path == "/instagram-query":
                 result = {
@@ -443,10 +485,22 @@ def external_media(tmp_path, slow_release=None):
                 value = ogg.read_bytes()
             if self.path == "/direct.mp4":
                 value = mp4.read_bytes()
+            if portrait and self.path == "/portrait.m3u8":
+                value = (
+                    b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=300000,"
+                    b'RESOLUTION=720x1280,CODECS="avc1.42c01e,mp4a.40.2"\n'
+                    b"portrait-stream.m3u8\n"
+                )
+            elif portrait and self.path.startswith("/portrait-"):
+                value = (tmp_path / self.path.lstrip("/")).read_bytes()
             self.send_response(200)
             self.send_header(
                 "Content-Type",
-                "text/html"
+                "application/vnd.apple.mpegurl"
+                if self.path.endswith(".m3u8")
+                else "video/mp2t"
+                if self.path.endswith(".ts")
+                else "text/html"
                 if self.path.endswith(".html")
                 else "image/png"
                 if self.path == "/cover.png"
@@ -456,7 +510,12 @@ def external_media(tmp_path, slow_release=None):
                 if self.path == "/direct.mp4"
                 else "audio/mpeg",
             )
-            self.send_header("Content-Length", str(len(value)))
+            declared = len(value)
+            if self.path == "/truncated.mp3":
+                declared += 1024
+                self.close_connection = True
+                self.send_header("Connection", "close")
+            self.send_header("Content-Length", str(declared))
             self.end_headers()
             if body:
                 self.wfile.write(value)
@@ -536,6 +595,30 @@ def external_trust(self, *args, **kwargs):
 socket.getaddrinfo = external_resolve
 socket.socket.connect = external_connect
 ssl.SSLContext.load_verify_locations = external_trust
+# Async HTTP workers use native uvloop sockets; redirect the external
+# connection at its public connector boundary after the real DNS guard.
+import asyncio, aiohappyeyeballs, uvloop
+native_resolve = uvloop.Loop.getaddrinfo
+async def external_native_resolve(self, host, port, *args, **kwargs):
+    if host in {hosts!r}:
+        host = "1.1.1.1"
+    result = await native_resolve(self, host, port, *args, **kwargs)
+    return result
+uvloop.Loop.getaddrinfo = external_native_resolve
+start_connection = aiohappyeyeballs.start_connection
+async def external_async_connection(*, addr_infos, **kwargs):
+    redirected = [
+        (family, kind, protocol, canonname,
+         ("127.0.0.1", {server.server_port})
+         if address[:2] == ("1.1.1.1", 443) else address)
+        for family, kind, protocol, canonname, address in addr_infos
+    ]
+    records = redirected if isinstance(
+        asyncio.get_running_loop(), uvloop.Loop
+    ) else addr_infos
+    result = await start_connection(addr_infos=records, **kwargs)
+    return result
+aiohappyeyeballs.start_connection = external_async_connection
 """)
     return server, boundary
 
@@ -602,8 +685,22 @@ def test_first_ready_track_is_sent_while_later_download_is_pending(
 
         portal.until(
             read,
-            lambda job: len(ExternalTelegramHandler.media_files) == 1,
+            lambda job: (
+                len(ExternalTelegramHandler.media_files) == 1
+                or job.status in {"failed", "partial"}
+            ),
             timeout=20,
+        )
+
+        async def errors():
+            async with portal.request() as request:
+                page = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                return [item.error for item in page.items]
+
+        assert len(ExternalTelegramHandler.media_files) == 1, portal.run(
+            errors()
         )
         assert ExternalTelegramHandler.media_files[0]["title"] == "First"
         release.set()
@@ -1065,12 +1162,20 @@ def test_provider_http_metadata_download_delivery_and_cleanup(
             lambda job: job.status in {"completed", "partial", "failed"},
             timeout=60,
         )
+
+        async def errors():
+            async with portal.request() as request:
+                page = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                return [item.error for item in page.items]
+
         assert (result.status, result.total, result.sent, result.failed) == (
             "completed",
             count,
             count,
             0,
-        ), result.error
+        ), (result.error, portal.run(errors()))
         assert len(ExternalTelegramHandler.media_files) == count
         assert all(
             f["kind"] == "photo" for f in ExternalTelegramHandler.media_files
@@ -1093,6 +1198,170 @@ def test_provider_http_metadata_download_delivery_and_cleanup(
                 assert messages == sorted(messages)
 
         portal.run(committed())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_audio_conversion_over_limit_is_rejected_and_cleaned(portal, tmp_path):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(tmp_path, audio_seconds=80)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def accept():
+            await portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(max_file_bytes=1_000_000).model_dump(mode="json"),
+            )
+            async with portal.request() as request:
+                commands = await request.get(IMediaCommands)
+                result = await commands.accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=211,
+                        url="https://media.portal-test.example/direct.ogg",
+                        mode="audio",
+                    )
+                )
+                return result.job.id
+
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        result = portal.until(
+            read,
+            lambda job: job.status in {"failed", "completed", "partial"},
+        )
+        assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
+        assert not ExternalTelegramHandler.media_files
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+
+        async def errors():
+            async with portal.request() as request:
+                page = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                return [item.error for item in page.items]
+
+        assert "file limit" in (portal.run(errors())[0] or "")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_portrait_hls_downloads_complete_video_and_cleans_files(
+    portal, tmp_path
+):
+    server, boundary = external_media(tmp_path, portrait=True)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=213,
+                        url="https://media.portal-test.example/portrait.m3u8",
+                    )
+                )
+                return result.job.id
+
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        result = portal.until(
+            read,
+            lambda job: job.status in {"failed", "completed", "partial"},
+        )
+
+        async def errors():
+            async with portal.request() as request:
+                page = await (await request.get(IMediaQueries)).items(
+                    id, USER, 1, 50
+                )
+                return [item.error for item in page.items]
+
+        assert (result.status, result.total, result.sent, result.failed) == (
+            "completed",
+            1,
+            1,
+            0,
+        ), (result.error, portal.run(errors()))
+        assert len(ExternalTelegramHandler.media_files) == 1
+        assert ExternalTelegramHandler.media_files[0]["kind"] == "video"
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_incomplete_stream_is_failed_without_sending_partial_file(
+    portal, tmp_path
+):
+    server, boundary = external_media(tmp_path)
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=215,
+                        url="https://media.portal-test.example/truncated.mp3",
+                        mode="audio",
+                    )
+                )
+                return result.job.id
+
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+
+        async def read():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        result = portal.until(
+            read,
+            lambda job: job.status in {"failed", "completed", "partial"},
+        )
+        assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
+        assert not ExternalTelegramHandler.media_files
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
     finally:
         server.shutdown()
         server.server_close()

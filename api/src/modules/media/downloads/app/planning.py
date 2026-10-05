@@ -14,7 +14,7 @@ from src.modules.media.downloads.interfaces import (
 )
 from src.modules.media.sources.app.strategy import MediaSourceStrategy
 from src.modules.media.sources.domain.dtos import SourceJob
-from src.modules.media.sources.interfaces import IMediaDownloader
+from src.modules.media.sources.interfaces import IMediaSourcePlanner
 from src.modules.media.storage.infra.files import MediaFiles
 from src.modules.media.storage.interfaces import IMediaWorkspace
 from src.shared.dates import utc_now
@@ -27,7 +27,7 @@ class MediaPlanner:
         self,
         jobs: IMediaJobService,
         items: IMediaItemService,
-        downloader: IMediaDownloader,
+        downloader: IMediaSourcePlanner,
         files: MediaFiles,
         gateway: IMediaGateway,
         policy: MediaPolicy,

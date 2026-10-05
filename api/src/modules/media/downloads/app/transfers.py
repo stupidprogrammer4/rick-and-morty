@@ -20,7 +20,7 @@ from src.modules.media.sources.domain.dtos import (
     SourceItem,
     SourceJob,
 )
-from src.modules.media.sources.interfaces import IMediaDownloader
+from src.modules.media.sources.interfaces import IMediaFileDownloads
 from src.modules.media.storage.domain.dtos import WorkspaceItem
 from src.modules.media.storage.infra.files import MediaFiles
 from src.modules.media.storage.interfaces import IMediaWorkspace
@@ -36,7 +36,7 @@ class MediaTransferBatch:
         jobs: IMediaJobService,
         items: IMediaItemService,
         reader: MediaReader,
-        downloader: IMediaDownloader,
+        downloader: IMediaFileDownloads,
         workspace: IMediaWorkspace,
         files: MediaFiles,
         queue: IMediaQueue,

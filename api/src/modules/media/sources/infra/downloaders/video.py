@@ -116,6 +116,22 @@ class VideoDownloader:
             ):
                 raise ValueError("Download temporary size limit exceeded")
 
+        def select_video(context: dict[str, Any]):
+            formats = [
+                candidate
+                for candidate in context.get("formats", [])
+                if candidate.get("vcodec") == "none"
+                or min(
+                    candidate.get("height") or float("inf"),
+                    candidate.get("width") or float("inf"),
+                )
+                <= self.request.policy.video_height
+            ]
+            selector = downloader.build_format_selector(
+                "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
+            )
+            return selector({**context, "formats": formats})
+
         options = self.options()
         audio = self.request.mode == "audio" or item.kind == "audio"
         options.update(
@@ -125,14 +141,7 @@ class VideoDownloader:
             concurrent_fragment_downloads=1,
             restrictfilenames=True,
             merge_output_format="mp4",
-            format="bestaudio/best"
-            if audio
-            else (
-                f"best[ext=mp4][height<={self.request.policy.video_height}]/"
-                f"bestvideo[ext=mp4][height<={self.request.policy.video_height}]"
-                "+bestaudio[ext=m4a]/"
-                f"best[height<={self.request.policy.video_height}]"
-            ),
+            format="bestaudio/best" if audio else select_video,
             external_downloader="native",
             hls_prefer_native=True,
             postprocessors=[

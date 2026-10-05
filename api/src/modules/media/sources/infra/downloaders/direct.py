@@ -69,6 +69,8 @@ class DirectDownloader:
                     "libmp3lame",
                     "-b:a",
                     "128k",
+                    "-fs",
+                    str(self.request.policy.max_file_bytes + 1),
                     str(output),
                 ],
                 self.request.policy.item_timeout_seconds,

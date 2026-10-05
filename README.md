@@ -149,15 +149,21 @@ the welcome/menu presentation. Read or
 update it through the administrator's existing settings commands. Credentials,
 cookie paths and the shared volume remain private infrastructure configuration.
 
-The extractor SDKs run first; a bounded Playwright browser handles supported
-dynamic pages when extraction fails. Downloads and codecs run in killable child
-processes on a separate native Papilio Tasks worker. Temporary files are removed
-after every delivered item; scheduled cleanup removes aged inactive job directories.
+Database source routes choose the ordered extraction methods. Direct files and
+supported Instagram/Pinterest metadata use asynchronous HTTP; file bodies stream
+into bounded temporary storage without starting a Python process per file.
+Synchronous SDKs and browser fallbacks run in killable isolated processes on the
+separate native Papilio Tasks worker. Codec conversion uses asynchronous child
+processes with time and output-size limits. The configured video resolution limit
+applies to the shorter edge, including portrait videos.
+
 Planning, downloading and ordered Telegram delivery have separate application
-owners and native tasks. Normal progress dispatches immediately; recovery only
-handles interrupted work. Independent item leases and workspaces isolate failures.
-Collection downloads use `asyncio.gather` to await isolated extractor processes
-concurrently; database writes finish before network work begins.
+owners and native tasks. Collection downloads use `asyncio.gather`; each completed
+file immediately dispatches its delivery work, while original item numbers control
+sending order. Database writes finish before network work begins. Independent item
+leases and workspaces isolate failures. Normal progress dispatches immediately;
+recovery only handles interrupted work. Temporary files are removed after every
+delivered item; scheduled cleanup removes aged inactive job directories.
 Uncertain Telegram deliveries are recorded and never automatically resent.
 
 ## Verification

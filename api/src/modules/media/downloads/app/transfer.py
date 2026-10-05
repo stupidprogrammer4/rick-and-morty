@@ -16,7 +16,7 @@ from src.modules.media.downloads.interfaces import (
     IMediaQueue,
 )
 from src.modules.media.sources.domain.dtos import DownloadItem, SourceJob
-from src.modules.media.sources.interfaces import IMediaDownloader
+from src.modules.media.sources.interfaces import IMediaFileDownloads
 from src.modules.media.storage.infra.files import MediaFiles
 from src.modules.media.storage.interfaces import IMediaWorkspace
 from src.modules.ops.guards.interfaces import IPortalGuard
@@ -30,7 +30,7 @@ class MediaTransfer:
         self,
         jobs: IMediaJobService,
         items: IMediaItemService,
-        downloader: IMediaDownloader,
+        downloader: IMediaFileDownloads,
         completion: IMediaCompletion,
         files: MediaFiles,
         workspace: IMediaWorkspace,

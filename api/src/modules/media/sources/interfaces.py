@@ -13,10 +13,13 @@ from src.modules.media.sources.domain.dtos import (
 )
 
 
-class IMediaDownloader(Protocol):
+class IMediaSourcePlanner(Protocol):
     def plan(
         self, job: SourceJob, stages: Sequence[DownloadStage]
     ) -> Awaitable[DownloadPlan]: ...
+
+
+class IMediaFileDownloads(Protocol):
     def download(
         self, job: SourceJob, item_id: int, item: DownloadItem
     ) -> Awaitable[DownloadedFile]: ...
