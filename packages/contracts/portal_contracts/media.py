@@ -128,6 +128,7 @@ class MediaPolicy(BaseModel):
         min_length=1,
         max_length=4,
     )
+    youtube_api_url: str | None = Field(default=None, max_length=2048)
     music_sources: list[Literal["soundcloud", "youtube"]] = Field(
         default_factory=lambda: ["soundcloud", "youtube"],
         min_length=1,

@@ -341,6 +341,7 @@ def external_media(
     native_hls=False,
     native_hls_fault=None,
     native_spotify_api=None,
+    native_youtube_api=False,
 ):
     audio = tmp_path / "sample.mp3"
     subprocess.run(
@@ -405,6 +406,11 @@ def external_media(
                 "1",
                 "-c:a",
                 "aac",
+                *(
+                    ["-movflags", "empty_moov+frag_keyframe+default_base_moof"]
+                    if native_youtube_api
+                    else []
+                ),
                 str(mp4),
             ],
             check=True,
@@ -502,6 +508,23 @@ def external_media(
             }
 
         def do_POST(self):
+            if native_youtube_api and self.path == "/cobalt":
+                payload = json.loads(
+                    self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                )
+                audio_mode = payload["downloadMode"] == "audio"
+                self.send_json(
+                    {
+                        "status": "tunnel",
+                        "url": "https://media.portal-test.example/tunnel-audio"
+                        if audio_mode
+                        else "https://media.portal-test.example/tunnel-video",
+                        "filename": "Native Video.mp3"
+                        if audio_mode
+                        else "Native Video.mp4",
+                    }
+                )
+                return
             if native_spotify_api and self.path == "/api/token":
                 self.rfile.read(int(self.headers.get("Content-Length", 0)))
                 self.send_json({"access_token": "external-test-access"})
@@ -824,8 +847,10 @@ def external_media(
                     )
             if self.path == "/direct.ogg":
                 value = ogg.read_bytes()
-            if self.path == "/direct.mp4":
+            if self.path in {"/direct.mp4", "/tunnel-video"}:
                 value = mp4.read_bytes()
+            if native_youtube_api == "html" and self.path == "/tunnel-video":
+                value = b"<html>Upstream unavailable</html>"
             if self.path == "/direct.m4a":
                 value = m4a.read_bytes()
             if portrait and self.path == "/portrait.m3u8":
@@ -839,7 +864,9 @@ def external_media(
             self.send_response(200)
             self.send_header(
                 "Content-Type",
-                "application/vnd.apple.mpegurl"
+                "application/octet-stream"
+                if self.path.startswith("/tunnel-")
+                else "application/vnd.apple.mpegurl"
                 if self.path.endswith(".m3u8")
                 else "video/mp2t"
                 if self.path.endswith(".ts")
@@ -856,9 +883,16 @@ def external_media(
                 else "audio/mpeg",
             )
             declared = len(value)
-            if self.path == "/truncated.mp3" or (
-                native_hls_fault == "truncated"
-                and self.path == "/native-2.mp3"
+            if (
+                (
+                    native_youtube_api == "truncated"
+                    and self.path == "/tunnel-video"
+                )
+                or self.path == "/truncated.mp3"
+                or (
+                    native_hls_fault == "truncated"
+                    and self.path == "/native-2.mp3"
+                )
             ):
                 declared += 1024
                 self.close_connection = True
@@ -1745,16 +1779,18 @@ def test_incomplete_stream_is_failed_without_sending_partial_file(
 
 
 @pytest.mark.parametrize(
-    "url,mode,hls",
+    "url,mode,hls,api",
     [
-        ("https://www.youtube.com/watch?v=abc123DEF45", "audio", False),
-        ("https://www.youtube.com/watch?v=abc123DEF45", "media", False),
-        ("https://open.spotify.com/track/NativeTrack1", "audio", False),
-        ("https://open.spotify.com/track/NativeTrack1", "audio", True),
+        ("https://www.youtube.com/watch?v=abc123DEF45", "audio", False, False),
+        ("https://www.youtube.com/watch?v=abc123DEF45", "audio", False, True),
+        ("https://www.youtube.com/watch?v=abc123DEF45", "media", False, False),
+        ("https://www.youtube.com/watch?v=abc123DEF45", "media", False, True),
+        ("https://open.spotify.com/track/NativeTrack1", "audio", False, False),
+        ("https://open.spotify.com/track/NativeTrack1", "audio", True, False),
     ],
 )
 def test_native_music_download_delivery_and_reuse_without_child_processes(
-    portal, tmp_path, url, mode, hls
+    portal, tmp_path, url, mode, hls, api
 ):
     from portal_contracts.configuration import SettingScope
     from portal_contracts.media import MediaPolicy
@@ -1763,6 +1799,7 @@ def test_native_music_download_delivery_and_reuse_without_child_processes(
         tmp_path,
         native_catalog=True,
         native_hls=hls,
+        native_youtube_api=api,
         audio_seconds=4 if hls else 1,
     )
     portal.environment["PYTHONPATH"] = (
@@ -1806,7 +1843,12 @@ def test_native_music_download_delivery_and_reuse_without_child_processes(
             portal.change(
                 "media.policy",
                 SettingScope.GLOBAL,
-                MediaPolicy(youtube_clients=["mweb"]).model_dump(mode="json"),
+                MediaPolicy(
+                    youtube_clients=["mweb"],
+                    youtube_api_url="https://media.portal-test.example/cobalt"
+                    if api
+                    else None,
+                ).model_dump(mode="json"),
             )
         )
         first = portal.run(accept(501))
@@ -1822,6 +1864,14 @@ def test_native_music_download_delivery_and_reuse_without_child_processes(
             0,
         ), (result.error, portal.run(errors(first)), server.media_requests)
         assert len(ExternalTelegramHandler.media_files) == 1
+        if api:
+            assert not any(
+                "/youtubei/" in path for _, _, path in server.media_requests
+            )
+            assert (
+                sum(path == "/cobalt" for _, _, path in server.media_requests)
+                == 1
+            )
         original = ExternalTelegramHandler.media_files[0]
         assert not original.get("file_id")
         assert not (
@@ -1868,6 +1918,66 @@ def test_native_music_download_delivery_and_reuse_without_child_processes(
         assert not (
             Path(portal.settings.media.directory) / str(second)
         ).exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("fault", ["html", "truncated"])
+def test_youtube_tunnel_failure_never_sends_a_partial_file(
+    portal, tmp_path, fault
+):
+    from portal_contracts.configuration import SettingScope
+    from portal_contracts.media import MediaPolicy
+
+    server, boundary = external_media(
+        tmp_path, native_catalog=True, native_youtube_api=fault
+    )
+    portal.environment["PYTHONPATH"] = (
+        str(boundary) + os.pathsep + portal.environment["PYTHONPATH"]
+    )
+    portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
+    try:
+
+        async def accept():
+            async with portal.request() as request:
+                result = await (await request.get(IMediaCommands)).accept(
+                    MediaCreate(
+                        owner_id=USER,
+                        chat_id=USER,
+                        bot_id=140003,
+                        update_id=751,
+                        url="https://www.youtube.com/watch?v=abc123DEF45",
+                    )
+                )
+                return result.job.id
+
+        async def read(id):
+            async with portal.request() as request:
+                result = await (await request.get(IMediaJobService)).get(
+                    id, USER
+                )
+                return result
+
+        portal.run(
+            portal.change(
+                "media.policy",
+                SettingScope.GLOBAL,
+                MediaPolicy(
+                    youtube_api_url="https://media.portal-test.example/cobalt"
+                ).model_dump(mode="json"),
+            )
+        )
+        id = portal.run(accept())
+        portal.start_workers("src.apps.media")
+        result = portal.until(
+            lambda: read(id),
+            lambda job: job.status in {"completed", "partial", "failed"},
+            timeout=40,
+        )
+        assert (result.status, result.sent, result.failed) == ("failed", 0, 1)
+        assert not ExternalTelegramHandler.media_files
+        assert not (Path(portal.settings.media.directory) / str(id)).exists()
     finally:
         server.shutdown()
         server.server_close()
@@ -2024,15 +2134,27 @@ def test_spotify_catalog_keeps_all_pages_or_rejects_incomplete_plan(
         server.server_close()
 
 
+@pytest.mark.parametrize(
+    "prior_revision,missing",
+    [
+        (
+            "20261004_media_parallel",
+            ["music_sources", "file_cache_seconds", "hls_max_segments"],
+        ),
+        ("20261005_media_policy", ["youtube_api_url"]),
+    ],
+)
 def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
     portal,
+    prior_revision,
+    missing,
 ):
     config = Config("api/alembic.ini")
     config.set_main_option(
         "sqlalchemy.url",
         portal.environment["PORTAL_DATABASE_URL"].replace("%", "%%"),
     )
-    command.downgrade(config, "20261004_media_parallel")
+    command.downgrade(config, prior_revision)
 
     async def prior_policy():
         async with portal.request() as request:
@@ -2048,11 +2170,7 @@ def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
                 )
                 id, raw = result.one()
                 value = json.loads(raw)
-                for key in [
-                    "music_sources",
-                    "file_cache_seconds",
-                    "hls_max_segments",
-                ]:
+                for key in missing:
                     value.pop(key)
                 value["requests_per_hour"] = 7
                 value["music_match_threshold"] = 0.95
@@ -2086,6 +2204,7 @@ def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
     assert saved["music_sources"] == ["soundcloud", "youtube"]
     assert saved["file_cache_seconds"] == 604800
     assert saved["hls_max_segments"] == 512
+    assert saved["youtube_api_url"] is None
     assert revision == 4
     command.upgrade(config, "head")
     assert portal.run(read_policy()) == (saved, revision)

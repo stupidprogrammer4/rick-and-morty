@@ -202,6 +202,21 @@ class MediaMetadataExtraction:
         return DownloadPlan(items=items)
 
     async def plan(self, request: DownloadProcessRequest) -> DownloadPlan:
+        if request.policy.youtube_api_url and "list" not in parse_qs(
+            urlsplit(request.url).query
+        ):
+            self.validate(request.url)
+            url = self.youtube_url(request.url)
+            return DownloadPlan(
+                items=[
+                    DownloadItem(
+                        url=url,
+                        source_url=url,
+                        engine="youtube",
+                        kind="audio" if request.mode == "audio" else "video",
+                    )
+                ]
+            )
         selected = request
         if "list" not in parse_qs(urlsplit(request.url).query):
             selected = await self.token(request, request.url)

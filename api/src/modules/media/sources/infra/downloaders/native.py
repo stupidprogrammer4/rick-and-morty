@@ -10,6 +10,9 @@ from src.modules.media.sources.domain.dtos import (
     DownloadProcessRequest,
 )
 from src.modules.media.sources.infra.downloaders.http import MediaHTTP
+from src.modules.media.sources.infra.downloaders.mp4 import (
+    FragmentedMP4Duration,
+)
 from src.modules.media.sources.infra.threads import MediaMetadataThreads
 
 
@@ -45,14 +48,14 @@ class NativeMediaMetadata:
             media = MP4(path)
         else:
             raise ValueError("Native transfer requires MP3, M4A or MP4")
-        if (
-            not media.info.length
-            or media.info.length > self.request.policy.max_duration_seconds
-        ):
+        duration = media.info.length
+        if not duration and isinstance(media, MP4):
+            duration = FragmentedMP4Duration().inspect(path)
+        if not duration or duration > self.request.policy.max_duration_seconds:
             raise ValueError(
                 "Missing duration or configured duration limit exceeded"
             )
-        if item.duration and abs(media.info.length - item.duration) > max(
+        if item.duration and abs(duration - item.duration) > max(
             3, item.duration * self.request.policy.music_duration_tolerance
         ):
             raise ValueError(

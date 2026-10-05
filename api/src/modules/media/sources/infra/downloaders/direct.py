@@ -139,8 +139,14 @@ class DirectDownloader:
                         f"Media source returned HTTP {response.status}"
                     )
                 extension = self.extension(
-                    response.headers.get("Content-Type", ""), str(response.url)
+                    response.headers.get("Content-Type", ""),
+                    str(response.url),
+                    item.file_extension,
                 )
+                if item.file_extension and extension != item.file_extension:
+                    raise ValueError(
+                        "Media type differs from its source filename"
+                    )
                 maximum = self.request.policy.max_file_bytes
                 if (
                     response.content_length is not None
@@ -172,7 +178,9 @@ class DirectDownloader:
                     path.unlink(missing_ok=True)
                     raise
 
-    def extension(self, content_type: str, url: str) -> str:
+    def extension(
+        self, content_type: str, url: str, expected: str | None = None
+    ) -> str:
         extensions = {
             "image/jpeg": "jpg",
             "image/png": "png",
@@ -193,6 +201,8 @@ class DirectDownloader:
             extension = (
                 candidate if candidate in set(extensions.values()) else None
             )
+            if extension is None:
+                extension = expected
         if extension is None:
             raise ValueError("URL is not a supported media file")
         return extension

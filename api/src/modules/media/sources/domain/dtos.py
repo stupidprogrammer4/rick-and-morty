@@ -23,6 +23,7 @@ class DownloadItem(BaseModel):
     isrc: str | None = None
     track_number: int | None = None
     transport: Literal["direct", "hls_mp3"] = "direct"
+    file_extension: Literal["mp3", "m4a", "mp4"] | None = None
 
 
 class DownloadPlan(BaseModel):

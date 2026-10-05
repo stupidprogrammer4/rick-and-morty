@@ -158,7 +158,13 @@ cookie paths and the shared volume remain private infrastructure configuration.
 Database source routes choose the ordered extraction methods. Direct files and
 supported Instagram/Pinterest metadata use asynchronous HTTP; file bodies stream
 into bounded temporary storage without starting a Python process per file.
-YouTube metadata and music searches use bounded AnyIO threads. Spotify catalog
+An optional `media.policy/global.youtube_api_url` selects a public Cobalt-compatible
+API for complete YouTube MP3/M4A or MP4 files. Its endpoint is stored in MySQL,
+not in source code. Single-video planning avoids SDK metadata requests when it is
+configured; failed API resolution falls back to the bounded metadata SDK.
+Returned file URLs still pass public-network checks, size limits and actual file
+validation. The API is an external dependency; its availability is not guaranteed.
+YouTube collection metadata and music searches use bounded AnyIO threads. Spotify catalog
 requests and compatible MP3/M4A or muxed MP4 downloads use asynchronous HTTP;
 Mutagen validates duration and writes audio tags in those same bounded threads.
 SoundCloud MP3 HLS segments stream concurrently into bounded temporary files and

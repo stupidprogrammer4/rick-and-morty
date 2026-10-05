@@ -21,6 +21,12 @@ class IMusicSourceResolver(Protocol):
     ) -> Awaitable[ResolvedMedia]: ...
 
 
+class IYoutubeSourceResolver(Protocol):
+    def resolve(
+        self, request: DownloadProcessRequest, item: DownloadItem
+    ) -> Awaitable[DownloadItem]: ...
+
+
 class IMediaSourceTransfer(Protocol):
     def fetch(
         self, request: DownloadProcessRequest
