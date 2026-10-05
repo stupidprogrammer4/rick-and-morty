@@ -12,7 +12,7 @@
 | `occasions.policy` | `global` | Daily Rick calendar schedule, categories, custom events and exclusions |
 | `presentation` | `global` | Reactions, labels, item emojis, pagination and post length |
 | `voice` | `rick`, `morty` | System prompt and persona response templates |
-| `post.style` | `news`, `tech`, `market`, `charts`, `music`, `notice` | Publisher identity, heading, separators, footer and hashtags |
+| `post.style` | `news`, `tech`, `market`, `charts`, `occasions`, `music`, `notice` | Publisher identity, heading, separators, footer and hashtags |
 | `market.quote` | `gold`, `usd`, `silver` | Endpoint, JSON paths, currency, basis, purity and labels |
 
 The seed contains typed setting definitions, scoped values and Hacker News sources.
@@ -119,18 +119,30 @@ between preparation and the publication deadline admits today's slot; it does no
 replay previous days or admit a missed slot after 18:00. The random delivery time
 is chosen once, stored with the publication and retained after restarts. Late
 preparation chooses only a remaining time within the window.
-Rick's agent uses the editable Rick voice, reads `get_calendar_occasions`, and
-calls `create_occasion_draft` with commentary for every event ID. The tool keeps
-calendar titles and source links, rejects omitted or invented IDs, and preserves
-coverage warnings. Dates are bound to the scheduled slot. No model has a direct
-publication tool. Enabled schedules authorize their own drafts; manual
-`/occasions [YYYY-MM-DD]` requests produce drafts for normal human approval.
+Rick's agent uses the dedicated `occasions.policy.system_prompt`, followed by
+its separate task `prompt`, and reads `get_calendar_occasions` before calling
+`create_occasion_draft`. The public post contains selected titles and commentary.
+Sources, regional notes and coverage warnings stay in internal tool evidence;
+source links, persona announcements and calendar status labels are rejected in
+draft text. `post.style/occasions` starts with empty heading, footer and hashtags
+so the channel receives the character's words without a portal notice wrapper.
+An empty selection admits no scheduled mission or post. Manual requests retain
+the ordinary approval flow.
+
+The default `selection: "youth"` uses an explicit curated list of informal,
+relationship, internet, music, science, health and cultural occasions.
+`max_events: 3` caps daily output (valid range 1–5). Administrative and government
+observances are excluded. `selection: "all"` is available for explicit catalogue
+inspection and date-engine checks. After seeding a new release,
+`python -m src.cli.occasion_voice` updates the live persona, task prompt and youth
+selection, preserves timing, owner and custom entries, and cancels old queued
+occasion posts. Seeding alone preserves existing policy edits.
 
 `types` selects `Informal`, `Iran`, `AncientIran`, `International`, `Afghanistan`,
 or `IranFormer`. Informal occasions come first by default, followed by Iranian,
 ancient Iranian and international records. They include social, relationship
-and internet observances, explicitly labeled unofficial. Rick gives these
-more commentary while retaining every recorded event. `excluded_ids` suppresses
+and internet observances. Status and provenance remain internal. The youth
+selection announces only curated records. `excluded_ids` suppresses
 specific records. `custom_events` adds entries with a unique `id`, `title`,
 `calendar` (`Persian`, `Gregorian`, `Hijri`), `month`, `day`, optional `year`,
 `holiday`, and `source`. Without `year`, an event recurs in its own calendar.

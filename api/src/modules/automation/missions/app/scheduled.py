@@ -10,6 +10,7 @@ from portal_contracts.occasions import OccasionPolicy
 from src.config.settings import PortalAppSettings
 from src.modules.automation.missions.domain.dtos import ScheduledMissionCreate
 from src.modules.automation.missions.interfaces import IMissionService
+from src.modules.content.occasions.app.calendar import OccasionCalendar
 from src.modules.ops.guards.interfaces import IPortalGuard
 from src.shared.dates import utc_now
 
@@ -64,6 +65,11 @@ class ScheduledMissionCommands:
             slot is not None
             and occasion_owner in self.runtime.security.admin_ids
             and occasion_owner is not None
+            and OccasionCalendar(occasions, self.settings.portal.timezone)
+            .day(
+                slot.astimezone(ZoneInfo(self.settings.portal.timezone)).date()
+            )
+            .events
         ):
             async with transaction():
                 await self.guard.lock(f"missions:{occasion_owner}")

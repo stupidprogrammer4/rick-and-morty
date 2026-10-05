@@ -12,11 +12,13 @@ router = MCPRouter()
 
 @router.tool(
     description=(
-        "Read every recorded Iranian, ancient, religious and international "
+        "Read selected youth-relevant social, informal, cultural and science "
         "occasion for an ISO Gregorian date, or today in the portal timezone. "
         "Scheduled occasions missions are bound to their own date. "
         "The response "
-        "contains event IDs, calendar sources and coverage warnings."
+        "contains event IDs and internal evidence; sources and coverage "
+        "warnings "
+        "must never appear in channel posts."
     )
 )
 async def get_calendar_occasions(
@@ -28,9 +30,10 @@ async def get_calendar_occasions(
 @router.tool(
     description=(
         "Save Rick's daily draft after reading get_calendar_occasions. "
-        "Include every returned event_id exactly once with a short Rick-style "
-        "comment, intro and outro. Dates, titles and sources are supplied "
-        "by the calendar. Empty calendar days require an empty comments list. "
+        "Include every returned event_id exactly once with sharp in-character "
+        "commentary. Intro and outro may be empty. Titles are supplied "
+        "by the calendar. Do not write sources, links, calendar metadata or "
+        "persona labels. Empty days cannot create a post. "
         "This tool does not publish."
     )
 )

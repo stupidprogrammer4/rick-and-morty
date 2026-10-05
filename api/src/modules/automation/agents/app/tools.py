@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -53,24 +54,35 @@ def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:
         or set(ids) != {event.id for event in day.events}
     ):
         raise ValueError("Include every calendar event exactly once")
+    if not day.events:
+        raise ValueError("No selected occasions to announce")
+    public_fields = [draft.intro, draft.outro] + [
+        comment.text for comment in draft.comments
+    ]
+    for text in public_fields:
+        normalized = " ".join(
+            text.replace("\u200c", " ")
+            .replace("ي", "ی")
+            .replace("ك", "ک")
+            .split()
+        )
+        if re.search(
+            r"https?://|www\.|منبع\s*(?:تقویم|:|：)|وضعیت تقویم|"
+            r"(?:به|با)\s*(?:سبک|لحن)\s*(?:خود\s*ریک|ریک)|"
+            r"برداشت(?:\s*کوتاه)?\s*ریک|در\s*نقش\s*ریک|(?:من|اینجا)\s*ریک\s*سانچز",
+            normalized,
+            re.IGNORECASE,
+        ):
+            raise ValueError(
+                "Write in character without sources or persona labels"
+            )
     comments = {comment.event_id: comment.text for comment in draft.comments}
     lines = [draft.intro]
-    for event in day.events:
-        holiday = " · تعطیل" if event.holiday and event.type == "Iran" else ""
-        status = " · غیررسمی" if event.status == "unofficial" else ""
-        region = f" · {event.region}" if event.region else ""
-        note = f"\n{event.note}" if event.note else ""
-        lines.append(
-            f"• {event.title}{status}{region}{holiday}{note}"
-            f"\n{comments[event.id]}"
-        )
-    if not day.events:
-        lines.append("برای این تاریخ، مناسبتی در تقویم ثبت نشده است.")
-    lines.extend(f"وضعیت تقویم: {warning}" for warning in day.warnings)
+    lines.extend(
+        f"{event.title}\n{comments[event.id]}" for event in day.events
+    )
     lines.append(draft.outro)
-    sources = dict.fromkeys(event.source for event in day.events)
-    lines.extend(f"منبع تقویم: {source}" for source in sources)
-    return "\n\n".join(line for line in lines if line)
+    return "\n\n".join(line for line in lines if line.strip())
 
 
 class AgentToolCommands:
@@ -178,11 +190,8 @@ class AgentToolCommands:
         if day is None:
             raise ValueError("Read get_calendar_occasions before drafting")
         data = DraftCreate(
-            category=Category.NOTICE,
-            title=(
-                f"🧪 مناسبت‌های {day.persian[0]}/{day.persian[1]:02}/"
-                f"{day.persian[2]:02} · {day.date.isoformat()}"
-            ),
+            category=Category.OCCASIONS,
+            title=(f"امروز توی این بُعد · {day.date.isoformat()}"),
             text=occasion_text(day, draft),
             publisher_bot=BotRole.RICK,
         )

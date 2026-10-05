@@ -51,6 +51,7 @@ class SettingValueValidator:
                 SettingScope.CHARTS,
                 SettingScope.MUSIC,
                 SettingScope.NOTICE,
+                SettingScope.OCCASIONS,
             }
         elif key == SettingKey.QUOTE:
             scopes = {SettingScope.GOLD, SettingScope.USD, SettingScope.SILVER}

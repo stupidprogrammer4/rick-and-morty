@@ -24,6 +24,7 @@ from src.modules.automation.agents.domain.dtos import (
 )
 from src.modules.automation.missions.app.scheduled import occasion_slot
 from src.modules.content.occasions.app.calendar import OccasionCalendar
+from src.modules.content.publications.app.renderer import PostRenderer
 
 
 def test_daily_slots_use_local_date_and_never_catch_up_yesterday():
@@ -67,18 +68,22 @@ def test_draft_keeps_all_calendar_titles_and_rejects_omissions():
         date=day.date,
         intro="خب، تقویم این بُعد رو باز کنیم. 🧪",
         comments=[
-            OccasionComment(event_id=event.id, text="برداشت ریک.")
+            OccasionComment(
+                event_id=event.id,
+                text="مغزت هنوز منتظر تأیید یه موجود کراواتیه؟",
+            )
             for event in day.events
         ],
         outro="بریم سراغ بُعد بعدی.",
     )
     text = occasion_text(day, draft)
     assert all(event.title in text for event in day.events)
-    assert all(event.source in text for event in day.events)
+    assert not any(event.source in text for event in day.events)
     assert day.events[0].type == "Informal"
-    assert "روز مبارزه با تن‌فروشی · غیررسمی" in text
-    assert all(event.note in text for event in day.events if event.note)
-    assert all(warning in text for warning in day.warnings)
+    assert "روز مبارزه با تن‌فروشی" in text
+    assert "غیررسمی" not in text
+    assert not any(event.note in text for event in day.events if event.note)
+    assert not any(warning in text for warning in day.warnings)
     for comments in [draft.comments[:-1], draft.comments + draft.comments[:1]]:
         with pytest.raises(ValueError, match="exactly once"):
             occasion_text(day, draft.model_copy(update={"comments": comments}))
@@ -94,13 +99,8 @@ def test_empty_calendar_is_reported_without_inventing_an_event():
         .day(date(2026, 10, 5))
         .model_copy(update={"events": []})
     )
-    text = occasion_text(
-        day,
-        OccasionDraft(
-            date=day.date, intro="خب، تقویم ساکته.", comments=[], outro="تمام."
-        ),
-    )
-    assert "مناسبتی در تقویم ثبت نشده" in text
+    with pytest.raises(ValueError, match="No selected occasions"):
+        occasion_text(day, OccasionDraft(date=day.date, comments=[]))
 
 
 def test_calendar_evidence_accepts_only_matching_tool_call():
@@ -173,3 +173,65 @@ async def test_draft_tool_requires_calendar_read_in_this_mission():
                 date=date(2026, 10, 5), intro="ریک", comments=[], outro="تمام"
             )
         )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "دارم به سبک ریک حرف می‌زنم.",
+        "برداشت ریک: یه چیزی.",
+        "برداشت کوتاه ریک: یه چیزی.",
+        "با لحن ریک اینو بخون.",
+        "منبع تقویم: فلان",
+        "https://example.com/day",
+        "وضعیت تقویم: پوشش ناقص",
+    ],
+)
+def test_public_text_rejects_sources_and_persona_announcements(text):
+    day = OccasionCalendar(OccasionPolicy(), "Asia/Tehran").day(
+        date(2026, 10, 5)
+    )
+    draft = OccasionDraft(
+        date=day.date,
+        comments=[
+            OccasionComment(event_id=event.id, text=text)
+            for event in day.events
+        ],
+    )
+    with pytest.raises(ValueError, match="without sources or persona"):
+        occasion_text(day, draft)
+
+
+def test_occasion_caption_has_no_calendar_or_portal_wrapper(snapshot):
+    presentation = snapshot[1]
+    body = "روز آغوش\nمورتی، یه بغل بده؛ این یکی فرم مجوز نمی‌خواد."
+    rendered = PostRenderer(presentation).render(
+        "internal date metadata", body, "occasions"
+    )
+    assert rendered == body
+
+
+@pytest.mark.asyncio
+async def test_unselected_calendar_day_admits_no_mission(
+    snapshot, monkeypatch
+):
+    from src.modules.automation.missions.app import scheduled
+
+    settings = snapshot[0].model_copy(deep=True)
+    settings.occasions = OccasionPolicy(enabled=True, owner_id=1234)
+    settings.automation.owner_id = None
+    settings.portal.channel_id = -1001234
+    missions = SimpleNamespace(create_scheduled=AsyncMock())
+    guard = SimpleNamespace(is_paused=AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        scheduled,
+        "utc_now",
+        lambda: datetime(2026, 10, 7, 6, 30, tzinfo=UTC),
+    )
+    await scheduled.ScheduledMissionCommands(
+        missions,
+        guard,
+        settings,
+        SimpleNamespace(security=SimpleNamespace(admin_ids={1234})),
+    ).tick()
+    missions.create_scheduled.assert_not_awaited()

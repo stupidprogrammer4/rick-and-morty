@@ -28,3 +28,4 @@ class Category(StrEnum):
     MARKET = "market"
     CHARTS = "charts"
     NOTICE = "notice"
+    OCCASIONS = "occasions"

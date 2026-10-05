@@ -80,6 +80,22 @@ def catalogue() -> tuple[list[dict], dict, list[tuple[date, int, int]], dict]:
     return events, document["Source"], starts, extension
 
 
+@lru_cache(maxsize=1)
+def youth_selection() -> dict[str, int]:
+    """Explicit editorial choices, independent of titles and categories."""
+    resource = files("src.modules.content.occasions").joinpath(
+        "data", "youth_selection.json"
+    )
+    entries = json.loads(resource.read_text())["events"]
+    priorities = {entry["id"]: entry["priority"] for entry in entries}
+    if len(priorities) != len(entries):
+        raise ValueError("Duplicate youth occasion selection IDs")
+    known = {event_id(event) for event in catalogue()[0]}
+    if unknown := priorities.keys() - known:
+        raise ValueError(f"Unknown youth occasion selection IDs: {unknown}")
+    return priorities
+
+
 class OccasionCalendar:
     def __init__(self, policy: OccasionPolicy, timezone: str):
         self.policy = policy
@@ -92,6 +108,7 @@ class OccasionCalendar:
             (year, month): start for start, year, month in self._starts
         }
         self._last_known = date.fromisoformat(self._extension["valid_through"])
+        self._youth = youth_selection()
 
     def _lunar(self, target: date) -> tuple[int, int, int] | None:
         index = bisect_right(self._dates, target) - 1
@@ -195,6 +212,10 @@ class OccasionCalendar:
             if (
                 original["type"] not in self.policy.types
                 or identifier in excluded
+                or (
+                    self.policy.selection == "youth"
+                    and identifier not in self._youth
+                )
             ):
                 continue
             event: dict[str, Any] = original
@@ -269,6 +290,17 @@ class OccasionCalendar:
                 "پایان این ماه قمری هنوز در دادهٔ معتبر موجود نیست؛ "
                 "مناسبت‌های وابسته به پایان ماه قابل تأیید نیستند."
             )
+        if self.policy.selection == "youth":
+            # Explicit custom entries have priority over catalogue choices.
+            events = sorted(
+                events,
+                key=lambda event: (
+                    0 if event.type == "Custom" else self._youth[event.id],
+                    event.id,
+                ),
+            )[: self.policy.max_events]
+        else:
+            events = sorted(events, key=lambda event: event.type != "Informal")
         sources = sorted({event.source for event in events})
         if lunar is not None:
             sources.append(
@@ -280,7 +312,7 @@ class OccasionCalendar:
             date=target,
             persian=(persian.year, persian.month, persian.day),
             lunar=lunar,
-            events=sorted(events, key=lambda event: event.type != "Informal"),
+            events=events,
             warnings=warnings,
             sources=sorted(set(sources)),
         )

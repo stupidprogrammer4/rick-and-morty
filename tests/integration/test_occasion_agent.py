@@ -56,7 +56,10 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
                 "get_calendar_occasions",
                 "create_occasion_draft",
             }
-            assert "ریک سانچز" in history.messages[0].content
+            assert (
+                history.messages[0].content == OccasionPolicy().system_prompt
+            )
+            assert history.messages[1].content == OccasionPolicy().prompt
             if history.messages[-1].role != "tool":
                 name, arguments = "get_calendar_occasions", {}
             else:
@@ -72,7 +75,11 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
                         "comments": [
                             {
                                 "event_id": event.id,
-                                "text": "برداشت کوتاه ریک. 🧪",
+                                "text": (
+                                    "اگه با فقر کاری ندارن ولی برای بدن آدم‌ها "
+                                    "قانون می‌نویسن، مشکل دو تا نورون نیست؛ "
+                                    "خودِ دستگاه کنترله."
+                                ),
                             }
                             for event in day.events
                         ],
@@ -194,4 +201,11 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
     assert len(ExternalTelegramHandler.messages) == 1
     text = unescape(ExternalTelegramHandler.messages[0]["text"])
     assert all(event.title in text for event in day_evidence[0].events)
-    assert "روز مبارزه با تن‌فروشی · غیررسمی" in text
+    assert "روز مبارزه با تن‌فروشی" in text
+
+    assert len(day_evidence[0].events) == 1
+    assert "http" not in text
+    assert "منبع" not in text
+    assert "غیررسمی" not in text
+    assert "وضعیت تقویم" not in text
+    assert "خبرهای پورتال" not in text

@@ -49,6 +49,7 @@ def snapshot(seed):
                 "music",
                 "notice",
                 "charts",
+                "occasions",
             )
         },
     )

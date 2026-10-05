@@ -1,11 +1,14 @@
 # Calendar snapshots
 
-The catalogue is a curated snapshot, not a claim that every informal observance
-in every country exists in a universally complete calendar. All matching entries
-in selected categories are returned; the default prioritizes Informal, followed
-by Iran, AncientIran and International. Afghanistan and IranFormer are available
-through policy selection.
-Custom entries are included independently of these category switches.
+The catalogue is a source snapshot, not a claim that every informal observance
+in every country exists in a universally complete calendar. The default `youth`
+selection announces at most three explicitly curated events. Unlisted government,
+administrative, religious and historical dates stay in the underlying catalogue
+and are omitted from that output. An empty selection stays empty; there is no
+fallback to administrative dates. Explicit `all` selection returns every matching
+entry from the selected categories without this editorial cap. Category switches
+and exclusions apply in both modes; custom entries are included independently of
+category switches and have first priority within the youth cap.
 
 * `events.json`: unmodified CC0-1.0 data from
   https://github.com/persian-calendar/events/blob/3bfbcc5b667765691784b55b58d8a385217d96d9/events.json
@@ -39,6 +42,18 @@ Custom entries are included independently of these category switches.
   claimed. Girlfriend Day includes the platonic female friendship meaning, too.
   Halloween already exists upstream and is not duplicated. Taco Day is omitted
   because published dates conflict following a campaign schedule change.
+* `youth_selection.json`: 81 editorially selected, stable content IDs from the
+  existing verified snapshots, with explicit priorities and reasons. No new dates
+  or factual observance claims are introduced. It includes the 46 informal social,
+  relationship, internet, food and fun entries, plus a deliberate subset of
+  science/programming, music/art/books, mental health, equality and environment
+  days, and Nowruz, Yalda, Sizdah Bedar, Chaharshanbe Suri and Sepandarmazgan.
+  Overlapping catalogue versions of the same cultural festival are not selected
+  twice. Lower priority numbers appear first; equal priorities use the stable ID
+  as a deterministic tie-break. Maximum output defaults to three and can be set
+  from one to five. Adding a catalogue category or an entry does not automatically
+  make it eligible. Changing the editorial selection never changes source IDs,
+  factual titles, sources, status, notes or calendar matching rules.
 
 Rule interpretation: upstream weekdays use Sunday=1 through Saturday=7.
 `nth day from` is inclusive (January 1 is day 1). Weekday offsets apply after

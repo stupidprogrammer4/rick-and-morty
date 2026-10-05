@@ -35,6 +35,7 @@ class SettingScope(StrEnum):
     CHARTS = "charts"
     MUSIC = "music"
     NOTICE = "notice"
+    OCCASIONS = "occasions"
     GOLD = "gold"
     USD = "usd"
     SILVER = "silver"

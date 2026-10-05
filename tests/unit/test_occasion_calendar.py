@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from portal_contracts.occasions import (
     CustomOccasion,
+    OccasionCalendarName,
     OccasionComment,
     OccasionDraft,
     OccasionPolicy,
@@ -17,7 +18,10 @@ from src.modules.content.occasions.app.calendar import (
 
 
 def calendar(policy: OccasionPolicy | None = None) -> OccasionCalendar:
-    return OccasionCalendar(policy or OccasionPolicy(), "Asia/Tehran")
+    # Date-engine coverage explicitly exercises the complete catalogue.
+    return OccasionCalendar(
+        policy or OccasionPolicy(selection="all"), "Asia/Tehran"
+    )
 
 
 def titles(day) -> set[str]:
@@ -145,6 +149,7 @@ def test_offset_can_cross_year_boundary():
 
 def test_custom_recurrence_leap_days_one_off_and_exclusions():
     policy = OccasionPolicy(
+        selection="all",
         custom_events=[
             CustomOccasion(
                 id="leap", title="Leap", calendar="Gregorian", month=2, day=29
@@ -161,7 +166,7 @@ def test_custom_recurrence_leap_days_one_off_and_exclusions():
             CustomOccasion(
                 id="hijri", title="Hijri", calendar="Hijri", month=4, day=23
             ),
-        ]
+        ],
     )
     service = calendar(policy)
     assert "Leap" in titles(service.day(date(2024, 2, 29)))
@@ -180,9 +185,9 @@ def test_custom_recurrence_leap_days_one_off_and_exclusions():
 
 
 def test_policy_categories_and_stable_ids():
-    day = calendar(OccasionPolicy(types=["International"])).day(
-        date(2026, 10, 5)
-    )
+    day = calendar(
+        OccasionPolicy(selection="all", types=["International"])
+    ).day(date(2026, 10, 5))
     assert len(day.events) == 3
     assert all(event.type == "International" for event in day.events)
     event = catalogue()[0][0]
@@ -205,7 +210,7 @@ def test_informal_catalogue_is_broad_and_girlfriend_note_is_explicit():
     assert girlfriend.title == "روز دوست‌دختر و دوستان دختر"
     assert girlfriend.type == "Informal"
     assert girlfriend.status == "unofficial"
-    assert "دوست زن" in girlfriend.note
+    assert girlfriend.note is not None and "دوست زن" in girlfriend.note
     assert any(
         "دوست‌پسر" in title for title in titles(service.day(date(2026, 10, 3)))
     )
@@ -234,13 +239,19 @@ def test_policy_and_draft_validation():
     assert OccasionPolicy().time == time(10)
     assert OccasionPolicy().publish_start == time(15)
     assert OccasionPolicy().publish_end == time(18)
+    assert OccasionPolicy().selection == "youth"
+    assert OccasionPolicy().max_events == 3
+    for cap in (0, 6):
+        with pytest.raises(ValidationError):
+            OccasionPolicy(max_events=cap)
     with pytest.raises(ValidationError):
         OccasionPolicy(enabled=True)
-    for calendar_name, month, day in [
+    invalid_dates: list[tuple[OccasionCalendarName, int, int]] = [
         ("Gregorian", 2, 30),
         ("Persian", 7, 31),
         ("Hijri", 1, 31),
-    ]:
+    ]
+    for calendar_name, month, day in invalid_dates:
         with pytest.raises(ValidationError):
             CustomOccasion(
                 id="bad",
@@ -266,3 +277,108 @@ def test_policy_and_draft_validation():
                 OccasionComment(event_id="same", text="B"),
             ],
         )
+
+
+def test_default_october_fifth_keeps_only_selected_social_campaign():
+    day = calendar(OccasionPolicy()).day(date(2026, 10, 5))
+    assert [event.title for event in day.events] == ["روز مبارزه با تن‌فروشی"]
+    assert day.events[0].status == "unofficial"
+    assert day.events[0].source.endswith("/V16n4/IDNP.htm")
+    assert not any(
+        "معلم" in title or "انتظامی" in title for title in titles(day)
+    )
+
+
+def test_default_keeps_girlfriend_and_science_days():
+    service = calendar(OccasionPolicy())
+    assert "روز دوست‌دختر و دوستان دختر" in titles(
+        service.day(date(2026, 8, 1))
+    )
+    assert "روز جهانی زن و دختر در علم" in titles(
+        service.day(date(2026, 2, 11))
+    )
+    assert any(
+        "برنامه‌نویس" in title
+        for title in titles(service.day(date(2026, 9, 13)))
+    )
+    assert "روز جهانی موسیقی" in titles(service.day(date(2026, 6, 21)))
+
+
+def test_default_does_not_fill_empty_day_with_government_events():
+    target = date(2026, 10, 7)
+    assert calendar().day(target).events
+    assert calendar(OccasionPolicy()).day(target).events == []
+
+
+def test_new_titles_and_informal_category_do_not_imply_curator_selection():
+    service = calendar(OccasionPolicy())
+    service._events = [
+        {
+            "title": "روز جدید اینترنت، بازی و علم",
+            "type": "Informal",
+            "calendar": "Gregorian",
+            "month": 10,
+            "day": 5,
+            "rule": "simple",
+            "source": "https://example.org/new-campaign",
+        }
+    ]
+    assert service.day(date(2026, 10, 5)).events == []
+    service.policy.selection = "all"
+    assert len(service.day(date(2026, 10, 5)).events) == 1
+
+
+def test_default_keeps_single_nowruz_and_yalda_titles():
+    service = calendar(OccasionPolicy())
+    nowruz = service.day(date(2026, 3, 21))
+    assert sum("نوروز" in event.title for event in nowruz.events) == 1
+    assert all("فطر" not in event.title for event in nowruz.events)
+    yalda = service.day(date(2026, 12, 21))
+    assert sum("یلدا" in event.title for event in yalda.events) == 1
+
+
+def test_youth_cap_is_prioritized_stable_and_respects_exclusions():
+    policy = OccasionPolicy(max_events=3)
+    service = calendar(policy)
+    # Inject a same-day collision using real, explicitly curated catalogue IDs.
+    curated = [
+        event for event in service._events if event_id(event) in service._youth
+    ]
+    ranked = sorted(
+        curated,
+        key=lambda event: (service._youth[event_id(event)], event_id(event)),
+    )
+    chosen = ranked[:2] + ranked[-3:]
+    service._events = list(chosen)
+    service._matches = lambda event, target, year: True
+    target = date(2026, 10, 5)
+    expected = [event_id(event) for event in chosen[:3]]
+    assert [event.id for event in service.day(target).events] == expected
+    service._events.reverse()
+    assert [event.id for event in service.day(target).events] == expected
+    policy.excluded_ids = [expected[0]]
+    assert [event.id for event in service.day(target).events] == [
+        event_id(event) for event in chosen[1:4]
+    ]
+    policy.max_events = 1
+    assert [event.id for event in service.day(target).events] == [expected[1]]
+
+
+def test_youth_custom_entry_is_explicit_and_has_priority():
+    service = calendar(
+        OccasionPolicy(
+            max_events=1,
+            custom_events=[
+                CustomOccasion(
+                    id="community",
+                    title="Community meetup",
+                    calendar="Gregorian",
+                    month=10,
+                    day=5,
+                )
+            ],
+        )
+    )
+    assert [event.id for event in service.day(date(2026, 10, 5)).events] == [
+        "custom:community"
+    ]

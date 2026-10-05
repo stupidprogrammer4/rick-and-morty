@@ -82,7 +82,7 @@ for these tokens while webhooks are active.
 | `/team text`, `/news python ai` | Collected article evidence and a news draft |
 | `/summarize https://...` | Read an allowed source and draft its summary |
 | `/prices` | Fetch accepted market rates and prepare a source or aggregate report |
-| `/occasions [YYYY-MM-DD]` | Rick reads the calendar and drafts every recorded occasion for today or a Gregorian date |
+| `/occasions [YYYY-MM-DD]` | Rick drafts selected informal, cultural and youth-relevant occasions for today or a Gregorian date |
 | `/jobs [page]`, `/job id`, `/cancel id` | Inspect or cancel owned missions |
 | `/drafts [page]`, `/draft id` | Inspect draft content and its revision |
 | `/approve id [revision]`, `/reject id [revision]` | Decide on a specific revision |
@@ -115,27 +115,25 @@ intervals anchored at 10:00 Tehran time. After seeding,
 channel and administrator, preserves content settings, disables quiet hours
 and raises the daily cap to at least 30.
 
-Daily occasions use `occasions.policy/global`. Its initial schedule is disabled;
-set an allowlisted `owner_id` and `enabled: true` to enable it. Rick prepares
-the draft at 10:00 and schedules delivery at a random time between 15:00 and
-18:00 in the portal timezone. The selected time persists across restarts.
-Rick reads the calendar through
-`get_calendar_occasions`, then writes his commentary with
-`create_occasion_draft`. The calendar supplies all event names, dates and sources;
-the draft tool rejects missing or invented event IDs. Scheduled drafts use the
-existing channel workflow, quiet hours and shared daily cap. Private `/occasions`
-drafts require the normal approval and publication commands.
+Daily occasions use `occasions.policy/global`. Rick prepares the draft at 10:00
+and schedules delivery at a random time between 15:00 and 18:00 in the portal
+timezone. The selected time persists across restarts. The default `youth`
+selection includes at most three explicitly curated informal, cultural, science,
+health or social occasions; administrative and government observances are omitted.
+Days with no selected occasion do not create a scheduled post.
 
-The bundled calendar prioritizes unofficial social and internet occasions,
-including Girlfriends Day and the October 5 anti-prostitution observance,
-with explicit unofficial labels and source links. It also covers Iranian solar
-and lunar occasions, ancient Iranian festivals and international observances
-from the Persian Calendar dataset.
-Additional categories and custom events are configurable. Coverage follows the
-recorded sources; it does not claim every informal observance worldwide.
-Missing lunar coverage is shown explicitly. See
-[calendar configuration](docs/configuration.md#daily-occasions) for setup and
-the packaged calendar provenance for source versions and refresh instructions.
+`system_prompt` owns a dedicated Rick persona: science, individual freedom,
+sharp satire of authority and bureaucracy, and natural conversational Persian.
+`prompt` owns the drafting task. Rick stays in character without announcing his
+persona. Calendar evidence remains internal; public posts contain event titles
+and his commentary, without source links, calendar warnings or portal wrappers.
+After seeding, `python -m src.cli.occasion_voice` applies these defaults to an
+existing installation while retaining its owner, timings and custom events. It
+also cancels queued occasion posts prepared with the previous format.
+
+Private `/occasions` drafts require normal approval. See
+[calendar configuration](docs/configuration.md#daily-occasions) and the packaged
+calendar provenance for editorial selection, sources and coverage.
 
 Read `ai.model/global` using `/settings ai.model global`. Its initial live mode
 is OpenRouter with `openai/gpt-4.1-mini`, price ceilings of $0.40 input and $1.60

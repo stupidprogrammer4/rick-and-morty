@@ -16,6 +16,17 @@ class PostRenderer:
             f"{escape(style.separator)}\n{escape(style.footer)}\n\n"
             f"{escape(style.hashtags)}"
         )
+        if category == Category.OCCASIONS:
+            output = "\n\n".join(
+                part
+                for part in (
+                    f"<b>{escape(style.heading)}</b>" if style.heading else "",
+                    escape(text),
+                    escape(style.footer),
+                    escape(style.hashtags),
+                )
+                if part
+            )
         if len(output) > self.presentation.maximum_post_characters:
             raise ValueError("Rendered draft exceeds the single-post limit")
         return output
