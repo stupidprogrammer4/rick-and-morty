@@ -52,3 +52,45 @@ def test_news_voice_requires_evidence_for_excitement_and_snark():
     )
     assert "حداکثر دو مقاله" in RICK_NEWS_PROMPT
     assert "evidence_ids" in RICK_NEWS_PROMPT
+
+
+@pytest.mark.parametrize(
+    "summary", ["این یه خبره.", "واقعاً جالبه! 🧪", "ادعاست؟", "«کامل است.»"]
+)
+def test_news_accepts_finished_sentences(summary):
+    from src.modules.content.news.domain.dtos import validate_news_summary
+
+    validate_news_summary(summary)
+
+
+@pytest.mark.parametrize(
+    "summary", ["و نبودش یعنی کمتر امنی", "جملهٔ ناقص 🧪", ""]
+)
+def test_news_rejects_unfinished_summaries(summary):
+    from src.modules.content.news.domain.dtos import validate_news_summary
+
+    with pytest.raises(ValueError, match="complete sentence"):
+        validate_news_summary(summary)
+
+
+def test_news_rejects_two_items_using_the_same_article():
+    from src.modules.content.news.domain.dtos import NewsDraft
+
+    with pytest.raises(ValidationError, match="exactly one news item"):
+        NewsDraft.model_validate(
+            {
+                "title": "News",
+                "items": [
+                    {
+                        "title": "One",
+                        "summary": "Complete.",
+                        "evidence_ids": [1],
+                    },
+                    {
+                        "title": "Two",
+                        "summary": "Complete too.",
+                        "evidence_ids": [1],
+                    },
+                ],
+            }
+        )

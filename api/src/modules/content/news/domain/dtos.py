@@ -1,7 +1,15 @@
+import unicodedata
 from datetime import datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, Field, HttpUrl
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 class NewsSource(BaseModel):
@@ -43,13 +51,48 @@ class ArticleEvidence(BaseModel):
     truncated: bool
 
 
+def validate_news_summary(summary: str) -> None:
+    ending = summary.rstrip()
+    while ending and (
+        unicodedata.category(ending[-1])
+        in {"So", "Sk", "Mn", "Me", "Cf", "Zs", "Pe", "Pf"}
+        or ending[-1] in "\"'»"
+    ):
+        ending = ending[:-1].rstrip()
+    if not ending.endswith((".", "!", "?", "؟", "…")):
+        raise ValueError(
+            "Finish each summary with a complete sentence and punctuation. "
+            "Rewrite it shorter; never crop a sentence to fit the limit."
+        )
+
+
 class NewsDraftItem(BaseModel):
     title: str = Field(min_length=1, max_length=120)
-    summary: str = Field(min_length=1, max_length=450)
+    summary: str = Field(
+        min_length=1,
+        max_length=450,
+        description=(
+            "Two or three complete spoken sentences, ending with "
+            "punctuation. Never crop a sentence."
+        ),
+    )
     evidence_ids: list[int] = Field(min_length=1, max_length=3)
+
+    @field_validator("summary")
+    @classmethod
+    def finished_summary(cls, value: str) -> str:
+        validate_news_summary(value)
+        return value
 
 
 class NewsDraft(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     items: list[NewsDraftItem] = Field(min_length=1, max_length=2)
     editorial_note: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def distinct_articles(self):
+        ids = [id for item in self.items for id in item.evidence_ids]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Each article belongs in exactly one news item")
+        return self

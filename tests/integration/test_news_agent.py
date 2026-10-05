@@ -16,6 +16,7 @@ from src.modules.automation.agents.domain.dtos import (
     ToolCall,
     ToolFunction,
 )
+from src.modules.automation.agents.infra.mysql import CheckpointRepository
 from src.modules.automation.agents.interfaces import ILLMClient
 from src.modules.automation.missions.domain.dtos import (
     MissionChange,
@@ -35,9 +36,12 @@ from tests.integration.conftest import OWNER, ExternalTelegramHandler
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("parallel_reply", [False, True])
+@pytest.mark.parametrize(
+    ("parallel_reply", "unfinished_summary"),
+    [(False, False), (True, False), (False, True)],
+)
 def test_news_corrects_parallel_model_calls_before_publication(
-    portal, parallel_reply, monkeypatch
+    portal, parallel_reply, unfinished_summary, monkeypatch
 ):
     monkeypatch.setenv("PORTAL_DRY_RUN", "false")
     portal.environment["PORTAL_DRY_RUN"] = "false"
@@ -50,6 +54,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
         async def complete(self, history, tools):
             self.responses += 1
             assert history.messages[0].content == RICK_NEWS_SYSTEM_PROMPT
+            assert "خبرخوان‌شدن" in (history.messages[3].content or "")
             assert {tool["function"]["name"] for tool in tools} == {
                 "create_post_draft"
             }
@@ -63,7 +68,12 @@ def test_news_corrects_parallel_model_calls_before_publication(
                         "items": [
                             {
                                 "title": "Verified article",
-                                "summary": "Rick's evidence-based summary 🧪",
+                                "summary": (
+                                    "Rick's evidence-based summary cut mid"
+                                    if unfinished_summary
+                                    and self.responses == 1
+                                    else "Rick's evidence-based summary. 🧪"
+                                ),
                                 "evidence_ids": [evidence["id"]],
                             }
                         ],
@@ -72,11 +82,16 @@ def test_news_corrects_parallel_model_calls_before_publication(
             )
             duplicate = parallel_reply and self.responses == 1
             if self.responses == 2:
-                feedback = history.messages[-2:]
-                assert all(item.role == "tool" for item in feedback)
-                assert all(
-                    "one tool call" in item.content for item in feedback
-                )
+                if parallel_reply:
+                    feedback = history.messages[-2:]
+                    assert all(item.role == "tool" for item in feedback)
+                    assert all(
+                        "one tool call" in item.content for item in feedback
+                    )
+                else:
+                    feedback = history.messages[-1]
+                    assert feedback.role == "tool"
+                    assert "complete sentence" in (feedback.content or "")
             return LLMReply(
                 message=AgentMessage(
                     role="assistant",
@@ -161,7 +176,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
         try:
             async with container() as scope:
                 await (await scope.get(IMissionExecutor)).execute(mission_id)
-            if parallel_reply:
+            if parallel_reply or unfinished_summary:
                 async with portal.request() as scope:
                     mission = await (await scope.get(MissionRepository)).get(
                         mission_id
@@ -169,6 +184,10 @@ def test_news_corrects_parallel_model_calls_before_publication(
                     assert mission.status == "queued", mission.failure_reason
                     assert mission.stage == "model"
                     assert mission.tool_executions == 0
+                    checkpoint = await (
+                        await scope.get(CheckpointRepository)
+                    ).get(mission_id)
+                    assert checkpoint.tools == int(unfinished_summary)
                 async with container() as scope:
                     await (await scope.get(IMissionExecutor)).execute(
                         mission_id
