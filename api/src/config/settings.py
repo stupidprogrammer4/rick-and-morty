@@ -32,6 +32,7 @@ class MediaRuntimeSettings(BaseModel):
     youtube_token_provider_url: str = ""
     spotify_client_id: SecretStr = SecretStr("")
     spotify_client_secret: SecretStr = SecretStr("")
+    spotify_access_token: SecretStr = SecretStr("")
 
 
 class PortalAppSettings(Settings):
@@ -83,6 +84,7 @@ class PortalAppSettings(Settings):
             ),
             ("SPOTIPY_CLIENT_ID", "spotify_client_id"),
             ("SPOTIPY_CLIENT_SECRET", "spotify_client_secret"),
+            ("PORTAL_SPOTIFY_ACCESS_TOKEN", "spotify_access_token"),
         ):
             if value := os.getenv(environment):
                 media[field] = value

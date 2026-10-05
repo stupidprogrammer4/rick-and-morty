@@ -161,18 +161,20 @@ class SpotifyCatalog:
     ) -> DownloadPlan:
         http = MediaHTTP(request)
         async with http.session() as session:
-            raw = await http.metadata(
-                session,
-                "POST",
-                request.policy.spotify_auth_url,
-                auth=aiohttp.BasicAuth(
-                    self.settings.media.spotify_client_id.get_secret_value(),
-                    self.settings.media.spotify_client_secret.get_secret_value(),
-                ),
-                data={"grant_type": "client_credentials"},
-                allow_redirects=False,
-            )
-            token = json.loads(raw)["access_token"]
+            token = self.settings.media.spotify_access_token.get_secret_value()
+            if not token:
+                raw = await http.metadata(
+                    session,
+                    "POST",
+                    request.policy.spotify_auth_url,
+                    auth=aiohttp.BasicAuth(
+                        self.settings.media.spotify_client_id.get_secret_value(),
+                        self.settings.media.spotify_client_secret.get_secret_value(),
+                    ),
+                    data={"grant_type": "client_credentials"},
+                    allow_redirects=False,
+                )
+                token = json.loads(raw)["access_token"]
             base = request.policy.spotify_api_url.rstrip("/")
             if kind == "track":
                 raw = await http.metadata(
@@ -198,6 +200,18 @@ class SpotifyCatalog:
                 first = album["tracks"]
                 url = base + "/albums/" + identifier + "/tracks"
             else:
+                raw = await http.metadata(
+                    session,
+                    "GET",
+                    base + "/playlists/" + identifier,
+                    headers={"Authorization": "Bearer " + token},
+                    allow_redirects=False,
+                )
+                playlist = await self.threads.run(json.loads, raw)
+                if playlist.get("public") is not True:
+                    raise ValueError(
+                        "Only public Spotify playlists are supported"
+                    )
                 url = base + "/playlists/" + identifier + "/items"
                 first = await self.api_page(http, session, url, token, 0)
             total = int(first["total"])
@@ -230,8 +244,9 @@ class SpotifyCatalog:
 
     async def plan(self, request: DownloadProcessRequest) -> DownloadPlan:
         kind, identifier = self.identity(request.url)
-        if (
-            self.settings.media.spotify_client_id.get_secret_value()
+        if self.settings.media.spotify_access_token.get_secret_value() or (
+            kind != "playlist"
+            and self.settings.media.spotify_client_id.get_secret_value()
             and self.settings.media.spotify_client_secret.get_secret_value()
         ):
             result = await self.official(request, kind, identifier)

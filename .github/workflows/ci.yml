@@ -67,7 +67,8 @@ jobs:
       - name: Scan committed history for secrets
         run: |
           docker run --rm --network none -v "$PWD:/repo:ro" \
-            zricethezav/gitleaks:v8.24.2 git /repo --redact --no-banner
+            zricethezav/gitleaks:v8.24.2 git /repo --redact --no-banner \
+            --config /repo/.gitleaks.toml
       - name: Audit runtime Python dependencies
         run: |
           python -m venv /tmp/portal-audit

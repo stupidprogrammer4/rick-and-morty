@@ -140,6 +140,9 @@ track metadata and searches for matching public audio from another source; the
 file caption identifies its actual source. Matching checks the track title,
 artist, version and full duration; a preview is not a successful download.
 Optional Spotify API credentials provide catalog metadata where permitted.
+Playlist API access requires an authorized user token in private
+`PORTAL_SPOTIFY_ACCESS_TOKEN`; client credentials only enable track and album
+catalog requests. The public bot rejects private playlists even with a token.
 Public embeds and API permissions do not guarantee access to a complete playlist;
 incomplete collections are rejected rather than partially reported as complete.
 Login-only sources need an authorized cookie file; DRM and live streams are

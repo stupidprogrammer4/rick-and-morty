@@ -607,6 +607,15 @@ def external_media(
 
         def respond(self, body):
             if native_spotify_api and self.path.startswith("/v1/playlists/"):
+                if (
+                    self.headers.get("Authorization")
+                    != "Bearer external-test-user-token"
+                ):
+                    self.send_error(403)
+                    return
+                if self.path == "/v1/playlists/NativePlaylist1":
+                    self.send_json({"public": native_spotify_api != "private"})
+                    return
                 from urllib.parse import parse_qs, urlsplit
 
                 offset = int(parse_qs(urlsplit(self.path).query)["offset"][0])
@@ -1929,7 +1938,9 @@ def test_native_hls_rejects_unsafe_or_incomplete_audio_and_cleans_files(
         server.server_close()
 
 
-@pytest.mark.parametrize("catalog", ["complete", "missing", "changed"])
+@pytest.mark.parametrize(
+    "catalog", ["complete", "missing", "changed", "private"]
+)
 def test_spotify_catalog_keeps_all_pages_or_rejects_incomplete_plan(
     portal, tmp_path, catalog
 ):
@@ -1945,6 +1956,9 @@ def test_spotify_catalog_keeps_all_pages_or_rejects_incomplete_plan(
     portal.environment["PORTAL_NATIVE_NO_PROCESS"] = "1"
     portal.environment["SPOTIPY_CLIENT_ID"] = "external-test-client"
     portal.environment["SPOTIPY_CLIENT_SECRET"] = "external-test-secret"
+    portal.environment["PORTAL_SPOTIFY_ACCESS_TOKEN"] = (
+        "external-test-user-token"
+    )
     try:
 
         async def accept():
@@ -2008,3 +2022,70 @@ def test_spotify_catalog_keeps_all_pages_or_rejects_incomplete_plan(
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_media_policy_upgrade_persists_defaults_and_preserves_custom_options(
+    portal,
+):
+    config = Config("api/alembic.ini")
+    config.set_main_option(
+        "sqlalchemy.url",
+        portal.environment["PORTAL_DATABASE_URL"].replace("%", "%%"),
+    )
+    command.downgrade(config, "20261004_media_parallel")
+
+    async def prior_policy():
+        async with portal.request() as request:
+            unit = await request.get(MySQLUnitOfWork)
+            async with transaction():
+                result = await unit.execute(
+                    text(
+                        "SELECT v.id, v.value FROM tbl_setting_values v "
+                        "JOIN tbl_setting_definitions d "
+                        "ON d.id = v.definition_id "
+                        "WHERE d.`key` = 'media.policy'"
+                    )
+                )
+                id, raw = result.one()
+                value = json.loads(raw)
+                for key in [
+                    "music_sources",
+                    "file_cache_seconds",
+                    "hls_max_segments",
+                ]:
+                    value.pop(key)
+                value["requests_per_hour"] = 7
+                value["music_match_threshold"] = 0.95
+                await unit.execute(
+                    text(
+                        "UPDATE tbl_setting_values SET value=:value, "
+                        "revision=3 WHERE id=:id"
+                    ),
+                    {"value": json.dumps(value), "id": id},
+                )
+                return value
+
+    async def read_policy():
+        async with portal.request() as request:
+            unit = await request.get(MySQLUnitOfWork)
+            result = await unit.execute(
+                text(
+                    "SELECT v.value, v.revision FROM tbl_setting_values v "
+                    "JOIN tbl_setting_definitions d ON d.id = v.definition_id "
+                    "WHERE d.`key` = 'media.policy'"
+                )
+            )
+            raw, revision = result.one()
+            return json.loads(raw), revision
+
+    before = portal.run(prior_policy())
+    command.upgrade(config, "head")
+    command.check(config)
+    saved, revision = portal.run(read_policy())
+    assert all(saved[key] == value for key, value in before.items())
+    assert saved["music_sources"] == ["soundcloud", "youtube"]
+    assert saved["file_cache_seconds"] == 604800
+    assert saved["hls_max_segments"] == 512
+    assert revision == 4
+    command.upgrade(config, "head")
+    assert portal.run(read_policy()) == (saved, revision)
