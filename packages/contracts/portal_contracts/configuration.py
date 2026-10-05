@@ -20,7 +20,6 @@ class SettingKey(StrEnum):
     QUOTE = "market.quote"
     AUTOMATION = "automation.policy"
     ENGINE = "market.engine"
-    MEDIA = "media.policy"
 
 
 class SettingScope(StrEnum):

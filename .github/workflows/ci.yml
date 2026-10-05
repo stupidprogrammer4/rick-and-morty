@@ -45,10 +45,8 @@ jobs:
           .venv/bin/python -m pip install -r api/requirements-dev.lock -r bots/requirements.lock
           .venv/bin/python -m pip install --no-deps -e packages/contracts -e api -e bots
           .venv/bin/python -m pip check
-      - name: Install media codecs and headless browser for native workflows
+      - name: Install headless browser for chart workflows
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
           .venv/bin/python -m playwright install --with-deps --only-shell chromium
       - name: Check formatting, types and publication contents
         run: |
@@ -92,10 +90,6 @@ jobs:
         run: |
           docker build -f api/Dockerfile -t portal-api:test .
           docker build -f bots/Dockerfile -t portal-bots:test .
-      - name: Verify bot sessions through native Redis and container networks
-        env:
-          PORTAL_BOT_TEST_IMAGE: portal-bots:test
-        run: .venv/bin/python -m pytest tests/integration/test_bot_network.py -q
       - name: Scan image dependencies and operating system packages
         run: |
           for image in portal-api:test portal-bots:test; do

@@ -9,10 +9,6 @@ Price reports support inline page navigation, asset-specific emojis and tags,
 linked providers and separate buy/sell rates. Each calculated asset can include
 a PNG with its closing-price line and OHLC history alongside the hourly report.
 
-AMU Downloader is a separate public bot for private media downloads. Its welcome
-image, emoji menu, progress cards and paginated history accompany downloads from
-Instagram, YouTube, SoundCloud, Spotify and other supported public sources.
-
 ## Components
 
 | Directory | Responsibility |
@@ -30,12 +26,6 @@ API features are grouped under `api/src/modules`:
 | `automation` | Missions and bounded agents |
 | `content` | News evidence, drafts, publications and private replies |
 | `pricing` | Market sources, assets, calculations, history, charts and reports |
-| `media` | Download workflows, source extraction, delivery and storage |
-
-Media source inputs are separate from persisted download jobs. Completed files
-enter the delivery queue immediately; download workflows retain their positions
-for ordered delivery. Media workers use their own Papilio Tasks application.
-Historical task names remain registered for queued work across upgrades.
 
 MySQL owns configuration, missions, collected evidence, drafts, approvals,
 publication reservations and model costs. Redis carries native Papilio Tasks.
@@ -123,82 +113,6 @@ Channel publication initially uses `PORTAL_DRY_RUN=true` and has no destination.
 Update the complete `portal.policy/global` record with a negative channel ID,
 then set the private environment's dry-run flag to `false` and recreate API,
 worker and scheduler. The shared daily cap and quiet hours still apply.
-
-## Public media downloader
-
-Set `MEDIA_DOWNLOADER_TG_BOT` and an independent
-`PORTAL_MEDIA_WEBHOOK_SECRET`, then expose `/telegram/media` through HTTPS.
-Start the downloader with `/start`; send a public HTTPS link or use its menu.
-Use the Close Menu button or `/exit` to clear the selected mode and hide the
-keyboard. This leaves accepted downloads running; cancel them from their job.
-`/audio URL` requests audio. `/jobs`, `/status ID` and `/cancel ID` operate only
-on the requesting user's private downloads.
-
-Instagram posts include all discovered carousel slides, in order. YouTube and
-SoundCloud collections download concurrently and retain their original numbers
-for ordered delivery; collections exceeding the
-configured limit are rejected rather than silently truncated. Spotify supplies
-track metadata and searches for matching public audio from another source; the
-file caption identifies its actual source. Matching checks the track title,
-artist, version and full duration; a preview is not a successful download.
-Optional Spotify API credentials provide catalog metadata where permitted.
-Playlist API access requires an authorized user token in private
-`PORTAL_SPOTIFY_ACCESS_TOKEN`; client credentials only enable track and album
-catalog requests. The public bot rejects private playlists even with a token.
-Public playlist pages are read with their declared total track count. Missing
-tracks are rejected; API permissions do not guarantee a complete playlist;
-incomplete collections are rejected rather than partially reported as complete.
-Login-only sources need an authorized cookie file; DRM and live streams are
-unsupported. Extraction can also fail because a source blocks the server.
-
-The database record `media.policy/global` owns quotas, enabled providers, size
-and duration limits, download concurrency, source timeouts/retries, extractor
-request intervals, HTTP user agent, disk reserves and
-the welcome/menu presentation. Read or
-update it through the administrator's existing settings commands. Credentials,
-cookie paths and the shared volume remain private infrastructure configuration.
-
-Database source routes choose the ordered extraction methods. Direct files and
-supported Instagram/Pinterest metadata use asynchronous HTTP; file bodies stream
-into bounded temporary storage without starting a Python process per file.
-An optional `media.policy/global.youtube_api_url` selects a public Cobalt-compatible
-API for complete YouTube MP3/M4A or MP4 files. Its endpoint is stored in MySQL,
-not in source code. Single-video planning avoids SDK metadata requests when it is
-configured; failed API resolution falls back to the bounded metadata SDK.
-Returned file URLs still pass public-network checks, size limits and actual file
-validation. The API is an external dependency; its availability is not guaranteed.
-YouTube collection metadata and music searches use bounded AnyIO threads. Spotify catalog
-requests and compatible MP3/M4A or muxed MP4 downloads use asynchronous HTTP;
-Mutagen validates duration and writes audio tags in those same bounded threads.
-SoundCloud MP3 HLS segments stream concurrently into bounded temporary files and
-are joined in their original order in a bounded thread, without transcoding.
-Encrypted, live and unsupported segmented formats are rejected.
-These YouTube and Spotify transfers do not start codec or Python child processes.
-They reject sources that only expose formats requiring conversion or merging.
-Other SDK and browser fallbacks retain isolated processes, and their codec
-conversion retains time and output-size limits. The video resolution limit
-applies to the shorter edge, including portrait videos.
-
-`media.policy/global` also controls YouTube client selection, music search
-sources, matching limits and the lifetime of successful Telegram file references.
-File references are stored in MySQL, isolated by bot and media options, and reused
-without retaining media on disk. An expired Telegram reference triggers a fresh
-download; uncertain sends are never automatically repeated.
-
-Optional private `PORTAL_YOUTUBE_TOKEN_PROVIDER_URL` connects to an existing
-HTTP PO token provider through its `/get_pot` endpoint.
-`PORTAL_YOUTUBE_PROXY_URL` configures an existing YouTube metadata proxy.
-Neither setting starts another service. Source login challenges and unavailable
-direct formats can still prevent downloads, even when metadata extraction works.
-
-Planning, downloading and ordered Telegram delivery have separate application
-owners and native tasks. Collection downloads use `asyncio.gather`; each completed
-file immediately dispatches its delivery work, while original item numbers control
-sending order. Database writes finish before network work begins. Independent item
-leases and workspaces isolate failures. Normal progress dispatches immediately;
-recovery only handles interrupted work. Temporary files are removed after every
-delivered item; scheduled cleanup removes aged inactive job directories.
-Uncertain Telegram deliveries are recorded and never automatically resent.
 
 ## Verification
 

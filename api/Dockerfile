@@ -4,7 +4,7 @@ WORKDIR /app
 COPY api/requirements.lock /tmp/requirements.lock
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/portal-browsers
 RUN pip install --no-cache-dir -r /tmp/requirements.lock
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libpcre2-8-0 \
+RUN apt-get update && apt-get install -y --no-install-recommends libpcre2-8-0 \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libpcre2-8-0)" ge 10.42-1+deb12u2 \
     && python -m playwright install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
@@ -13,7 +13,7 @@ COPY api /app/api
 RUN pip install --no-cache-dir --no-deps ./packages/contracts ./api \
     && useradd --create-home --uid 10001 portal
 COPY config.yml.sample /app/config.yml
-RUN mkdir -p /app/data/media && chown -R portal:portal /app/data
+RUN mkdir -p /app/data && chown -R portal:portal /app/data
 RUN python -m pip check && python -m pip uninstall -y setuptools pip \
     && rm -rf /usr/local/lib/python3.13/ensurepip
 USER portal

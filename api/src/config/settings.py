@@ -24,24 +24,12 @@ class MarketCredentials(BaseModel):
     token: SecretStr = SecretStr("")
 
 
-class MediaRuntimeSettings(BaseModel):
-    directory: str = "data/media"
-    cookie_files: dict[str, str] = Field(default_factory=dict)
-    metadata_threads: int = Field(default=2, ge=1, le=4)
-    youtube_proxy_url: SecretStr = SecretStr("")
-    youtube_token_provider_url: str = ""
-    spotify_client_id: SecretStr = SecretStr("")
-    spotify_client_secret: SecretStr = SecretStr("")
-    spotify_access_token: SecretStr = SecretStr("")
-
-
 class PortalAppSettings(Settings):
     security: SecuritySettings
     portal: TransportSettings = Field(default_factory=TransportSettings)
     ai: ModelCredentials = Field(default_factory=ModelCredentials)
     market: MarketCredentials = Field(default_factory=MarketCredentials)
     tasks: RedisSettings
-    media: MediaRuntimeSettings = Field(default_factory=MediaRuntimeSettings)
 
     @model_validator(mode="before")
     @classmethod
@@ -75,20 +63,6 @@ class PortalAppSettings(Settings):
         if token := os.getenv("TALAMALA_API_TOKEN"):
             market["token"] = token
         data["market"] = market
-        media = dict(data.get("media", {}))
-        for environment, field in (
-            ("PORTAL_YOUTUBE_PROXY_URL", "youtube_proxy_url"),
-            (
-                "PORTAL_YOUTUBE_TOKEN_PROVIDER_URL",
-                "youtube_token_provider_url",
-            ),
-            ("SPOTIPY_CLIENT_ID", "spotify_client_id"),
-            ("SPOTIPY_CLIENT_SECRET", "spotify_client_secret"),
-            ("PORTAL_SPOTIFY_ACCESS_TOKEN", "spotify_access_token"),
-        ):
-            if value := os.getenv(environment):
-                media[field] = value
-        data["media"] = media
         return data
 
     @model_validator(mode="after")

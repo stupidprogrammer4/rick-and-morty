@@ -15,29 +15,10 @@ async def register() -> None:
         )
     rick = Bot(settings.rick_token.get_secret_value())
     morty = Bot(settings.morty_token.get_secret_value())
-    media = (
-        Bot(settings.media_token.get_secret_value())
-        if settings.media_token
-        else None
-    )
     try:
         identities = await asyncio.gather(rick.get_me(), morty.get_me())
         if identities[0].id == identities[1].id:
             raise ValueError("Rick and Morty need independent identities")
-        if media is not None:
-            identity = await media.get_me()
-            if identity.id in {item.id for item in identities}:
-                raise ValueError("Media needs an independent identity")
-            if settings.media_webhook_secret is None:
-                raise ValueError("Media webhook secret required")
-            registered = await media.set_webhook(
-                origin + "/telegram/media",
-                secret_token=settings.media_webhook_secret.get_secret_value(),
-                allowed_updates=["message", "callback_query"],
-                drop_pending_updates=False,
-            )
-            if not registered:
-                raise RuntimeError("Media webhook registration failed")
         results = await asyncio.gather(
             rick.set_webhook(
                 origin + "/telegram/rick",
@@ -61,8 +42,6 @@ async def register() -> None:
         )
     finally:
         await asyncio.gather(rick.session.close(), morty.session.close())
-        if media is not None:
-            await media.session.close()
 
 
 if __name__ == "__main__":

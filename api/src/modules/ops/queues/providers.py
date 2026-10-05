@@ -19,9 +19,6 @@ class TaskQueueProvider(Provider):
 
     @provide(scope=Scope.APP)
     def streams(self) -> TaskStreams:
-        from src.apps.media import app as media
         from src.apps.scheduler import app as main
 
-        return TaskStreams(
-            main=main.settings.queue_name, media=media.settings.queue_name
-        )
+        return TaskStreams(main=main.settings.queue_name)

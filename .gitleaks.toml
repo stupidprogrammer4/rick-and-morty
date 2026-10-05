@@ -5,8 +5,6 @@ useDefault = true
 id = "generic-api-key"
 
 [[rules.allowlists]]
-description = "Synthetic external-service PO token fixture"
-condition = "AND"
+description = "Exact synthetic token retained in historical test fixtures"
 regexTarget = "secret"
 regexes = ['''^ZXh0ZXJuYWwtdGVzdC10b2tlbg==$''']
-paths = ['''^tests/integration/test_media\.py$''']

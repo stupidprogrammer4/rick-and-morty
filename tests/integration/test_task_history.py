@@ -28,10 +28,7 @@ def test_retention_preserves_pending_unread_and_other_consumer_groups(portal):
 
     async def workflow():
         client = Redis.from_url(portal.settings.tasks.url)
-        streams = (
-            portal.settings.tasks.queue_name,
-            portal.settings.tasks.queue_name + ":media",
-        )
+        streams = (portal.settings.tasks.queue_name,)
         try:
             await asyncio.gather(
                 *(populate(client, stream) for stream in streams)
@@ -39,7 +36,7 @@ def test_retention_preserves_pending_unread_and_other_consumer_groups(portal):
             async with portal.request() as scope:
                 maintenance = await scope.get(ITaskHistoryMaintenance)
                 removed = await maintenance.clean()
-            assert removed == 2
+            assert removed == 1
             rows = await asyncio.gather(
                 *(client.xrange(stream) for stream in streams)
             )
