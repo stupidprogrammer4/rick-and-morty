@@ -158,7 +158,10 @@ class BotRuntime:
 
     async def send(self, request: web.Request):
         self.authenticate(request)
-        data = TelegramDelivery.model_validate(await request.json())
+        try:
+            data = TelegramDelivery.model_validate(await request.json())
+        except ValueError:
+            raise web.HTTPBadRequest() from None
         await self.authorize_delivery(data.chat_id, data.publication_id)
         bot = self.bots[data.role]
         keyboard = None
@@ -166,13 +169,37 @@ class BotRuntime:
             keyboard = draft_keyboard(data.draft_id, data.revision, data.role)
         if data.navigation is not None:
             keyboard = page_keyboard(data.navigation)
+        photo_message_id = None
         try:
-            message = await bot.send_message(
-                data.chat_id,
-                data.text,
-                reply_markup=keyboard,
-                link_preview_options=LinkPreviewOptions(is_disabled=True),
-            )
+            if data.png_base64 is not None:
+                fits_caption = len(data.text.encode("utf-16-le")) // 2 <= 1024
+                message = await bot.send_photo(
+                    chat_id=data.chat_id,
+                    photo=BufferedInputFile(
+                        base64.b64decode(data.png_base64),
+                        filename=f"occasion-{data.publication_id}.png",
+                    ),
+                    caption=data.text if fits_caption else None,
+                )
+                photo_message_id = message.message_id
+                if not fits_caption:
+                    await bot.send_message(
+                        data.chat_id,
+                        data.text,
+                        reply_parameters=ReplyParameters(
+                            message_id=photo_message_id
+                        ),
+                        link_preview_options=LinkPreviewOptions(
+                            is_disabled=True
+                        ),
+                    )
+            else:
+                message = await bot.send_message(
+                    data.chat_id,
+                    data.text,
+                    reply_markup=keyboard,
+                    link_preview_options=LinkPreviewOptions(is_disabled=True),
+                )
             result = DeliveryResult(
                 status="sent", message_id=message.message_id
             )
@@ -191,6 +218,13 @@ class BotRuntime:
         except (TelegramNetworkError, TimeoutError):
             result = DeliveryResult(
                 status="unknown", reason="telegram_delivery_unknown"
+            )
+        if photo_message_id is not None and result.status != "sent":
+            # A delivered photo must never be duplicated by an automatic retry.
+            result = DeliveryResult(
+                status="unknown",
+                message_id=photo_message_id,
+                reason="photo_text_delivery_incomplete",
             )
         return web.json_response(result.model_dump())
 

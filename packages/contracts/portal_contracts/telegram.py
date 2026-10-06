@@ -39,6 +39,24 @@ class TelegramDelivery(BaseModel):
     draft_id: int | None = None
     revision: int | None = None
     navigation: PublicationNavigation | None = None
+    png_base64: str | None = Field(default=None, max_length=350000)
+
+    @field_validator("png_base64")
+    @classmethod
+    def valid_png(cls, value: str | None) -> str | None:
+        return bounded_png(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def publication_photo(self):
+        if self.png_base64 is not None and (
+            self.publication_id is None
+            or self.draft_id is not None
+            or self.navigation is not None
+        ):
+            raise ValueError(
+                "Post photos require a publication without buttons"
+            )
+        return self
 
 
 class TelegramPhotoDelivery(BaseModel):
@@ -53,16 +71,17 @@ class TelegramPhotoDelivery(BaseModel):
     @field_validator("png_base64")
     @classmethod
     def valid_png(cls, value: str) -> str:
-        try:
-            image = base64.b64decode(value, validate=True)
-        except ValueError as exc:
-            raise ValueError("Invalid base64 image") from exc
-        if (
-            not image.startswith(b"\x89PNG\r\n\x1a\n")
-            or len(image) > 256 * 1024
-        ):
-            raise ValueError("Only a bounded PNG chart is allowed")
-        return value
+        return bounded_png(value)
+
+
+def bounded_png(value: str) -> str:
+    try:
+        image = base64.b64decode(value, validate=True)
+    except ValueError as exc:
+        raise ValueError("Invalid base64 image") from exc
+    if not image.startswith(b"\x89PNG\r\n\x1a\n") or len(image) > 256 * 1024:
+        raise ValueError("Only a bounded PNG image is allowed")
+    return value
 
 
 class DeliveryResult(BaseModel):

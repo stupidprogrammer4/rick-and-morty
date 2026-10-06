@@ -141,6 +141,12 @@ preparation chooses only a remaining time within the window.
 Rick's agent uses the dedicated `occasions.policy.system_prompt`, followed by
 its separate task `prompt`, and reads `get_calendar_occasions` before calling
 `create_occasion_draft`. The public post contains selected titles and commentary.
+Each occasion publication includes a bundled, downloaded Rick illustration.
+Short posts use the photo caption. Text exceeding Telegram's 1,024-character
+caption limit is sent intact as a reply to the photo. A partially delivered
+photo/text pair is marked `unknown` for manual resolution, preventing automatic
+retries from duplicating the photo. Image provenance is kept in the package's
+`data/IMAGES.md`; no source or production instructions appear in channel posts.
 Sources, regional notes and coverage warnings stay in internal tool evidence;
 source links, persona announcements and calendar status labels are rejected in
 draft text. `post.style/occasions` starts with empty heading, footer and hashtags

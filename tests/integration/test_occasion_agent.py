@@ -1,3 +1,4 @@
+import base64
 import json
 from datetime import UTC, datetime, timedelta
 from html import unescape
@@ -212,6 +213,11 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
     monkeypatch.setattr(commands, "utc_now", lambda: chosen)
     assert portal.run(published()) == "sent"
     assert len(ExternalTelegramHandler.messages) == 1
+    photo = base64.b64decode(
+        ExternalTelegramHandler.messages[0]["png_base64"], validate=True
+    )
+    assert photo.startswith(b"\x89PNG\r\n\x1a\n")
+    assert 0 < len(photo) <= 256 * 1024
     text = unescape(ExternalTelegramHandler.messages[0]["text"])
     assert all(event.title in text for event in day_evidence[0].events)
     assert "روز مبارزه با تن‌فروشی" in text

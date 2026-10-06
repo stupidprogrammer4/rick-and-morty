@@ -15,6 +15,7 @@ from portal_contracts.enums import BotRole
 from portal_contracts.public_text import PublicVoiceError
 from portal_contracts.telegram import TelegramDelivery
 from src.modules.content.drafts.interfaces import IDraftService
+from src.modules.content.occasions.app.photo import occasion_photo
 from src.modules.content.publications.app.policy import PublicationPolicy
 from src.modules.content.publications.app.renderer import PostRenderer
 from src.modules.content.publications.domain.models import PublicationModel
@@ -189,6 +190,9 @@ class PublicationCommands:
                 text=row.payload,
                 publication_id=row.id,
                 navigation=pages.navigation(row.id, 0) if pages else None,
+                png_base64=(
+                    occasion_photo() if draft.category == "occasions" else None
+                ),
             )
         if self.settings.portal.dry_run:
             async with transaction():
