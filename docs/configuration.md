@@ -184,6 +184,15 @@ and background work uses native Papilio Tasks Redis. Sources and engine defaults
 live in database records; the idempotent pricing seed preserves edited records and
 creates 18 disabled sources, four assets, seven symbols and a bubble.
 
+Historical pricing has a fixed rolling 24-hour retention window. A maintenance
+task runs every minute and deletes older asset/source price tickers, bubble
+tickers and candles in bounded batches. Candle age uses the start of its window,
+so an older aggregate cannot retain prices outside the permitted day. Current
+quote state, asset/source settings and bot publication records remain available.
+Run `python -m src.cli.pricing_retention` to inspect expired history and add
+`--apply` to remove it immediately. Regular cleanup lets MySQL reuse the freed
+table space and prevents historical pricing from growing without a bound.
+
 Protected `/internal/pricing` routes expose CRUD, paging, source readings, conversion
 and charts. Supplier prices enter through the protected supplier-price endpoint
 and native queue, replacing Auryx's Rabbit adapter. No Auryx credentials are copied.
@@ -237,6 +246,8 @@ converted from rial to toman. Missing periods remain gaps, and assets without
 history display an empty chart. Enable the asset's native calculation schedule
 to accumulate observations; new assets cannot supply historical prices from
 before collection began. These candles describe calculated rates, not trades.
+Only the retained 24 hours are available, including when a longer chart window
+is requested; older periods remain gaps.
 
 Rendering runs in a worker thread, outside database transactions and the event
 loop. Images are bounded to 256 KiB and sent as PNG bytes, without external image
