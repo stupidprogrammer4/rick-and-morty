@@ -136,8 +136,8 @@ the release script does not automatically downgrade the schema or restore data.
 maintenance timer. Container logs use its Unix syslog socket with Docker's local
 dual logging cache disabled. Logs are capped at 64 MB and retained for less than
 24 hours, with minute rotation/vacuum. Read them using
-`journalctl --namespace=portal -t portal/portal-worker-1`, or select another
-container tag. This policy applies to the portal services and leaves other
+`journalctl --namespace=portal --grep 'portal/portal-worker-1'`, or filter by
+another container name. This policy applies to the portal services and leaves other
 applications' logging policies intact.
 
 The logging setup uses [Docker's syslog driver](https://docs.docker.com/engine/logging/drivers/syslog/)
