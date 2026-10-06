@@ -17,13 +17,14 @@ async def populate(client, stream):
     await pipe.execute()
     await client.xgroup_create(stream, "first", id="0-0")
     await client.xgroup_create(stream, "second", id="0-0")
-    await client.xreadgroup("first", "fixture", {stream: ">"}, count=3)
+    await client.xreadgroup("first", "fixture", {stream: ">"}, count=5)
     await client.xack(stream, "first", "1-0", "3-0")
     await client.xreadgroup("second", "fixture", {stream: ">"}, count=2)
     await client.xack(stream, "second", "1-0")
+    await client.xadd(stream, {"data": "recent unread fixture"})
 
 
-def test_retention_preserves_pending_unread_and_other_consumer_groups(portal):
+def test_retention_expires_old_pending_and_preserves_recent_work(portal):
     from src.modules.ops.queues.interfaces import ITaskHistoryMaintenance
 
     async def workflow():
@@ -36,20 +37,22 @@ def test_retention_preserves_pending_unread_and_other_consumer_groups(portal):
             async with portal.request() as scope:
                 maintenance = await scope.get(ITaskHistoryMaintenance)
                 removed = await maintenance.clean()
-            assert removed == 1
+            assert removed == 4
             rows = await asyncio.gather(
                 *(client.xrange(stream) for stream in streams)
             )
             assert all(
-                [row[0] for row in entries[:3]] == [b"2-0", b"3-0", b"4-0"]
-                and len(entries) == 4
+                len(entries) == 2
+                and all(int(row[0].split(b"-")[0]) > 4 for row in entries)
                 for entries in rows
             )
             groups = await asyncio.gather(
                 *(client.xinfo_groups(stream) for stream in streams)
             )
             assert all(
-                group["pending"] == 1 for stream in groups for group in stream
+                {group["name"]: group["pending"] for group in stream}
+                == {b"first": 1, b"second": 0}
+                for stream in groups
             )
         finally:
             await client.aclose()

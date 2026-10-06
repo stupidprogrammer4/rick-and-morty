@@ -16,7 +16,7 @@ a PNG with its closing-price line and OHLC history alongside the hourly report.
 | `api` | Papilio API, domain workflows, MySQL persistence and Papilio Tasks |
 | `bots` | aiogram webhooks, private admin commands and Telegram delivery |
 | `packages/contracts` | Typed contracts shared by both applications |
-| `deploy` | Compose release, backups and restricted Nginx ingress |
+| `deploy` | Compose release, file/log retention and restricted Nginx ingress |
 
 API features are grouped under `api/src/modules`:
 

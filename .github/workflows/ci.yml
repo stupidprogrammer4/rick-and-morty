@@ -50,8 +50,9 @@ jobs:
           .venv/bin/python -m playwright install --with-deps --only-shell chromium
       - name: Check formatting, types and publication contents
         run: |
-          .venv/bin/ruff check api bots packages tests
-          .venv/bin/ruff format --check api bots packages tests
+          .venv/bin/ruff check api bots packages tests deploy/retention_host.py
+          .venv/bin/ruff format --check api bots packages tests deploy/retention_host.py
+          bash -n deploy/release.sh deploy/retention.sh deploy/backup.sh
           .venv/bin/pyright
           test -z "$(git ls-files tools AGENTS.md WORK.md)"
           if git grep -n -P '[\x{0600}-\x{06ff}]' -- '*.md'; then
@@ -85,7 +86,10 @@ jobs:
           MORTY_TG_BOT: '140002:TEST_ONLY_NOT_REAL'
           PORTAL_RICK_WEBHOOK_SECRET: rick-test-key-rick-test-key-rick-test-key
           PORTAL_MORTY_WEBHOOK_SECRET: morty-test-key-morty-test-key-morty-test-key
-        run: docker compose --env-file /dev/null config --quiet
+          PORTAL_SHARED_MYSQL_NETWORK: test-shared-mysql
+        run: |
+          docker compose --env-file /dev/null config --quiet
+          docker compose --env-file /dev/null -f compose.yml -f deploy/compose.server.yml -f deploy/compose.retention.yml config --quiet
       - name: Build both production images
         run: |
           docker build -f api/Dockerfile -t portal-api:test .

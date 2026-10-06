@@ -46,6 +46,7 @@ class PortalAppSettings(Settings):
             database["dsn"] = dsn
         data["db"] = database
         tasks = dict(data.get("tasks", {}))
+        tasks["result_ttl"] = min(int(tasks.get("result_ttl", 86400)), 86400)
         if url := os.getenv("PORTAL_REDIS_URL"):
             tasks["url"] = url
         data["tasks"] = tasks

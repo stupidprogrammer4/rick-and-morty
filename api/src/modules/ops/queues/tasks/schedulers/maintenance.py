@@ -4,7 +4,7 @@ from src.modules.ops.queues.interfaces import ITaskHistoryMaintenance
 
 
 class PruneTaskHistory(RedisScheduler):
-    schedule = [{"interval": 300}]
+    schedule = [{"interval": 60}]
 
     def __init__(self, maintenance: ITaskHistoryMaintenance):
         self.maintenance = maintenance

@@ -14,7 +14,7 @@ class TaskHistoryMaintenance:
 
     async def clean(self) -> int:
         before = utc_now() - timedelta(
-            seconds=self.configuration.portal.task_history_seconds
+            seconds=min(self.configuration.portal.task_history_seconds, 86400)
         )
         removed = await self.history.prune(before)
         return removed

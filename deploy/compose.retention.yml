@@ -1,0 +1,23 @@
+x-portal-logging: &portal-logging
+  driver: syslog
+  options:
+    syslog-address: unixgram:///run/systemd/journal.portal/dev-log
+    syslog-format: rfc3164
+    tag: portal/{{.Name}}
+    cache-disabled: "true"
+    mode: non-blocking
+    max-buffer-size: 1m
+services:
+  api:
+    logging: *portal-logging
+  worker:
+    logging: *portal-logging
+  scheduler:
+    logging: *portal-logging
+  bots:
+    logging: *portal-logging
+  migrate:
+    logging: *portal-logging
+  redis:
+    logging: *portal-logging
+    command: ["redis-server", "--appendonly", "no", "--save", "", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]

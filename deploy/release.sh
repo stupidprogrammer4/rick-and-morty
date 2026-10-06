@@ -16,7 +16,7 @@ exec 9>"$root_directory/.deploy.lock"
 flock -w 120 9
 
 release_directory="$root_directory/releases/$revision"
-mkdir -p "$release_directory" "$root_directory/backups"
+mkdir -p "$release_directory"
 tar -xzf "$source_directory/portal-release.tar.gz" -C "$release_directory"
 install -m 600 "$root_directory/private/.env.runtime" "$release_directory/.env.runtime"
 # The private parent protects infrastructure settings on the host. The bind
@@ -38,6 +38,7 @@ if {line.partition('=')[0] for line in images} != {
 with Path(sys.argv[2]).open('a') as stream:
     stream.write('\n' + '\n'.join(images) + '\n')
 PY
+bash "$release_directory/deploy/retention.sh"
 compose=(docker compose -p portal --project-directory "$release_directory" --env-file "$release_directory/.env.runtime" -f "$release_directory/compose.yml")
 shared_mysql=false
 if test -f "$root_directory/private/compose.server.yml"; then
@@ -45,29 +46,23 @@ if test -f "$root_directory/private/compose.server.yml"; then
     install -m 600 "$root_directory/private/compose.server.yml" "$release_directory/compose.server.yml"
     compose+=(-f "$release_directory/compose.server.yml")
 fi
+compose+=(-f "$release_directory/deploy/compose.retention.yml")
 "${compose[@]}" config --quiet
 "${compose[@]}" pull
-if "$shared_mysql"; then
-    "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 redis
-else
-    "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 mysql redis
-fi
 # Keep the API and gateway alive until workers have drained their deliveries.
 "${compose[@]}" stop scheduler
 "${compose[@]}" stop worker
 "${compose[@]}" stop bots
 "${compose[@]}" stop api
-
-# Preserve the current database before any forward migration.
-backup_file="$root_directory/backups/$(date -u +%Y%m%dT%H%M%SZ)-$revision.sql.gz"
+"${compose[@]}" stop redis
+# Redis is a disposable cache/queue; MySQL recovery requeues recent work.
+"${compose[@]}" run --rm --no-deps --entrypoint sh redis -c \
+    'rm -rf /data/appendonlydir && rm -f /data/dump.rdb'
 if "$shared_mysql"; then
-    database_container=$(sed -n 's/^PORTAL_SHARED_MYSQL_CONTAINER=//p' "$release_directory/.env.runtime" | tail -n 1)
-    [[ "$database_container" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]+$ ]]
-    docker exec "$database_container" sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --triggers --events --databases portal' | gzip > "$backup_file"
+    "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 redis
 else
-    "${compose[@]}" exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --triggers --events --databases portal' | gzip > "$backup_file"
+    "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 mysql redis
 fi
-test -s "$backup_file"
 "${compose[@]}" run --rm --no-deps migrate
 "${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api worker scheduler bots
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:18010/health/live >/dev/null
@@ -93,4 +88,4 @@ PYTHON
 "${compose[@]}" run --rm --no-deps bots python -m portal_bots.webhooks
 ln -sfn "$release_directory" "$root_directory/current.next"
 mv -Tf "$root_directory/current.next" "$root_directory/current"
-printf 'Release %s is healthy; webhooks registered. Database backup retained.\n' "$revision"
+printf 'Release %s is healthy; webhooks registered. No backup created.\n' "$revision"

@@ -9,6 +9,7 @@ from src.modules.pricing.calculator.domain.models import (
     AssetBubbleModel,
     AssetPriceModel,
 )
+from src.shared.cache_retention import set_price_fields
 
 
 class AssetPriceCache:
@@ -25,10 +26,11 @@ class AssetPriceCache:
         code: AssetCode,
         result: AssetPriceModel,
     ) -> None:
-        await resolve(
-            self.redis.client.hset(
-                self.namespace, code, result.model_dump_json()
-            )
+        await set_price_fields(
+            self.redis,
+            self.namespace,
+            {code: result.model_dump_json()},
+            {code: result.priced_at},
         )
 
     async def set_many(
@@ -38,7 +40,12 @@ class AssetPriceCache:
         mapping: dict[FieldT, str] = {
             code: result.model_dump_json() for code, result in results.items()
         }
-        await resolve(self.redis.client.hset(self.namespace, mapping=mapping))
+        await set_price_fields(
+            self.redis,
+            self.namespace,
+            mapping,
+            {code: row.priced_at for code, row in results.items()},
+        )
 
     async def get(self, code: AssetCode) -> AssetPriceModel | None:
         raw = await resolve(self.redis.client.hget(self.namespace, code))
@@ -86,10 +93,11 @@ class BubbleCache:
         self.namespace = f"{settings.tasks.queue_name}:{self.namespace}"
 
     async def set(self, code: AssetCode, result: AssetBubbleModel) -> None:
-        await resolve(
-            self.redis.client.hset(
-                self.namespace, code, result.model_dump_json()
-            )
+        await set_price_fields(
+            self.redis,
+            self.namespace,
+            {code: result.model_dump_json()},
+            {code: result.priced_at},
         )
 
     async def set_many(
@@ -99,7 +107,12 @@ class BubbleCache:
         mapping: dict[FieldT, str] = {
             code: result.model_dump_json() for code, result in results.items()
         }
-        await resolve(self.redis.client.hset(self.namespace, mapping=mapping))
+        await set_price_fields(
+            self.redis,
+            self.namespace,
+            mapping,
+            {code: row.priced_at for code, row in results.items()},
+        )
 
     async def get(self, code: AssetCode) -> AssetBubbleModel | None:
         raw = await resolve(self.redis.client.hget(self.namespace, code))

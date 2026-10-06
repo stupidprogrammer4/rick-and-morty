@@ -75,7 +75,7 @@ runs MySQL. Provision a separate `portal` schema and a `portal` user with
 privileges only on `portal.*`. Set `PORTAL_SHARED_MYSQL_NETWORK` and
 `PORTAL_SHARED_MYSQL_CONTAINER` in the private runtime environment; the DSN
 must resolve the existing server through that network. Install the override as
-`/opt/portal/private/compose.server.yml`. Release and backup scripts detect it,
+`/opt/portal/private/compose.server.yml`. The release script detects it,
 preserve the original databases and dump only the portal schema. Use small
 connection pools in private infrastructure settings and verify memory limits.
 The override requires Compose support for `!override` (verified with v2.40.3).
@@ -83,7 +83,7 @@ The override requires Compose support for `!override` (verified with v2.40.3).
 The release layout is `/opt/portal/private`, `/opt/portal/releases/<commit>`,
 `/opt/portal/backups` and an atomic `/opt/portal/current` symlink. The release
 script obtains a server lock, pulls digest-pinned images, checks Compose,
-starts storage, dumps MySQL, drains/stops application workers, migrates, seeds,
+drains/stops application workers, starts storage, migrates, seeds,
 starts applications, checks local liveness and database/gateway reachability,
 and registers both webhooks. Database migration is a single forward operation before workers
 resume. A failed gate exits with a nonzero status and does not advance `current`.
@@ -118,22 +118,30 @@ credential on exit, and serializes releases. Deployment is not proven by the
 presence of a workflow file: inspect the successful Actions run and the server
 results for the exact commit.
 
-## Backup and recovery
+## Data retention and recovery
 
-`deploy/backup.sh` creates a consistent gzip MySQL dump in the private backup
-directory. Schedule it using the server's existing cron/timer, copy encrypted
-backups off-server and define retention based on recovery requirements. Redis
-uses AOF, but MySQL records remain authoritative; native recovery tasks requeue
-eligible persisted work. Ambiguous deliveries must remain unresolved.
+Deployments do not create database backups. `deploy/backup.sh` is a compatibility
+no-op, and the legacy portal backup timer is disabled. Existing portal SQL dumps
+expire after 24 hours. The source releases retain the seed catalogues and runtime
+settings; generated database history is cleaned by the application each minute.
 
-For recovery, stop writers and restore a verified dump into an isolated schema
-first. Check migration revision, configuration, approvals, reservations and
-unknown deliveries before replacing production state. Never automatically
-downgrade a database after a failed deployment. A source/image rollback is safe
-only after checking schema and persisted-data compatibility; otherwise restore a tested backup
-with an explicit recovery decision. Release scripts retain previous source and
-dumps but do not perform automatic rollback. Validate a restore independently
-and maintain encrypted off-server copies with an explicit retention policy.
+The production overlay disables Redis AOF and RDB snapshots. The deployment
+drains writers before clearing the portal's old Redis persistence files and
+starting the volatile queue/cache. MySQL remains authoritative; native recovery
+tasks requeue eligible recent work after restart. Ambiguous deliveries remain
+unresolved until reviewed. A code rollback requires compatible database schemas;
+the release script does not automatically downgrade the schema or restore data.
+
+`deploy/retention.sh` installs a dedicated `portal` journal namespace and a minute
+maintenance timer. Container logs use its Unix syslog socket with Docker's local
+dual logging cache disabled. Logs are capped at 64 MB and retained for less than
+24 hours, with minute rotation/vacuum. Read them using
+`journalctl --namespace=portal -t portal/portal-worker-1`, or select another
+container tag. This policy applies to the portal services and leaves other
+applications' logging policies intact.
+
+The logging setup uses [Docker's syslog driver](https://docs.docker.com/engine/logging/drivers/syslog/)
+and [journal namespaces](https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html).
 
 The source-report release adds USDT asset/symbol records and source snapshots.
 It preserves existing records and needs no table change, but older images do not
@@ -152,7 +160,7 @@ Check one parent report and each asset's recorded photo message ID after activat
 An interrupted renderer can be retried safely; an interrupted photo send becomes
 unknown and needs an owner decision. The migration refuses a downgrade while
 recorded pages or chart deliveries exist. Older images do not recover those child
-deliveries; use compatible code or a verified backup with an explicit recovery
+deliveries; use compatible code with an explicit recovery
 decision.
 Chart schedules retain microseconds so immediately due sends are not rounded
 into a future second by MySQL.

@@ -16,6 +16,8 @@ from src.modules.pricing.sources.domain.models import (
     SourceBubbleModel,
 )
 from src.modules.pricing.symbols.domain.enums import SymbolCode
+from src.shared.cache_retention import set_price_fields
+from src.shared.dates import as_utc, utc_now
 
 
 class SourceKeyedCache[T: SourceKeyedModel]:
@@ -160,7 +162,7 @@ return matched
         if row.priced_at.utcoffset() is None:
             raise ValueError("Price timestamp must include a timezone")
         version = int(row.priced_at.timestamp() * 1_000_000)
-        deadline = version // 1000 + max_age_seconds * 1000
+        deadline = version // 1000 + min(max_age_seconds, 86400) * 1000
         payload = row.model_dump(mode="json")
         payload["_priced_at_us"] = version
         return [str(row.source_id), version, deadline, json.dumps(payload)]
@@ -248,7 +250,17 @@ class BubbleSourceCache:
         results: Sequence[SourceBubbleModel],
     ) -> None:
         payload = self.adapter.dump_json(list(results)).decode()
-        await resolve(self.redis.client.hset(self.namespace, code, payload))
+        await set_price_fields(
+            self.redis,
+            self.namespace,
+            {code: payload},
+            {
+                code: min(
+                    (as_utc(row.priced_at) for row in results),
+                    default=utc_now(),
+                )
+            },
+        )
 
     async def set_many(
         self,
@@ -258,7 +270,17 @@ class BubbleSourceCache:
             code: self.adapter.dump_json(list(rows)).decode()
             for code, rows in results.items()
         }
-        await resolve(self.redis.client.hset(self.namespace, mapping=mapping))
+        await set_price_fields(
+            self.redis,
+            self.namespace,
+            mapping,
+            {
+                code: min(
+                    (as_utc(row.priced_at) for row in rows), default=utc_now()
+                )
+                for code, rows in results.items()
+            },
+        )
 
     async def get(self, code: AssetCode) -> list[SourceBubbleModel] | None:
         raw = await resolve(self.redis.client.hget(self.namespace, code))

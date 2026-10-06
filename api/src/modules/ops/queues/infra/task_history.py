@@ -19,7 +19,7 @@ class TaskHistoryStore:
                 "MINID",
                 "=",
                 threshold,
-                "ACKED",
+                "DELREF",
             )
         )
         if not isinstance(removed, int):

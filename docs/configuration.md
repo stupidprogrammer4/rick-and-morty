@@ -195,10 +195,24 @@ Historical pricing has a fixed rolling 24-hour retention window. A maintenance
 task runs every minute and deletes older asset/source price tickers, bubble
 tickers and candles in bounded batches. Candle age uses the start of its window,
 so an older aggregate cannot retain prices outside the permitted day. Current
-quote state, asset/source settings and bot publication records remain available.
+quote state uses an independent expiry for each cache field. Asset/source
+settings remain persistent.
 Run `python -m src.cli.pricing_retention` to inspect expired history and add
 `--apply` to remove it immediately. Regular cleanup lets MySQL reuse the freed
 table space and prevents historical pricing from growing without a bound.
+
+Generated bot data has the same rolling 24-hour limit: missions, agent history,
+model requests, articles, drafts, evidence, market snapshots, publications,
+chart deliveries and private replies. Related history is removed in dependency
+order when its parent expires, including queued or future-scheduled drafts.
+Daily budget state is kept for the current UTC day. Seeded assets, symbols,
+sources, source configuration, calendar files, settings and guards are permanent.
+Run `python -m src.cli.data_retention` to inspect expired rows; `--apply` performs
+bounded cleanup of bot/pricing history, old task stream entries and stale cache
+fields. Minute scheduler tasks keep applying the policy. Task results and price
+cache fields expire within 24 hours; unread/pending tasks older than that limit
+are removed together with their pending references, while recent work remains.
+Production logs and old backup files use the host policy in `docs/deployment.md`.
 
 Protected `/internal/pricing` routes expose CRUD, paging, source readings, conversion
 and charts. Supplier prices enter through the protected supplier-price endpoint
