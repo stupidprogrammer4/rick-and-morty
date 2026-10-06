@@ -43,7 +43,7 @@ matplotlib==3.11.2
 mcp==2.2.0
 mcp-types==2.2.0
 mdurl==0.1.2
-multidict==6.9.0
+multidict==6.9.1
 numpy==2.5.3
 opentelemetry-api==1.45.0
 orjson==3.12.0
