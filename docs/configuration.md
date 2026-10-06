@@ -79,7 +79,7 @@ API credentials remain in the private runtime environment.
 `automation.policy/global` owns the allowlisted administrator and independent news,
 price and chart rules. Each rule has `enabled`, `interval_seconds`, an aware `starts_at`,
 `topic`, `lookback_seconds`, `prompt` and optional `system_prompt`. The requested cadence uses prices every
-7200 seconds, standalone charts every 25200 seconds and news every 10800 seconds,
+3600 seconds, standalone charts every 18000 seconds and news every 7200 seconds,
 anchored at 10:00 Tehran time. Intervals continue across midnight. Seeds leave
 all rules disabled. Configure an owner and channel before enabling.
 
@@ -88,7 +88,8 @@ this cadence atomically to the existing database records, enables market charts
 and daily occasions, selects the existing schedule owner or an allowlisted
 administrator, and retains prompts, sources, exclusions and the channel. It sets
 the timezone to `Asia/Tehran`, disables quiet hours and raises the daily cap to
-at least 30. Use `--owner-id` to select a specific allowlisted administrator.
+at least 42, allowing 24 price reports, 12 news posts, up to five chart reports
+and one occasion post per day. Use `--owner-id` to select a specific allowlisted administrator.
 
 Slots remain anchored across restarts. After downtime only the latest slot is
 admitted, with a unique mission key preventing duplicates. Explicitly enabled rules

@@ -64,10 +64,13 @@ def test_invalid_clock_windows_are_rejected(changes):
         OccasionPolicy(**changes)
 
 
-def test_requested_cadence_preserves_user_content_and_has_capacity(snapshot):
+@pytest.mark.parametrize("daily_cap", [30, 45])
+def test_requested_cadence_preserves_user_content_and_has_capacity(
+    snapshot, daily_cap
+):
     current = snapshot[0].model_copy(deep=True)
     current.portal.channel_id = -1001234
-    current.portal.daily_post_cap = 45
+    current.portal.daily_post_cap = daily_cap
     current.occasions.excluded_ids = ["kept"]
     current.automation.news.prompt = "Keep my Rick prompt"
     changes = cadence_values(
@@ -76,13 +79,13 @@ def test_requested_cadence_preserves_user_content_and_has_capacity(snapshot):
     automation = AutomationPolicy.model_validate_json(
         changes[SettingKey.AUTOMATION]
     )
-    assert automation.prices.interval_seconds == 7200
+    assert automation.prices.interval_seconds == 3600
     assert (
         automation.news.interval_seconds
         == automation.news.lookback_seconds
-        == 10800
+        == 7200
     )
-    assert automation.charts.interval_seconds == 25200
+    assert automation.charts.interval_seconds == 18000
     assert automation.news.prompt == current.automation.news.prompt
     assert all(
         rule.enabled
@@ -103,7 +106,8 @@ def test_requested_cadence_preserves_user_content_and_has_capacity(snapshot):
         occasions.publish_end,
     ) == (time(10), time(15), time(18))
     portal = PortalPolicy.model_validate_json(changes[SettingKey.PORTAL])
-    assert portal.channel_id == -1001234 and portal.daily_post_cap == 45
+    assert portal.channel_id == -1001234
+    assert portal.daily_post_cap == max(42, daily_cap)
     assert portal.quiet_start == portal.quiet_end
     assert MarketPolicy.model_validate_json(
         changes[SettingKey.MARKET]

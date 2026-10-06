@@ -34,7 +34,7 @@ def cadence_values(
     portal = current.portal.model_dump(exclude={"dry_run"})
     portal.update(
         timezone="Asia/Tehran",
-        daily_post_cap=max(30, current.portal.daily_post_cap),
+        daily_post_cap=max(42, current.portal.daily_post_cap),
         quiet_start=time(0),
         quiet_end=time(0),
     )
@@ -46,9 +46,9 @@ def cadence_values(
     automation = current.automation.model_dump()
     automation["owner_id"] = owner_id
     for name, interval in (
-        ("prices", 7200),
-        ("news", 10800),
-        ("charts", 25200),
+        ("prices", 3600),
+        ("news", 7200),
+        ("charts", 18000),
     ):
         automation[name].update(
             enabled=True, interval_seconds=interval, starts_at=anchor
@@ -123,7 +123,7 @@ async def apply(owner_id: int | None) -> None:
     finally:
         await container.close()
     print(
-        "Cadence saved (Asia/Tehran): prices 2h, charts 7h, news 3h; "
+        "Cadence saved (Asia/Tehran): prices 1h, charts 5h, news 2h; "
         "occasions prepare 10:00, randomized publication 15:00–18:00."
     )
 
