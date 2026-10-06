@@ -85,7 +85,7 @@ def test_requested_cadence_preserves_user_content_and_has_capacity(
         == automation.news.lookback_seconds
         == 7200
     )
-    assert automation.charts.interval_seconds == 18000
+    assert automation.charts.interval_seconds == 10800
     assert automation.news.prompt == current.automation.news.prompt
     assert all(
         rule.enabled
@@ -107,7 +107,7 @@ def test_requested_cadence_preserves_user_content_and_has_capacity(
     ) == (time(10), time(15), time(18))
     portal = PortalPolicy.model_validate_json(changes[SettingKey.PORTAL])
     assert portal.channel_id == -1001234
-    assert portal.daily_post_cap == max(42, daily_cap)
+    assert portal.daily_post_cap == max(45, daily_cap)
     assert portal.quiet_start == portal.quiet_end
     assert MarketPolicy.model_validate_json(
         changes[SettingKey.MARKET]

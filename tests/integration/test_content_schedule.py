@@ -17,14 +17,14 @@ def test_activate_requested_cadence_on_existing_database(portal, monkeypatch):
     after = portal.run(portal.snapshot()).configuration
     assert after.portal.channel_id == before.portal.channel_id
     assert after.portal.quiet_start == after.portal.quiet_end
-    assert after.portal.daily_post_cap >= 42
+    assert after.portal.daily_post_cap >= 45
     assert after.automation.owner_id == after.occasions.owner_id == OWNER
     assert after.automation.prices.enabled
     assert after.automation.prices.interval_seconds == 3600
     assert after.automation.news.enabled
     assert after.automation.news.interval_seconds == 7200
     assert after.automation.charts.enabled
-    assert after.automation.charts.interval_seconds == 18000
+    assert after.automation.charts.interval_seconds == 10800
     assert after.automation.news.prompt == before.automation.news.prompt
     assert after.market.enabled and after.market.charts.enabled
     assert after.occasions.enabled
