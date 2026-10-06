@@ -50,7 +50,7 @@
     {
       "key": "ai.model",
       "scope": "global",
-      "value": "{\"mode\":\"openrouter\",\"model\":\"openai/gpt-4.1-mini\",\"max_requests\":4,\"max_tools\":6,\"max_reactions\":2,\"max_input_tokens\":100000,\"max_output_tokens\":1000,\"daily_budget_usd\":\"0.25\",\"input_usd_per_million\":\"0.40\",\"output_usd_per_million\":\"1.60\",\"maximum_request_usd\":\"0\",\"allow_data_collection\":false}"
+      "value": "{\"mode\":\"openrouter\",\"model\":\"openai/gpt-4.1-mini\",\"reasoning_effort\":null,\"max_requests\":4,\"max_tools\":6,\"max_reactions\":2,\"max_input_tokens\":100000,\"max_output_tokens\":1000,\"daily_budget_usd\":\"0.25\",\"input_usd_per_million\":\"0.40\",\"output_usd_per_million\":\"1.60\",\"maximum_request_usd\":\"0\",\"allow_data_collection\":false}"
     },
     {
       "key": "market.policy",

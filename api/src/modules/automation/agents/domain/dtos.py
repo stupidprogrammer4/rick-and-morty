@@ -24,6 +24,7 @@ class AgentMessage(BaseModel):
 
 
 class AgentHistory(BaseModel):
+    tool_choice: Literal["auto", "required"] = "auto"
     messages: list[AgentMessage] = Field(default_factory=list)
 
 

@@ -69,3 +69,88 @@ async def test_provider_parameter_routing_and_paid_reply(snapshot, with_tools):
     assert result.message.content == "Ready 🧪"
     assert result.cost_usd == "5.6e-05"
     assert result.input_tokens == 100
+
+
+@pytest.mark.asyncio
+async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
+    snapshot,
+):
+    configuration = snapshot[0].model_copy(
+        update={
+            "ai": snapshot[0].ai.model_copy(
+                update={
+                    "model": "external-free-test-model",
+                    "reasoning_effort": "none",
+                    "input_usd_per_million": 0,
+                    "output_usd_per_million": 0,
+                }
+            )
+        }
+    )
+
+    def provider(request):
+        payload = json.loads(request.content)
+        assert payload["reasoning"] == {"effort": "none"}
+        assert payload["tool_choice"] == "required"
+        assert payload["provider"]["data_collection"] == "deny"
+        assert payload["provider"]["max_price"] == {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0,
+        }
+        assert payload["tools"][0]["function"]["name"] == "create_post_draft"
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "free-news",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "create_post_draft",
+                                        "arguments": json.dumps(
+                                            {"draft": {"title": "News"}}
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                    "cost": 0,
+                },
+            },
+        )
+
+    class Runtime:
+        ai = ModelCredentials(api_key=SecretStr("external-test-key"))
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(provider)
+    ) as client:
+        reply = await OpenRouterClient(
+            client, Runtime(), configuration
+        ).complete(
+            AgentHistory(
+                messages=[AgentMessage(role="user", content="News")],
+                tool_choice="required",
+            ),
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "create_post_draft",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ],
+        )
+    assert reply.message.tool_calls[0].function.name == "create_post_draft"
+    assert reply.cost_usd == "0"

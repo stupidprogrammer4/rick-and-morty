@@ -66,6 +66,10 @@ class EffectivePortalPolicy(PortalPolicy):
 class AIModelPolicy(BaseModel):
     mode: Literal["disabled", "fake", "openrouter"]
     model: str = Field(max_length=200)
+    reasoning_effort: (
+        Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        | None
+    ) = None
     max_requests: int = Field(ge=1, le=10)
     max_tools: int = Field(ge=1, le=20)
     max_reactions: int = Field(ge=0, le=5)

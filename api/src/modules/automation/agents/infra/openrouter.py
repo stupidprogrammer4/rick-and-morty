@@ -52,8 +52,12 @@ class OpenRouterClient:
                 },
             },
         }
+        if self.settings.reasoning_effort is not None:
+            payload["reasoning"] = {"effort": self.settings.reasoning_effort}
         if tools:
             payload["tools"] = tools
+            if history.tool_choice == "required":
+                payload["tool_choice"] = "required"
         response = await self.client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={

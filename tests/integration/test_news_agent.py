@@ -53,6 +53,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
 
         async def complete(self, history, tools):
             self.responses += 1
+            assert history.tool_choice == "required"
             assert history.messages[0].content == RICK_NEWS_SYSTEM_PROMPT
             assert len(history.messages) >= 3
             assert "با یک غر کوتاه" not in str(history.model_dump())
@@ -108,7 +109,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
                 ),
                 input_tokens=100,
                 output_tokens=100,
-                cost_usd="0.0002",
+                cost_usd="0",
             )
 
     external = ExternalLLM()
@@ -124,8 +125,8 @@ def test_news_corrects_parallel_model_calls_before_publication(
         ai.update(
             mode="openrouter",
             model="external-test-model",
-            input_usd_per_million="0.4",
-            output_usd_per_million="1.6",
+            input_usd_per_million="0",
+            output_usd_per_million="0",
         )
         await portal.change("ai.model", SettingScope.GLOBAL, ai)
         automation = snapshot.configuration.automation.model_dump(mode="json")

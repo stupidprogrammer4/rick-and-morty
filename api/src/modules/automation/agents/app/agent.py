@@ -153,6 +153,9 @@ class MissionAgentCommands:
                     for tool in tools
                     if tool["function"]["name"] in allowed_tools
                 ]
+            history.tool_choice = (
+                "required" if mission.intent == "news" and tools else "auto"
+            )
             # UTF-8 bytes bound token count conservatively for Persian text.
             estimated = len(history.model_dump_json().encode()) + len(
                 json.dumps(tools).encode()
