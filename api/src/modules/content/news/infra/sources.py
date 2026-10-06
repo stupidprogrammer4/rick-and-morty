@@ -72,24 +72,41 @@ class NewsCollector:
                 if source.kind == "hackernews"
                 else self.feed(source, data.since)
                 for source in sources[:6]
-            )
-        )
-        entries = [entry for feed in feeds for entry in feed]
-        unique = {canonical_url(entry.url): entry for entry in entries}
-        selected = sorted(
-            unique.values(),
-            key=lambda x: x.published_at or data.since,
-            reverse=True,
-        )[: data.limit]
-        articles = await asyncio.gather(
-            *(self.article(entry) for entry in selected),
+            ),
             return_exceptions=True,
         )
-        return [
-            article
-            for article in articles
-            if isinstance(article, ArticleInput) and len(article.body) >= 250
+        entries = [
+            entry for feed in feeds if isinstance(feed, list) for entry in feed
         ]
+        unique = {canonical_url(entry.url): entry for entry in entries}
+        selected = sorted(
+            (
+                entry
+                for entry in unique.values()
+                if digest(canonical_url(entry.url))
+                not in data.excluded_url_hashes
+            ),
+            key=lambda x: x.published_at or data.since,
+            reverse=True,
+        )[:12]
+        articles: list[ArticleInput] = []
+        for offset in range(0, len(selected), 3):
+            batch = await asyncio.gather(
+                *(
+                    self.article(entry)
+                    for entry in selected[offset : offset + 3]
+                ),
+                return_exceptions=True,
+            )
+            articles.extend(
+                article
+                for article in batch
+                if isinstance(article, ArticleInput)
+                and len(article.body) >= 250
+            )
+            if len(articles) >= data.limit:
+                break
+        return articles[: data.limit]
 
     async def feed(
         self, source: NewsSource, since: datetime

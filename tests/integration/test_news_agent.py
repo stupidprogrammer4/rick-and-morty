@@ -214,6 +214,11 @@ def test_news_corrects_parallel_model_calls_before_publication(
             row = await (await scope.get(PublicationRepository)).get(
                 publication_id
             )
+            if row.status == "sent":
+                published = await (
+                    await scope.get(ArticleRepository)
+                ).published_url_hashes()
+                assert "b" * 64 in published
             return row.status, row.message_id
 
     result = portal.until(publication, lambda row: row[0] == "sent")

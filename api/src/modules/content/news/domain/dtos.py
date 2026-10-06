@@ -38,6 +38,8 @@ class CollectNews(BaseModel):
     topic: str = Field(min_length=1, max_length=64)
     since: AwareDatetime
     limit: int = Field(default=3, ge=1, le=3)
+    exclude_published: bool = False
+    excluded_url_hashes: set[str] = Field(default_factory=set)
 
 
 class ArticleEvidence(BaseModel):

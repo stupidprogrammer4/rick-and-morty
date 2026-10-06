@@ -5,12 +5,35 @@ from sqlalchemy import select
 from sqlalchemy.dialects.mysql import insert
 from sqlmodel import col
 
+from src.modules.content.drafts.infra.tables import DraftEvidenceTable
 from src.modules.content.news.domain.models import ArticleModel
 from src.modules.content.news.infra.tables import ArticleTable
+from src.modules.content.publications.infra.tables import PublicationTable
 
 
 class ArticleRepository(MySQLRepository[ArticleModel]):
     table = ArticleTable
+
+    async def published_url_hashes(self) -> set[str]:
+        result = await self.uow.execute(
+            select(col(ArticleTable.url_hash))
+            .join(
+                DraftEvidenceTable,
+                col(DraftEvidenceTable.article_id) == col(ArticleTable.id),
+            )
+            .join(
+                PublicationTable,
+                col(PublicationTable.draft_id)
+                == col(DraftEvidenceTable.draft_id),
+            )
+            .where(
+                col(PublicationTable.status).in_(
+                    ["queued", "sending", "sent", "unknown"]
+                )
+            )
+            .distinct()
+        )
+        return set(result.scalars().all())
 
     async def save_many(self, data: Sequence[ArticleModel]) -> None:
         if not data:

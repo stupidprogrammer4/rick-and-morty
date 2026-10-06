@@ -16,6 +16,13 @@ class ArticleService:
     async def collect(
         self, mission_id: int, data: CollectNews
     ) -> list[ArticleEvidence]:
+        if data.exclude_published:
+            data = data.model_copy(
+                update={
+                    "excluded_url_hashes": data.excluded_url_hashes
+                    | await self.repo.published_url_hashes()
+                }
+            )
         entries = await self.collector.collect(data)
         async with transaction():
             await self.repo.save_many(

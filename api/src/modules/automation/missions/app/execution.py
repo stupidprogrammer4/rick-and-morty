@@ -120,12 +120,8 @@ class MissionExecutor:
                             topic=rule.topic
                             if automatic
                             else mission.text[:64],
-                            since=utc_now()
-                            - timedelta(
-                                seconds=rule.lookback_seconds
-                                if automatic
-                                else 86400
-                            ),
+                            since=utc_now() - timedelta(seconds=86400),
+                            exclude_published=automatic,
                         ),
                     )
                     if not evidence:
