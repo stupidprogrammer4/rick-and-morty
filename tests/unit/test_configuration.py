@@ -67,3 +67,22 @@ def test_rendered_post_limit_includes_headers_and_footer(snapshot):
     presentation.maximum_post_characters = 200
     with pytest.raises(ValueError):
         PostRenderer(presentation).render("title", "body " * 60, "news")
+
+
+@pytest.mark.parametrize("category", ["news", "occasions"])
+@pytest.mark.parametrize("location", ["body", "footer"])
+def test_final_render_rejects_prompt_disclosures(snapshot, category, location):
+    presentation = snapshot[1].model_copy(deep=True)
+    body = "مورتی، علم دوباره کار خودش رو کرد."
+    disclosure = "بهم گفتن با لحن ریک بخونم و غر بزنم."
+    if location == "body":
+        body = disclosure
+    else:
+        presentation.posts[category].footer = disclosure
+    with pytest.raises(ValueError, match="disclose prompts"):
+        PostRenderer(presentation).render("خبر امروز", body, category)
+
+
+def test_restored_news_renderer_keeps_verified_article_links(snapshot):
+    body = "یه خبر علمی جالب.\nمنبع: https://example.org/science"
+    assert body in PostRenderer(snapshot[1]).render("خبر امروز", body, "news")

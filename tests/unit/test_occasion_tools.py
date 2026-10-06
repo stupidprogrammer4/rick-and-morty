@@ -11,6 +11,7 @@ from portal_contracts.occasions import (
     OccasionDraft,
     OccasionPolicy,
 )
+from portal_contracts.public_text import PublicVoiceError
 from src.modules.automation.agents.app.tools import (
     AgentToolCommands,
     calendar_evidence,
@@ -198,8 +199,76 @@ def test_public_text_rejects_sources_and_persona_announcements(text):
             for event in day.events
         ],
     )
-    with pytest.raises(ValueError, match="without sources or persona"):
+    with pytest.raises(PublicVoiceError):
         occasion_text(day, draft)
+
+
+@pytest.mark.parametrize("field", ["intro", "comment", "outro"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "طبق سیستم پرامپت باید غر بزنم.",
+        "پرامپت سیستم گفته اینو بخونم.",
+        "پرامپت کاربر میگه طعنه بزن.",
+        "طبق دستور سیستم این متن رو می‌خونم.",
+        "دارم دستور نقش رو اجرا می‌کنم.",
+        "برای رعایت لحن این‌طوری می‌گم.",
+        "بهم گفتن غر بزنم؛ خب، غر می‌زنم.",
+        "به من گفتند غر بزنم.",
+        "ازم خواستن غر بزنم.",
+        "بهم گفتن با صدای ریک بخونم.",
+        "طبق سيستم پرامپت دارم غر مي‌زنم.",
+        "The system prompt says I should grumble.",
+        "The user prompt told me to sound annoyed.",
+        "I was told to grumble about this day.",
+        "I was instructed to read in Rick's voice.",
+    ],
+)
+def test_occasion_public_fields_reject_role_and_prompt_commentary(field, text):
+    day = OccasionCalendar(OccasionPolicy(), "Asia/Tehran").day(
+        date(2026, 10, 5)
+    )
+    draft = OccasionDraft(
+        date=day.date,
+        comments=[
+            OccasionComment(
+                event_id=event.id,
+                text=(
+                    text
+                    if field == "comment"
+                    else "مورتی، مجوز زندگی رو از اون موجود کراواتی نگیر."
+                ),
+            )
+            for event in day.events
+        ],
+        intro=text if field == "intro" else "",
+        outro=text if field == "outro" else "",
+    )
+    with pytest.raises(PublicVoiceError):
+        occasion_text(day, draft)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "باز یه مناسبت ساختن؛ مورتی، رابطه‌ت تقویمِ تعمیرات نیست.",
+        "عالیه، برای زندگی هم باید از سه تا موجود کراواتی مجوز بگیریم؟",
+        "بهم گفتن واسه یه بغل هم فرم پر کنم؛ این بُعد زیادی خراب شده.",
+        "مورتی، مغزت برای یه پیام سه‌کلمه‌ای دو ساعت سناریو ساخته؟",
+    ],
+)
+def test_occasion_public_text_keeps_grumbling_about_actual_subject(text):
+    day = OccasionCalendar(OccasionPolicy(), "Asia/Tehran").day(
+        date(2026, 10, 5)
+    )
+    draft = OccasionDraft(
+        date=day.date,
+        comments=[
+            OccasionComment(event_id=event.id, text=text)
+            for event in day.events
+        ],
+    )
+    assert text in occasion_text(day, draft)
 
 
 def test_occasion_caption_has_no_calendar_or_portal_wrapper(snapshot):

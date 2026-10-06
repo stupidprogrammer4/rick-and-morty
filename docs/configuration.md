@@ -98,18 +98,23 @@ still require approval. Pause, daily quota and quiet hours apply to all schedule
 Absent evidence or invalid required quotes prevents publication. Source reports
 retain the other accepted providers when one source fails.
 
-News uses its dedicated `automation.policy.news.system_prompt` plus a separate
-news-reading task in `news.prompt`, for both manual and scheduled missions.
-The agent reads collected article evidence and writes the facts and its reaction
-together, with evidence-backed excitement or criticism. Rejected MCP tool arguments return corrective feedback within the existing
-request and tool budgets; only an accepted draft can reach publication.
-News summaries must end with a complete sentence, and each article can appear
-in only one item. A brief voice instruction also follows the article evidence.
-Article IDs remain linked internally; source links and persona labels are excluded from channel text.
-`python -m src.cli.rick_voice` updates the existing news and general Rick prompts,
-clears the news wrapper, cancels queued news in the old format, and applies prices
-every 7200 seconds and charts every 25200 seconds while preserving anchors,
-enabled flags and the remaining settings.
+News uses its dedicated `automation.policy.news.system_prompt` and task
+`news.prompt`, for both manual and scheduled missions. Its earlier format is
+restored: title, short summary, item emoji, article source links and the configured
+news heading, separators, footer and hashtags. The forced grumbling and
+laboratory narrative are removed. Public text must not describe prompts,
+role instructions or how the model was asked to speak.
+Rejected MCP arguments receive corrective feedback within the existing request
+and tool budgets. Summaries must finish their sentences; each article appears
+in one item. Evidence IDs remain linked internally.
+The one-time `20261006_restore_news_style` migration applies this presentation
+and the private occasion instructions to existing settings while preserving
+schedule intervals, anchors, enabled flags, owners and custom calendar entries.
+It cancels pending news drafts in the replaced format. Occasion publication
+times remain intact; draft creation and final rendering both reject public
+prompt instructions or persona announcements.
+`python -m src.cli.rick_voice` can reapply the news presentation without changing
+prices, charts, occasions or the general conversation persona.
 
 `post.style/news`, `post.style/market` and `post.style/charts` own category hashtags.
 When the standalone chart rule is enabled, price reports do not attach charts;

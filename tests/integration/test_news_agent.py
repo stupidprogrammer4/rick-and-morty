@@ -54,7 +54,8 @@ def test_news_corrects_parallel_model_calls_before_publication(
         async def complete(self, history, tools):
             self.responses += 1
             assert history.messages[0].content == RICK_NEWS_SYSTEM_PROMPT
-            assert "خبرخوان‌شدن" in (history.messages[3].content or "")
+            assert len(history.messages) >= 3
+            assert "با یک غر کوتاه" not in str(history.model_dump())
             assert {tool["function"]["name"] for tool in tools} == {
                 "create_post_draft"
             }
@@ -220,6 +221,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
     assert len(ExternalTelegramHandler.messages) == 1
     text = unescape(ExternalTelegramHandler.messages[0]["text"])
     assert "Rick's evidence-based summary" in text
-    assert "http" not in text
+    assert "https://news.ycombinator.com/item?id=1" in text
     assert "برداشت ریک" not in text
-    assert "منبع:" not in text
+    assert "منبع:" in text
+    assert "🧪🚀 ریک | پورتال خبرهای کد و AI" in text

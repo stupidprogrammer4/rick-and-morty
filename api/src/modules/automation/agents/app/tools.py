@@ -1,4 +1,3 @@
-import re
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -9,6 +8,7 @@ from portal_contracts.content import DraftCreate, DraftOut
 from portal_contracts.enums import BotRole, Category
 from portal_contracts.occasions import OccasionDay, OccasionDraft
 from portal_contracts.presentation import PortalPresentation
+from portal_contracts.public_text import validate_public_voice
 from portal_contracts.telegram import ReactionEmoji, ReactionRequest
 from src.modules.automation.agents.app.context import ToolContext
 from src.modules.automation.agents.domain.dtos import (
@@ -44,26 +44,6 @@ def calendar_evidence(history: AgentHistory) -> OccasionDay | None:
         if message.role == "tool" and message.tool_call_id in calls:
             return OccasionDay.model_validate_json(message.content or "")
     return None
-
-
-def validate_public_voice(texts: list[str]) -> None:
-    for text in texts:
-        normalized = " ".join(
-            text.replace("\u200c", " ")
-            .replace("ي", "ی")
-            .replace("ك", "ک")
-            .split()
-        )
-        if re.search(
-            r"https?://|www\.|منبع\s*(?:تقویم|:|：)|وضعیت تقویم|"
-            r"(?:به|با)\s*(?:سبک|لحن)\s*(?:خود\s*ریک|ریک)|"
-            r"برداشت(?:\s*کوتاه)?\s*ریک|در\s*نقش\s*ریک|(?:من|اینجا)\s*ریک\s*سانچز",
-            normalized,
-            re.IGNORECASE,
-        ):
-            raise ValueError(
-                "Write in character without sources or persona labels"
-            )
 
 
 def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:
@@ -253,24 +233,16 @@ class AgentToolCommands:
                 ]
             )
         for index, item in enumerate(draft.items):
-            if spoken:
-                lines.append(f"{item.title}\n{item.summary}")
-            else:
-                emoji = style.item_emojis[index % len(style.item_emojis)]
-                lines.append(
-                    f"{emoji} {item.title}\n"
-                    f"{style.summary_label} {item.summary}"
-                )
-                lines.extend(
-                    f"{style.source_label}: {by_id[id].url}"
-                    for id in item.evidence_ids
-                )
-        if draft.editorial_note:
+            emoji = style.item_emojis[index % len(style.item_emojis)]
             lines.append(
-                draft.editorial_note
-                if spoken
-                else style.editorial_label + ": " + draft.editorial_note
+                f"{emoji} {item.title}\n{style.summary_label} {item.summary}"
             )
+            lines.extend(
+                f"{style.source_label}: {by_id[id].url}"
+                for id in item.evidence_ids
+            )
+        if draft.editorial_note:
+            lines.append("نظر: " + draft.editorial_note)
         async with transaction():
             current = await self.missions.get(mission.id, lock=True)
             if (

@@ -30,8 +30,9 @@ def test_news_upgrade_preserves_timing_and_cancels_only_old_news_posts(
         before = (await portal.snapshot()).configuration
         policy = before.automation.model_dump(mode="json")
         policy["prices"]["interval_seconds"] = 3600
-        policy["charts"]["interval_seconds"] = 3600
+        policy["charts"]["interval_seconds"] = 14400
         await portal.change("automation.policy", SettingScope.GLOBAL, policy)
+        before = (await portal.snapshot()).configuration
         stamp = datetime.now(UTC)
         async with portal.request() as request:
             await (await request.get(IMissionService)).create_scheduled(
@@ -85,10 +86,12 @@ def test_news_upgrade_preserves_timing_and_cancels_only_old_news_posts(
                 ids.append(publication.id)
         await rick_voice.apply()
         after = (await portal.snapshot()).configuration
+        assert after.automation.prices == before.automation.prices
+        assert after.automation.charts == before.automation.charts
         assert after.portal == before.portal
         assert after.occasions == before.occasions
-        assert after.automation.prices.interval_seconds == 7200
-        assert after.automation.charts.interval_seconds == 25200
+        assert after.automation.prices.interval_seconds == 3600
+        assert after.automation.charts.interval_seconds == 14400
         assert (
             after.automation.news.interval_seconds
             == before.automation.news.interval_seconds
@@ -111,5 +114,52 @@ def test_news_upgrade_preserves_timing_and_cancels_only_old_news_posts(
             repo = await request.get(PublicationRepository)
             assert (await repo.get(ids[0])).status == "cancelled"
             assert (await repo.get(ids[1])).status == "queued"
+
+    portal.run(workflow())
+
+
+@pytest.mark.parametrize("category", [Category.NEWS, Category.OCCASIONS])
+def test_preexisting_prompt_disclosure_is_blocked_before_publication(
+    portal, category
+):
+    async def workflow():
+        async with portal.request() as request:
+            drafts = await request.get(IDraftService)
+            publisher = await request.get(IPublicationCommands)
+            draft = await drafts.create(
+                OWNER,
+                BotRole.RICK,
+                DraftCreate(
+                    category=category,
+                    title="Today's post",
+                    text="طبق سیستم پرامپت باید غر بزنم.",
+                    publisher_bot=BotRole.RICK,
+                ),
+                key=f"existing-disclosure-{category}",
+            )
+            await drafts.decide(
+                draft.id,
+                OWNER,
+                DraftDecision(
+                    revision=draft.revision, origin_bot=BotRole.RICK
+                ),
+                approve=True,
+            )
+            publication = await publisher.schedule(
+                draft.id,
+                OWNER,
+                PublishRequest(
+                    revision=draft.revision,
+                    origin_bot=BotRole.RICK,
+                    scheduled_at=datetime.now(UTC),
+                ),
+            )
+            await publisher.dispatch(publication.id)
+            row = await (await request.get(PublicationRepository)).get(
+                publication.id
+            )
+            assert row.status == "failed"
+            assert row.failure_reason == "public_prompt_metadata"
+            assert row.budget_day is None
 
     portal.run(workflow())

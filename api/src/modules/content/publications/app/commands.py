@@ -12,6 +12,7 @@ from portal_contracts.content import (
     PublishRequest,
 )
 from portal_contracts.enums import BotRole
+from portal_contracts.public_text import PublicVoiceError
 from portal_contracts.telegram import TelegramDelivery
 from src.modules.content.drafts.interfaces import IDraftService
 from src.modules.content.publications.app.policy import PublicationPolicy
@@ -169,10 +170,14 @@ class PublicationCommands:
                         draft.title, draft.text, draft.category
                     )
                 )
-            except ValueError:
+            except ValueError as error:
                 row.status = "failed"
                 row.budget_day = None
-                row.failure_reason = "post_exceeds_message_limit"
+                row.failure_reason = (
+                    "public_prompt_metadata"
+                    if isinstance(error, PublicVoiceError)
+                    else "post_exceeds_message_limit"
+                )
                 await self.repo.save(row)
                 return
             row.status = "sending"

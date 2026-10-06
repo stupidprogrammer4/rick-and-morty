@@ -2,6 +2,7 @@ from html import escape
 
 from portal_contracts.enums import Category
 from portal_contracts.presentation import PortalPresentation
+from portal_contracts.public_text import validate_public_voice
 
 
 class PostRenderer:
@@ -16,19 +17,20 @@ class PostRenderer:
             f"{escape(style.separator)}\n{escape(style.footer)}\n\n"
             f"{escape(style.hashtags)}"
         )
-        if category in {Category.OCCASIONS, Category.NEWS}:
+        if category == Category.OCCASIONS:
             output = "\n\n".join(
                 part
                 for part in (
                     f"<b>{escape(style.heading)}</b>" if style.heading else "",
-                    f"<b>{escape(title)}</b>"
-                    if category == Category.NEWS
-                    else "",
                     escape(text),
                     escape(style.footer),
                     escape(style.hashtags),
                 )
                 if part
+            )
+        if category in (Category.NEWS, Category.OCCASIONS):
+            validate_public_voice(
+                [output], allow_sources=category == Category.NEWS
             )
         if len(output) > self.presentation.maximum_post_characters:
             raise ValueError("Rendered draft exceeds the single-post limit")
