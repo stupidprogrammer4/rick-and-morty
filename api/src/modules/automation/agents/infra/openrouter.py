@@ -8,6 +8,7 @@ from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
     AgentMessage,
     LLMReply,
+    ModelTemporarilyUnavailable,
 )
 
 
@@ -58,14 +59,24 @@ class OpenRouterClient:
             payload["tools"] = tools
             if history.tool_choice == "required":
                 payload["tool_choice"] = self.settings.tool_choice
-        response = await self.client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": "Bearer " + self.api_key.get_secret_value()
-            },
-            json=payload,
-            timeout=60,
-        )
+        try:
+            response = await self.client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": "Bearer "
+                    + self.api_key.get_secret_value()
+                },
+                json=payload,
+                timeout=60,
+            )
+        except httpx.TransportError as exc:
+            raise ModelTemporarilyUnavailable(
+                "Model connection temporarily unavailable"
+            ) from exc
+        if response.status_code == 429 or response.status_code >= 500:
+            raise ModelTemporarilyUnavailable(
+                f"Model temporarily unavailable (HTTP {response.status_code})"
+            )
         response.raise_for_status()
         payload = response.json()
         usage = payload["usage"]

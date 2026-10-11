@@ -13,6 +13,7 @@ from src.config.providers import task_providers
 from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
     LLMReply,
+    ModelTemporarilyUnavailable,
     ToolCall,
     ToolFunction,
 )
@@ -37,11 +38,20 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize(
-    ("parallel_reply", "unfinished_summary"),
-    [(False, False), (True, False), (False, True)],
+    ("parallel_reply", "unfinished_summary", "provider_unavailable"),
+    [
+        (False, False, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+    ],
 )
 def test_news_corrects_parallel_model_calls_before_publication(
-    portal, parallel_reply, unfinished_summary, monkeypatch
+    portal,
+    parallel_reply,
+    unfinished_summary,
+    provider_unavailable,
+    monkeypatch,
 ):
     monkeypatch.setenv("PORTAL_DRY_RUN", "false")
     portal.environment["PORTAL_DRY_RUN"] = "false"
@@ -53,6 +63,10 @@ def test_news_corrects_parallel_model_calls_before_publication(
 
         async def complete(self, history, tools):
             self.responses += 1
+            if provider_unavailable and self.responses == 1:
+                raise ModelTemporarilyUnavailable(
+                    "Model temporarily unavailable"
+                )
             assert history.tool_choice == "required"
             assert history.messages[0].content == RICK_NEWS_SYSTEM_PROMPT
             assert len(history.messages) >= 3
@@ -83,7 +97,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
                 }
             )
             duplicate = parallel_reply and self.responses == 1
-            if self.responses == 2:
+            if self.responses == 2 and not provider_unavailable:
                 if parallel_reply:
                     feedback = history.messages[-2:]
                     assert all(item.role == "tool" for item in feedback)
@@ -178,7 +192,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
         try:
             async with container() as scope:
                 await (await scope.get(IMissionExecutor)).execute(mission_id)
-            if parallel_reply or unfinished_summary:
+            if parallel_reply or unfinished_summary or provider_unavailable:
                 async with portal.request() as scope:
                     mission = await (await scope.get(MissionRepository)).get(
                         mission_id

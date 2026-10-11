@@ -157,3 +157,40 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
         )
     assert reply.message.tool_calls[0].function.name == "create_post_draft"
     assert reply.cost_usd == "0"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [429, 502, "timeout", 404])
+async def test_model_outages_are_retryable_without_exposing_provider_body(
+    snapshot, failure
+):
+    from src.modules.automation.agents.domain.dtos import (
+        ModelTemporarilyUnavailable,
+    )
+
+    class Runtime:
+        ai = ModelCredentials(api_key=SecretStr("external-test-key"))
+
+    def provider(request):
+        if failure == "timeout":
+            raise httpx.ReadTimeout("private provider detail", request=request)
+        return httpx.Response(
+            failure, json={"error": "private provider detail"}
+        )
+
+    expected = (
+        httpx.HTTPStatusError
+        if failure == 404
+        else ModelTemporarilyUnavailable
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(provider)
+    ) as client:
+        with pytest.raises(expected) as error:
+            await OpenRouterClient(client, Runtime(), snapshot[0]).complete(
+                AgentHistory(
+                    messages=[AgentMessage(role="user", content="Hi")]
+                ),
+                [],
+            )
+    assert "private provider detail" not in str(error.value)

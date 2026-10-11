@@ -5,6 +5,10 @@ from pydantic import BaseModel, Field
 from portal_contracts.enums import BotRole
 
 
+class ModelTemporarilyUnavailable(ValueError):
+    """The request can be retried within the existing mission limits."""
+
+
 class ToolFunction(BaseModel):
     name: str
     arguments: str

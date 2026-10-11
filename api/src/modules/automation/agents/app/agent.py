@@ -14,6 +14,7 @@ from src.modules.automation.agents.app.context import ToolContext
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
     AgentMessage,
+    ModelTemporarilyUnavailable,
 )
 from src.modules.automation.agents.domain.models import (
     AgentCheckpointModel,
@@ -192,6 +193,11 @@ class MissionAgentCommands:
                 )
             try:
                 reply = await self.llm.complete(history, tools)
+            except ModelTemporarilyUnavailable:
+                async with transaction():
+                    run.status = "unknown"
+                    await self.runs.save(run)
+                return AgentOutcome(waiting=True)
             except Exception:
                 async with transaction():
                     run.status = "unknown"

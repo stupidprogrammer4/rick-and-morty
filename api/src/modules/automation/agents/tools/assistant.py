@@ -1,3 +1,5 @@
+import json
+
 from dishka import FromDishka
 from papilio.mcp.router import MCPRouter
 
@@ -12,8 +14,8 @@ router = MCPRouter()
 
 @router.tool(
     description=(
-        "Read selected youth-relevant social, informal, cultural and science "
-        "occasion for an ISO Gregorian date, or today in the portal timezone. "
+        "Read all occasions selected by the configured calendar policy "
+        "for an ISO Gregorian date, or today in the portal timezone. "
         "Scheduled occasions missions are bound to their own date. "
         "The response "
         "contains event IDs and internal evidence; sources and coverage "
@@ -88,7 +90,9 @@ async def react_to_message(
 @router.tool(
     description=(
         "Save one evidence-linked draft containing at most two articles. "
-        "Call this tool once per response. This does not publish."
+        "Call this tool once per response. This does not publish. "
+        "The encoded draft must follow this JSON schema: "
+        + json.dumps(NewsDraft.model_json_schema(), ensure_ascii=False)
     )
 )
 async def create_post_draft(
