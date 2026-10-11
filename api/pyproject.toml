@@ -7,6 +7,7 @@ name = "portal-api"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+  "amupouya-calendar==0.1.0",
   "portal-contracts==0.1.0",
   "papilio[server,db,mcp] @ https://codeload.github.com/stupidprogrammer4/papilio/tar.gz/e026dbc9aa335ab4f6cc79f7ff2aecb198bd93ad",
   "papilio-tasks[scheduler-redis] @ https://codeload.github.com/stupidprogrammer4/papilio-tasks/tar.gz/bca239763eab5c0d176b5ac8af9e878edb6997a7",

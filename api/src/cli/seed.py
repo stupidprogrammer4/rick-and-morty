@@ -11,6 +11,7 @@ from papilio.infra.db.uow import MySQLUnitOfWork
 from src.cli.pricing_seed import seed_pricing
 from src.config.providers import task_providers
 from src.config.settings import PortalAppSettings
+from src.modules.content.occasions.interfaces import IOccasionService
 from src.modules.ops.settings.domain.dtos import ConfigurationSeed
 from src.modules.ops.settings.interfaces import IConfigurationCommands
 
@@ -23,6 +24,8 @@ async def seed(path: Path) -> None:
         async with container() as request:
             commands = await request.get(IConfigurationCommands)
             await commands.seed(data)
+            occasions = await request.get(IOccasionService)
+            await occasions.seed()
             uow = await request.get(MySQLUnitOfWork)
             await seed_pricing(uow, Path("api/seeds/pricing.json"))
     finally:

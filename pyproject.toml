@@ -9,8 +9,8 @@ select = ["E", "F", "I", "W"]
 known-first-party = ["src", "portal_bots", "portal_contracts"]
 
 [tool.pyright]
-include = ["api/src", "bots/portal_bots", "packages/contracts/portal_contracts"]
-extraPaths = ["api", "bots", "packages/contracts"]
+include = ["api/src", "bots/portal_bots", "packages/contracts/portal_contracts", "packages/calendar/amupouya_calendar"]
+extraPaths = ["api", "bots", "packages/contracts", "packages/calendar"]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
 venvPath = "."
@@ -18,6 +18,6 @@ venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["api", "bots", "packages/contracts"]
+pythonpath = ["api", "bots", "packages/contracts", "packages/calendar"]
 addopts = "--import-mode=importlib --strict-markers"
 markers = ["integration: requires an isolated MySQL and Redis", "unit: isolated policy and contract tests", "api: native API tests"]

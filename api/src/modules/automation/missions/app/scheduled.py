@@ -10,7 +10,7 @@ from portal_contracts.occasions import OccasionPolicy
 from src.config.settings import PortalAppSettings
 from src.modules.automation.missions.domain.dtos import ScheduledMissionCreate
 from src.modules.automation.missions.interfaces import IMissionService
-from src.modules.content.occasions.app.calendar import OccasionCalendar
+from src.modules.content.occasions.interfaces import IOccasionQueries
 from src.modules.ops.guards.interfaces import IPortalGuard
 from src.shared.dates import utc_now
 
@@ -42,11 +42,13 @@ class ScheduledMissionCommands:
         guard: IPortalGuard,
         settings: PortalConfiguration,
         runtime: PortalAppSettings,
+        calendar: IOccasionQueries,
     ):
         self.missions = missions
         self.guard = guard
         self.settings = settings
         self.runtime = runtime
+        self.calendar = calendar
 
     async def tick(self) -> None:
         policy = self.settings.automation
@@ -65,31 +67,40 @@ class ScheduledMissionCommands:
             slot is not None
             and occasion_owner in self.runtime.security.admin_ids
             and occasion_owner is not None
-            and OccasionCalendar(occasions, self.settings.portal.timezone)
-            .day(
-                slot.astimezone(ZoneInfo(self.settings.portal.timezone)).date()
-            )
-            .events
         ):
-            async with transaction():
-                await self.guard.lock(f"missions:{occasion_owner}")
-                await self.missions.create_scheduled(
-                    ScheduledMissionCreate(
-                        owner_id=occasion_owner,
-                        role=BotRole.RICK,
-                        intent="occasions",
-                        text=occasions.prompt,
-                        scheduled_at=slot,
-                    )
+            day = await self.calendar.day(
+                slot.astimezone(
+                    ZoneInfo(self.settings.portal.timezone)
+                ).date(),
+                occasions,
+                self.settings.portal.timezone,
+            )
+            if day.events:
+                await self.admit_occasions(
+                    occasion_owner, slot, occasions.prompt
                 )
         if owner is None or owner not in self.runtime.security.admin_ids:
             return
-        # One owner admission lock preserves the shared mission capacity.
         async with transaction():
             await self.guard.lock(f"missions:{owner}")
             await self.admit("news", BotRole.RICK, policy.news, owner)
             await self.admit("prices", BotRole.MORTY, policy.prices, owner)
             await self.admit("charts", BotRole.MORTY, policy.charts, owner)
+
+    async def admit_occasions(
+        self, occasion_owner: int, slot: datetime, prompt: str
+    ) -> None:
+        async with transaction():
+            await self.guard.lock(f"missions:{occasion_owner}")
+            await self.missions.create_scheduled(
+                ScheduledMissionCreate(
+                    owner_id=occasion_owner,
+                    role=BotRole.RICK,
+                    intent="occasions",
+                    text=prompt,
+                    scheduled_at=slot,
+                )
+            )
 
     async def admit(
         self,

@@ -7,9 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpcre2-8-0 pe
     && rm -rf /var/lib/apt/lists/*
 COPY bots/requirements.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir -r /tmp/requirements.lock
+COPY packages/calendar /app/packages/calendar
 COPY packages/contracts /app/packages/contracts
 COPY bots /app/bots
-RUN pip install --no-cache-dir --no-deps ./packages/contracts ./bots \
+RUN pip install --no-cache-dir --no-deps ./packages/calendar ./packages/contracts ./bots \
     && useradd --create-home --uid 10001 portal
 RUN python -m pip check \
     && python -c "from portal_bots.runtime import BotRuntime" \

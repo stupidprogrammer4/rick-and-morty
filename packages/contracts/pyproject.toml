@@ -6,7 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "portal-contracts"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["pydantic==2.12.5"]
+dependencies = [
+  "amupouya-calendar==0.1.0",
+  "pydantic==2.12.5",
+]
 
 [tool.setuptools.packages.find]
 include = ["portal_contracts*"]

@@ -1,12 +1,13 @@
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from amupouya_calendar.models import OccasionDay
 from papilio.infra.db.transaction import transaction
 
 from portal_contracts.configuration import PortalConfiguration
 from portal_contracts.content import DraftCreate, DraftOut
 from portal_contracts.enums import BotRole, Category
-from portal_contracts.occasions import OccasionDay, OccasionDraft
+from portal_contracts.occasions import OccasionDraft
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.public_text import validate_public_voice
 from portal_contracts.telegram import ReactionEmoji, ReactionRequest
@@ -26,7 +27,7 @@ from src.modules.content.news.domain.dtos import (
     NewsDraft,
 )
 from src.modules.content.news.interfaces import IArticleService
-from src.modules.content.occasions.app.calendar import OccasionCalendar
+from src.modules.content.occasions.interfaces import IOccasionQueries
 from src.modules.content.publications.interfaces import ITelegramGateway
 from src.modules.pricing.reports.interfaces import IMarketQuery
 from src.shared.dates import as_utc, utc_now
@@ -80,7 +81,7 @@ class AgentToolCommands:
         links: DraftEvidenceRepository,
         gateway: ITelegramGateway,
         presentation: PortalPresentation,
-        calendar: OccasionCalendar,
+        calendar: IOccasionQueries,
         checkpoints: CheckpointRepository,
         settings: PortalConfiguration,
     ):
@@ -157,7 +158,17 @@ class AgentToolCommands:
                 )
             if requested is not None and requested != target:
                 raise ValueError("Use the mission's calendar date")
-        return self.calendar.day(target or requested)
+        selected = (
+            target
+            or requested
+            or utc_now()
+            .astimezone(ZoneInfo(self.settings.portal.timezone))
+            .date()
+        )
+        result = await self.calendar.day(
+            selected, self.settings.occasions, self.settings.portal.timezone
+        )
+        return result
 
     async def create_occasion_draft(self, draft: OccasionDraft) -> DraftOut:
         mission = await self.authorize()
@@ -187,13 +198,14 @@ class AgentToolCommands:
                 or as_utc(current.deadline) <= utc_now()
             ):
                 raise conflict("مأموریت لغو یا منقضی شده.")
-            return await self.drafts.create(
+            result = await self.drafts.create(
                 mission.owner_id,
                 BotRole(mission.origin_bot),
                 data,
                 key=f"mission:{mission.id}:occasions",
                 mission_id=mission.id,
             )
+        return result
 
     async def react_to_message(self, emoji: ReactionEmoji) -> str:
         mission = await self.authorize()

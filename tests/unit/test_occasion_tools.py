@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from amupouya_calendar.engine import OccasionCalendar
 
 from portal_bots.app.routing import MissionRouter
 from portal_contracts.enums import Actor, BotRole, Intent
@@ -24,7 +25,6 @@ from src.modules.automation.agents.domain.dtos import (
     ToolFunction,
 )
 from src.modules.automation.missions.app.scheduled import occasion_slot
-from src.modules.content.occasions.app.calendar import OccasionCalendar
 from src.modules.content.publications.app.renderer import PostRenderer
 
 
@@ -148,7 +148,13 @@ async def test_scheduled_calendar_cannot_change_day(snapshot):
     slot = datetime(2026, 10, 5, 5, 30, tzinfo=UTC)
     commands = object.__new__(AgentToolCommands)
     commands.settings = settings
-    commands.calendar = OccasionCalendar(OccasionPolicy(), "Asia/Tehran")
+    commands.calendar = SimpleNamespace(
+        day=AsyncMock(
+            return_value=OccasionCalendar(OccasionPolicy(), "Asia/Tehran").day(
+                date(2026, 10, 5)
+            )
+        )
+    )
     commands.authorize = AsyncMock(
         return_value=SimpleNamespace(
             intent="occasions",
@@ -302,5 +308,12 @@ async def test_unselected_calendar_day_admits_no_mission(
         guard,
         settings,
         SimpleNamespace(security=SimpleNamespace(admin_ids={1234})),
+        SimpleNamespace(
+            day=AsyncMock(
+                return_value=OccasionCalendar(
+                    settings.occasions, "Asia/Tehran"
+                ).day(date(2026, 10, 7))
+            )
+        ),
     ).tick()
     missions.create_scheduled.assert_not_awaited()

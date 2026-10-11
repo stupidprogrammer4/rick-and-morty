@@ -164,3 +164,20 @@ Tests without these variables skip the corresponding infrastructure workflows.
 See [architecture](docs/architecture.md), [configuration](docs/configuration.md),
 [deployment](docs/deployment.md), [security](SECURITY.md) and
 [database schedules and prices](docs/configuration.md). License: [MIT](LICENSE).
+
+### Occasion calendar
+
+The API reads editable occasion definitions from MySQL. The shared
+`packages/calendar` package calculates Gregorian, Persian and verified Iranian
+lunar dates without network access. Its initial snapshot contains 894 records,
+including UN, UNESCO and WHO observances and documented informal dates. Source
+links, official status and topic tags accompany each record. Moving dates use
+weekday rules; year-specific lunar observances are not repeated speculatively.
+The coverage manifest distinguishes days from weeks. Iranian lunar coverage
+currently ends on March 20, 2027 and reports missing coverage explicitly.
+
+Authenticated `/internal/occasions` endpoints support paginated search, creation,
+revision-checked edits and day lookup. Bootstrap adds missing records without
+replacing edits or re-enabling disabled records. Calendar policies, exclusions
+and publishing windows remain in MySQL. The upstream Persian-calendar snapshot
+retains its packaged CC0 attribution and license.

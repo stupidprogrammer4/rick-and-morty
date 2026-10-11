@@ -9,9 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpcre2-8-0 pe
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' perl-base)" ge 5.36.0-7+deb12u4 \
     && python -m playwright install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
+COPY packages/calendar /app/packages/calendar
 COPY packages/contracts /app/packages/contracts
 COPY api /app/api
-RUN pip install --no-cache-dir --no-deps ./packages/contracts ./api \
+RUN pip install --no-cache-dir --no-deps ./packages/calendar ./packages/contracts ./api \
     && useradd --create-home --uid 10001 portal
 COPY config.yml.sample /app/config.yml
 RUN mkdir -p /app/data && chown -R portal:portal /app/data

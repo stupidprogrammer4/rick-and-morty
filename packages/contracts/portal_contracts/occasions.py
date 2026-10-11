@@ -2,17 +2,11 @@ from datetime import date
 from datetime import time as ClockTime
 from typing import Literal, Self
 
+from amupouya_calendar.models import (
+    CalendarPolicy,
+    OccasionType,
+)
 from pydantic import BaseModel, Field, model_validator
-
-OccasionType = Literal[
-    "Informal",
-    "Iran",
-    "AncientIran",
-    "International",
-    "Afghanistan",
-    "IranFormer",
-]
-OccasionCalendarName = Literal["Persian", "Gregorian", "Hijri"]
 
 RICK_OCCASION_SYSTEM_PROMPT = (
     "تو ریک سانچز هستی و همین الان داری با آدم‌های یک کانال فارسی حرف "
@@ -83,39 +77,13 @@ RICK_OCCASION_PROMPT = (
 )
 
 
-class CustomOccasion(BaseModel):
-    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_-]+$")
-    title: str = Field(min_length=1, max_length=250)
-    calendar: OccasionCalendarName = "Persian"
-    month: int = Field(ge=1, le=12)
-    day: int = Field(ge=1, le=31)
-    year: int | None = Field(default=None, ge=1, le=9999)
-    holiday: bool = False
-    source: str = Field(default="custom", min_length=1, max_length=1000)
-
-    @model_validator(mode="after")
-    def valid_calendar_date(self) -> Self:
-        if self.calendar == "Gregorian":
-            date(self.year or 2000, self.month, self.day)
-        elif self.calendar == "Persian":
-            maximum = 31 if self.month <= 6 else 30
-            if self.day > maximum:
-                raise ValueError("Invalid Persian day")
-        elif self.day > 30:
-            raise ValueError("Lunar months have at most 30 days")
-        if not self.title.strip():
-            raise ValueError("Occasion title cannot be blank")
-        return self
-
-
-class OccasionPolicy(BaseModel):
+class OccasionPolicy(CalendarPolicy):
     enabled: bool = False
     owner_id: int | None = Field(default=None, gt=0)
     time: ClockTime = ClockTime(10)
     publish_start: ClockTime = ClockTime(15)
     publish_end: ClockTime = ClockTime(18)
     selection: Literal["youth", "all"] = "youth"
-    max_events: int = Field(default=3, ge=1, le=5)
     types: list[OccasionType] = Field(
         default_factory=lambda: [
             "Informal",
@@ -125,10 +93,6 @@ class OccasionPolicy(BaseModel):
         ],
         min_length=1,
     )
-    custom_events: list[CustomOccasion] = Field(
-        default_factory=list, max_length=500
-    )
-    excluded_ids: list[str] = Field(default_factory=list, max_length=1000)
     system_prompt: str = Field(
         default=RICK_OCCASION_SYSTEM_PROMPT, min_length=100, max_length=8000
     )
@@ -149,35 +113,7 @@ class OccasionPolicy(BaseModel):
             raise ValueError(
                 "Prepare occasions before the ordered publication window"
             )
-        if len(self.types) != len(set(self.types)):
-            raise ValueError("Occasion types must be unique")
-        identifiers = [event.id for event in self.custom_events]
-        if len(identifiers) != len(set(identifiers)):
-            raise ValueError("Custom occasion IDs must be unique")
         return self
-
-
-class OccasionEvent(BaseModel):
-    id: str
-    title: str
-    type: OccasionType | Literal["Custom"]
-    calendar: OccasionCalendarName
-    holiday: bool = False
-    source: str
-    status: Literal[
-        "official", "unofficial", "traditional", "custom", "recorded"
-    ] = "recorded"
-    note: str | None = None
-    region: str | None = None
-
-
-class OccasionDay(BaseModel):
-    date: date
-    persian: tuple[int, int, int]
-    lunar: tuple[int, int, int] | None
-    events: list[OccasionEvent]
-    warnings: list[str] = Field(default_factory=list)
-    sources: list[str] = Field(default_factory=list)
 
 
 class OccasionComment(BaseModel):

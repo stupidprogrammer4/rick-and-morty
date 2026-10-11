@@ -26,3 +26,5 @@ typing-extensions==4.16.0
 typing-inspection==0.4.4
 yarl==1.25.1
 pip==26.2.1
+
+persiantools==5.5.1

@@ -1,19 +1,18 @@
 from datetime import date, time
 
 import pytest
-from pydantic import ValidationError
-
-from portal_contracts.occasions import (
-    CustomOccasion,
-    OccasionCalendarName,
-    OccasionComment,
-    OccasionDraft,
-    OccasionPolicy,
-)
-from src.modules.content.occasions.app.calendar import (
+from amupouya_calendar.engine import (
     OccasionCalendar,
     catalogue,
     event_id,
+)
+from amupouya_calendar.models import CustomOccasion, OccasionCalendarName
+from pydantic import ValidationError
+
+from portal_contracts.occasions import (
+    OccasionComment,
+    OccasionDraft,
+    OccasionPolicy,
 )
 
 
@@ -32,7 +31,7 @@ def test_new_year_has_all_persian_and_lunar_events():
     day = calendar().day(date(2026, 3, 21))
     assert day.persian == (1405, 1, 1)
     assert day.lunar == (1447, 10, 1)
-    assert len(day.events) == 6
+    assert len(day.events) == 11
     assert any("نوروز" in title for title in titles(day))
     assert any("فطر" in title for title in titles(day))
     assert day.warnings == []
@@ -192,7 +191,7 @@ def test_policy_categories_and_stable_ids():
     assert all(event.type == "International" for event in day.events)
     event = catalogue()[0][0]
     assert event_id(event) == event_id(dict(event, holiday=False, metadata={}))
-    assert len({event_id(item) for item in catalogue()[0]}) == 689
+    assert len({event_id(item) for item in catalogue()[0]}) == 894
 
 
 def test_informal_catalogue_is_broad_and_girlfriend_note_is_explicit():

@@ -1,9 +1,11 @@
 from collections.abc import Awaitable
 from typing import Any, Protocol
 
+from amupouya_calendar.models import OccasionDay
+
 from portal_contracts.automation import AgentOutcome, AgentRequest
 from portal_contracts.content import DraftOut
-from portal_contracts.occasions import OccasionDay, OccasionDraft
+from portal_contracts.occasions import OccasionDraft
 from portal_contracts.telegram import ReactionEmoji
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,

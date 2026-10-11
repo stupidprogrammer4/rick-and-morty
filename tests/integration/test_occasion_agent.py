@@ -5,11 +5,12 @@ from html import unescape
 from zoneinfo import ZoneInfo
 
 import pytest
+from amupouya_calendar.models import OccasionDay
 from dishka import Provider, Scope, make_async_container, provide
 
 from portal_contracts.configuration import SettingScope
 from portal_contracts.enums import BotRole
-from portal_contracts.occasions import OccasionDay, OccasionPolicy
+from portal_contracts.occasions import OccasionPolicy
 from src.config.providers import task_providers
 from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
