@@ -76,7 +76,7 @@ def test_existing_settings_upgrade_preserves_clocks_and_calendar_choices(
             exclude={"system_prompt", "prompt"}
         ) == old.occasions.model_dump(exclude={"system_prompt", "prompt"})
         assert new.occasions.system_prompt == OccasionPolicy().system_prompt
-        assert new.occasions.prompt == OccasionPolicy().prompt
+        assert new.occasions.prompt == module.RICK_OCCASION_PROMPT
         assert (
             snapshot.presentation.posts["news"].model_dump() == NEWS_POST_STYLE
         )

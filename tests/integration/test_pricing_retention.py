@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from papilio.infra.db.transaction import transaction
@@ -108,7 +108,7 @@ async def history_rows(portal):
 def test_native_retention_cli_preserves_boundary_latest_quote_and_bot_audit(
     portal, monkeypatch
 ):
-    now = datetime(2026, 10, 6, 12, tzinfo=UTC)
+    now = utc_now().replace(microsecond=0)
     monkeypatch.setattr(maintenance, "utc_now", lambda: now)
 
     async def workflow():
