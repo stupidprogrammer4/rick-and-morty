@@ -57,7 +57,7 @@ class OpenRouterClient:
         if tools:
             payload["tools"] = tools
             if history.tool_choice == "required":
-                payload["tool_choice"] = "required"
+                payload["tool_choice"] = self.settings.tool_choice
         response = await self.client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={

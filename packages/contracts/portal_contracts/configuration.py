@@ -70,6 +70,7 @@ class AIModelPolicy(BaseModel):
         Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
         | None
     ) = None
+    tool_choice: Literal["auto", "required"] = "required"
     max_requests: int = Field(ge=1, le=10)
     max_tools: int = Field(ge=1, le=20)
     max_reactions: int = Field(ge=0, le=5)

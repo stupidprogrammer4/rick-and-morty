@@ -72,8 +72,10 @@ async def test_provider_parameter_routing_and_paid_reply(snapshot, with_tools):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("tool_choice", ["required", "auto"])
 async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
     snapshot,
+    tool_choice,
 ):
     configuration = snapshot[0].model_copy(
         update={
@@ -81,6 +83,7 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
                 update={
                     "model": "external-free-test-model",
                     "reasoning_effort": "none",
+                    "tool_choice": tool_choice,
                     "input_usd_per_million": 0,
                     "output_usd_per_million": 0,
                 }
@@ -91,7 +94,7 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
     def provider(request):
         payload = json.loads(request.content)
         assert payload["reasoning"] == {"effort": "none"}
-        assert payload["tool_choice"] == "required"
+        assert payload["tool_choice"] == tool_choice
         assert payload["provider"]["data_collection"] == "deny"
         assert payload["provider"]["max_price"] == {
             "prompt": 0,

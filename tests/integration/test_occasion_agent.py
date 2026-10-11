@@ -34,9 +34,10 @@ from tests.integration.conftest import OWNER, ExternalTelegramHandler
 pytestmark = pytest.mark.integration
 
 
+@pytest.mark.parametrize("selection", ["youth", "all"])
 @pytest.mark.parametrize("duplicate_comment", [False, True])
 def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
-    portal, monkeypatch, duplicate_comment
+    portal, monkeypatch, duplicate_comment, selection
 ):
     monkeypatch.setenv("PORTAL_DRY_RUN", "false")
     portal.environment["PORTAL_DRY_RUN"] = "false"
@@ -129,9 +130,19 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
         await portal.change(
             "occasions.policy",
             SettingScope.GLOBAL,
-            OccasionPolicy(enabled=True, owner_id=OWNER).model_dump(
-                mode="json"
-            ),
+            OccasionPolicy(
+                enabled=True,
+                owner_id=OWNER,
+                selection=selection,
+                types=[
+                    "Informal",
+                    "Iran",
+                    "AncientIran",
+                    "International",
+                    "Afghanistan",
+                    "IranFormer",
+                ],
+            ).model_dump(mode="json"),
         )
         snapshot = await portal.snapshot()
         ai = snapshot.configuration.ai.model_dump(mode="json")
@@ -222,7 +233,7 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
     assert all(event.title in text for event in day_evidence[0].events)
     assert "روز مبارزه با تن‌فروشی" in text
 
-    assert len(day_evidence[0].events) == 1
+    assert len(day_evidence[0].events) == (7 if selection == "all" else 1)
     assert "http" not in text
     assert "منبع" not in text
     assert "غیررسمی" not in text
