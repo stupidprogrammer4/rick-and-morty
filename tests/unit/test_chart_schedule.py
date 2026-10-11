@@ -71,7 +71,11 @@ async def test_chart_admission_is_independent_of_price_reports(snapshot):
     )
     missions = SimpleNamespace(create_scheduled=AsyncMock())
     commands = ScheduledMissionCommands(
-        missions, SimpleNamespace(), settings, SimpleNamespace()
+        missions,
+        SimpleNamespace(),
+        settings,
+        SimpleNamespace(),
+        SimpleNamespace(),
     )
     await commands.admit("charts", BotRole.MORTY, rule, 123)
     missions.create_scheduled.assert_awaited_once()
