@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amupouya-calendar"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["pydantic==2.12.5", "persiantools==5.5.1"]
+
+[tool.setuptools.packages.find]
+include = ["amupouya_calendar*"]
+
+[tool.setuptools.package-data]
+"amupouya_calendar" = ["data/*.json", "data/*.txt"]
