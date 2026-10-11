@@ -72,7 +72,7 @@ for these tokens while webhooks are active.
 | `/team text`, `/news python ai` | Collected article evidence and a news draft |
 | `/summarize https://...` | Read an allowed source and draft its summary |
 | `/prices` | Fetch accepted market rates and prepare a source or aggregate report |
-| `/occasions [YYYY-MM-DD]` | Rick drafts selected informal, cultural and youth-relevant occasions for today or a Gregorian date |
+| `/occasions [YYYY-MM-DD]` | Rick drafts the configured calendar occasions for today or a Gregorian date |
 | `/jobs [page]`, `/job id`, `/cancel id` | Inspect or cancel owned missions |
 | `/drafts [page]`, `/draft id` | Inspect draft content and its revision |
 | `/approve id [revision]`, `/reject id [revision]` | Decide on a specific revision |
@@ -99,18 +99,20 @@ initial `api/seeds/defaults.json` creates missing records; restarting or seeding
 overwrites administrator changes. Credentials and transport belong in private
 environment variables; `config.yml` contains framework and infrastructure setup.
 
-Recurring prices, charts and news have independent two-, seven- and three-hour
+Recurring prices, charts and news have independent one-, three- and two-hour
 intervals anchored at 10:00 Tehran time. After seeding,
 `python -m src.cli.content_schedule` activates this cadence for an existing
 channel and administrator, preserves content settings, disables quiet hours
-and raises the daily cap to at least 30.
+and raises the daily cap to at least 45.
 
 Daily occasions use `occasions.policy/global`. Rick prepares the draft at 10:00
 and schedules delivery at a random time between 15:00 and 18:00 in the portal
-timezone. The selected time persists across restarts. The default `youth`
-selection includes at most three explicitly curated informal, cultural, science,
-health or social occasions; administrative and government observances are omitted.
-Days with no selected occasion do not create a scheduled post.
+timezone. The selected time persists across restarts. New installations seed
+`selection: all` with every supported category. This includes every event present
+in the configured Persian, Gregorian and Iranian lunar calendars, without the
+three-event editorial limit. Optional `youth` selection, custom events and
+explicit exclusions remain database policies. An empty day creates no post;
+the packaged catalogue does not claim every observance worldwide.
 
 `system_prompt` owns a dedicated Rick persona: science, individual freedom,
 sharp satire of authority and bureaucracy, and natural conversational Persian.
@@ -121,9 +123,11 @@ After seeding, `python -m src.cli.occasion_voice` applies these defaults to an
 existing installation while retaining its owner, timings and custom events. It
 also cancels queued occasion posts prepared with the previous format.
 
-Private `/occasions` drafts require normal approval. See
-[calendar configuration](docs/configuration.md#daily-occasions) and the packaged
-calendar provenance for editorial selection, sources and coverage.
+Private `/occasions` drafts require normal approval. The packaged calendar
+provenance describes sources and coverage. Live model selection and tool routing
+are database settings: `ai.model.tool_choice` supports `auto` for providers that
+reject required-tool routing. Only validated evidence-backed drafts are published.
+Zero input, output and request price limits keep provider routing free of charges.
 
 Read `ai.model/global` using `/settings ai.model global`. Its initial live mode
 is OpenRouter with `openai/gpt-4.1-mini`, price ceilings of $0.40 input and $1.60
