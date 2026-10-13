@@ -12,7 +12,7 @@ flowchart LR
   Q --> W[Papilio Tasks worker]
   W --> D
   W --> M[Native MCP stdio tools]
-  W --> O[OpenRouter]
+  W --> O[Groq]
   W --> X[News and configured market providers]
   W --> B
   B --> T

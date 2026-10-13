@@ -64,12 +64,9 @@ class EffectivePortalPolicy(PortalPolicy):
 
 
 class AIModelPolicy(BaseModel):
-    mode: Literal["disabled", "fake", "openrouter"]
+    mode: Literal["disabled", "fake", "groq"]
     model: str = Field(max_length=200)
-    reasoning_effort: (
-        Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
-        | None
-    ) = None
+    reasoning_effort: Literal["low", "medium", "high"] | None = None
     tool_choice: Literal["auto", "required"] = "required"
     max_requests: int = Field(ge=1, le=10)
     max_tools: int = Field(ge=1, le=20)
@@ -90,7 +87,7 @@ class AIModelPolicy(BaseModel):
 
     @model_validator(mode="after")
     def live_model_is_priced(self) -> Self:
-        if self.mode == "openrouter" and (
+        if self.mode == "groq" and (
             not self.model.strip()
             or self.input_usd_per_million is None
             or self.output_usd_per_million is None

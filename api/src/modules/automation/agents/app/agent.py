@@ -11,6 +11,9 @@ from portal_contracts.enums import BotRole
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.rick_voice import RICK_NEWS_SYSTEM_PROMPT
 from src.modules.automation.agents.app.context import ToolContext
+from src.modules.automation.agents.app.prompts import (
+    MISSION_INSTRUCTIONS,
+)
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
     AgentMessage,
@@ -61,7 +64,7 @@ class MissionAgentCommands:
         ai = self.settings.ai
         if ai.mode == "disabled":
             raise ValueError(
-                "OpenRouter هنوز فعال نشده؛ مدل و نرخ هزینه را تنظیم کن."
+                "Groq هنوز فعال نشده؛ مدل و نرخ هزینه را تنظیم کن."
             )
         if ai.mode == "fake":
             return AgentOutcome(text="[آزمایشی] خب پویا، مسیر ریک اجرا شد.")
@@ -127,6 +130,13 @@ class MissionAgentCommands:
                             },
                             ensure_ascii=False,
                         ),
+                    )
+                )
+            if mission.intent in MISSION_INSTRUCTIONS:
+                history.messages.append(
+                    AgentMessage(
+                        role="system",
+                        content=MISSION_INSTRUCTIONS[mission.intent],
                     )
                 )
             checkpoint = AgentCheckpointModel(

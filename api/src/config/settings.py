@@ -57,7 +57,7 @@ class PortalAppSettings(Settings):
             portal["dry_run"] = dry.lower() == "true"
         data["portal"] = portal
         ai = dict(data.get("ai", {}))
-        if key := os.getenv("OPENROUTER_API_KEY"):
+        if key := os.getenv("GROQ_API_KEY"):
             ai["api_key"] = key
         data["ai"] = ai
         market = dict(data.get("market", {}))

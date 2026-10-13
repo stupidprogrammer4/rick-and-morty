@@ -17,7 +17,7 @@ Verify all of the following before the first release:
    bot gateway and per-mission MCP subprocesses. Measure actual peak usage.
 5. Both tokens return distinct `getMe` identities; the administrator has started
    both private chats. Both bots have channel posting permissions.
-6. OpenRouter credits and provider policy allow the configured model. Selected
+6. Groq credits and provider policy allow the configured model. Selected
    market sources provide correctly labeled quote times, currency and basis
    within the configured age policy.
 

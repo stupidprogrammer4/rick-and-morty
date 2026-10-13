@@ -78,7 +78,7 @@ media sources you intend the worker to read.
 - Inspect TLS, DNS, ports, storage, available RAM and existing proxy services
   before installing ingress. The provided template must not replace another
   application's server block.
-- Check OpenRouter privacy/provider terms, live credits and Telegram permissions.
+- Check Groq privacy/provider terms, live credits and Telegram permissions.
   A denied provider data-collection request does not prove zero retention.
 - Never automatically replay an `unknown` model request or message delivery.
   Resolve it using provider/Telegram evidence or an explicit owner decision.

@@ -63,16 +63,19 @@ configured, validated endpoints.
 
 ## Model setup
 
-`ai.model/global` selects disabled, fake or OpenRouter mode. Fake mode is
+`ai.model/global` selects disabled, fake or Groq mode. Fake mode is
 accepted only with transport dry-run enabled, and synthetic drafts cannot be
-published live. OpenRouter mode requires a nonempty model and known input/output
+published live. Groq mode requires a nonempty model and known input/output
 cost ceilings. Model rates and limits are stored in the database.
 
-The initial model is [GPT-4.1 Mini on OpenRouter](https://openrouter.ai/openai/gpt-4.1-mini).
-The request uses tool support when required, bounded output, no automatic HTTP
-retry and [provider price ceilings](https://openrouter.ai/docs/guides/routing/provider-selection).
-Unsupported required parameters or providers above the ceiling cause a failure.
-API credentials remain in the private runtime environment.
+The initial Groq model is `qwen/qwen3.8-27b` with default non-thinking mode,
+bounded output, tool support and no automatic HTTP retry. Free Plan policies
+use zero input/output rates for local budget accounting; Groq does not accept
+OpenRouter price-ceiling or routing parameters. Free use and ZDR are configured
+on the Groq account. Credentials remain in the private runtime environment.
+Existing policies move through `20261013_groq_model`; disabled/fake policies
+and historical usage stay unchanged. Back up policies before migration;
+provider rollback requires restoring their original values.
 
 ## Recurring publication
 

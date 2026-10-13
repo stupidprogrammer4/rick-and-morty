@@ -12,6 +12,7 @@ from portal_contracts.configuration import SettingScope
 from portal_contracts.enums import BotRole
 from portal_contracts.occasions import OccasionPolicy
 from src.config.providers import task_providers
+from src.modules.automation.agents.app.prompts import OCCASION_INSTRUCTIONS
 from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
     LLMReply,
@@ -62,6 +63,11 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
             }
             assert (
                 history.messages[0].content == OccasionPolicy().system_prompt
+            )
+            assert any(
+                message.role == "system"
+                and message.content == OCCASION_INSTRUCTIONS
+                for message in history.messages
             )
             assert history.messages[1].content.startswith(
                 OccasionPolicy().prompt
@@ -148,7 +154,7 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
         snapshot = await portal.snapshot()
         ai = snapshot.configuration.ai.model_dump(mode="json")
         ai.update(
-            mode="openrouter",
+            mode="groq",
             model="external-test-model",
             input_usd_per_million="0.4",
             output_usd_per_million="1.6",

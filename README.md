@@ -37,7 +37,7 @@ authorize recurring news and price drafts through the same publication workflow.
 ## Start locally
 
 Requirements: Python 3.13, Docker with Compose v2, two distinct Telegram bot
-tokens, an OpenRouter key and numeric administrator IDs.
+tokens, a Groq key and numeric administrator IDs.
 
 ```bash
 python3.13 -m venv .venv
@@ -92,7 +92,7 @@ administrative command is restricted to allowlisted administrators in private
 chats. Channel readers can use price-page buttons; those buttons can only edit
 the matching published report.
 
-## Configuration and OpenRouter
+## Configuration and Groq
 
 Business configuration is stored in MySQL using separate setting definitions
 and scoped values, plus news and market sources and their configurations. The
@@ -128,11 +128,12 @@ Private `/occasions` drafts require normal approval. The packaged calendar
 provenance describes sources and coverage. Live model selection and tool routing
 are database settings: `ai.model.tool_choice` supports `auto` for providers that
 reject required-tool routing. Only validated evidence-backed drafts are published.
-Zero input, output and request price limits keep provider routing free of charges.
+Zero local rate estimates reflect the account Free Plan; they do not control
+provider billing. The account must stay on that plan.
 
 Read `ai.model/global` using `/settings ai.model global`. Its initial live mode
-is OpenRouter with `openai/gpt-4.1-mini`, price ceilings of $0.40 input and $1.60
-output per million tokens, four requests per mission and a $0.25 daily budget.
+is Groq with `qwen/qwen3.8-27b`, default non-thinking mode, zero local
+Free Plan rate estimates, four requests per mission and a $0.25 daily budget.
 These are editable initial records. Requests reserve the maximum estimated
 cost before contacting the provider. An ambiguous request keeps its reservation
 and is not automatically repeated. Provider data collection is denied by default.
@@ -182,3 +183,8 @@ revision-checked edits and day lookup. Bootstrap adds missing records without
 replacing edits or re-enabling disabled records. Calendar policies, exclusions
 and publishing windows remain in MySQL. The upstream Persian-calendar snapshot
 retains its packaged CC0 attribution and license.
+
+Groq uses `qwen/qwen3.8-27b` with `GROQ_API_KEY` in the private `.env`.
+Free use depends on the account Free Plan and its rate limits; no paid fallback
+is configured. Enable ZDR in Groq Data Controls. Credit balance and aggregate cost
+are not part of completion response bodies; missing cost stays unknown.

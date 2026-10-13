@@ -5,13 +5,13 @@ from dishka import Provider, Scope, provide
 from src.modules.automation.agents.app.agent import MissionAgentCommands
 from src.modules.automation.agents.app.context import ToolContext
 from src.modules.automation.agents.app.tools import AgentToolCommands
+from src.modules.automation.agents.infra.groq import GroqClient
 from src.modules.automation.agents.infra.mcp import MissionMCPClient
 from src.modules.automation.agents.infra.mysql import (
     AIBudgetRepository,
     CheckpointRepository,
     LLMRunRepository,
 )
-from src.modules.automation.agents.infra.openrouter import OpenRouterClient
 from src.modules.automation.agents.interfaces import (
     IAgentToolCommands,
     ILLMClient,
@@ -24,7 +24,7 @@ class RickProvider(Provider):
     checkpoints = provide(CheckpointRepository)
     budgets = provide(AIBudgetRepository)
     runs = provide(LLMRunRepository)
-    llm = provide(OpenRouterClient, provides=ILLMClient)
+    llm = provide(GroqClient, provides=ILLMClient)
     agent = provide(MissionAgentCommands, provides=IRickAgent)
     mcp = provide(MissionMCPClient, scope=Scope.APP)
     tools = provide(AgentToolCommands, provides=IAgentToolCommands)

@@ -228,7 +228,7 @@ def portal(tmp_path, tmp_path_factory, monkeypatch):
         "PORTAL_SERVICE_KEY": "test-key-" * 8,
         "PORTAL_ADMIN_USER_IDS": str(OWNER),
         "PORTAL_DRY_RUN": "true",
-        "OPENROUTER_API_KEY": "",
+        "GROQ_API_KEY": "",
         "PYTHONPATH": os.pathsep.join(
             str(Path(path).resolve())
             for path in (

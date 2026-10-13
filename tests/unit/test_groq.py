@@ -4,28 +4,32 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from src.config.settings import ModelCredentials
+from src.config.settings import ModelCredentials, PortalAppSettings
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
     AgentMessage,
 )
-from src.modules.automation.agents.infra.openrouter import OpenRouterClient
+from src.modules.automation.agents.infra.groq import GroqClient
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("with_tools", [False, True])
-async def test_provider_parameter_routing_and_paid_reply(snapshot, with_tools):
-    # The live GPT-4.1 Mini endpoint advertises max_tokens and tools, but
-    # not parallel_tool_calls. Parameter filtering rejects the whole request
-    # if an unsupported option is present, even when its value is false.
-    advertised = {"model", "messages", "provider", "max_tokens", "tools"}
+async def test_groq_parameters_and_reported_cost(snapshot, with_tools):
+    advertised = {
+        "model",
+        "messages",
+        "max_tokens",
+        "tools",
+        "tool_choice",
+        "reasoning_effort",
+        "parallel_tool_calls",
+    }
 
     def provider(request):
         payload = json.loads(request.content)
         assert set(payload) <= advertised
-        assert payload["provider"]["require_parameters"] is True
-        assert payload["provider"]["data_collection"] == "deny"
-        assert payload["provider"]["max_price"]["prompt"] == 0.4
+        assert request.url == "https://api.groq.com/openai/v1/chat/completions"
+        assert "provider" not in payload
         if "tools" in payload:
             assert payload["tools"]
         return httpx.Response(
@@ -42,8 +46,9 @@ async def test_provider_parameter_routing_and_paid_reply(snapshot, with_tools):
             },
         )
 
-    class Runtime:
-        ai = ModelCredentials(api_key=SecretStr("external-test-key"))
+    runtime = PortalAppSettings.model_construct(
+        ai=ModelCredentials(api_key=SecretStr("external-test-key"))
+    )
 
     tools = (
         [
@@ -61,7 +66,7 @@ async def test_provider_parameter_routing_and_paid_reply(snapshot, with_tools):
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(provider)
     ) as client:
-        llm = OpenRouterClient(client, Runtime(), snapshot[0])
+        llm = GroqClient(client, runtime, snapshot[0])
         result = await llm.complete(
             AgentHistory(messages=[AgentMessage(role="user", content="Hi")]),
             tools,
@@ -73,7 +78,7 @@ async def test_provider_parameter_routing_and_paid_reply(snapshot, with_tools):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tool_choice", ["required", "auto"])
-async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
+async def test_groq_tool_reply_preserves_choice_and_reasoning(
     snapshot,
     tool_choice,
 ):
@@ -82,7 +87,7 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
             "ai": snapshot[0].ai.model_copy(
                 update={
                     "model": "external-free-test-model",
-                    "reasoning_effort": "none",
+                    "reasoning_effort": "low",
                     "tool_choice": tool_choice,
                     "input_usd_per_million": 0,
                     "output_usd_per_million": 0,
@@ -93,15 +98,35 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
 
     def provider(request):
         payload = json.loads(request.content)
-        assert payload["reasoning"] == {"effort": "none"}
-        assert payload["tool_choice"] == tool_choice
-        assert payload["provider"]["data_collection"] == "deny"
-        assert payload["provider"]["max_price"] == {
-            "prompt": 0,
-            "completion": 0,
-            "request": 0,
-        }
-        assert payload["tools"][0]["function"]["name"] == "create_post_draft"
+        assert payload["reasoning_effort"] == "low"
+        assert "provider" not in payload
+        if tool_choice == "required":
+            assert "tools" not in payload
+            assert payload["response_format"]["json_schema"]["strict"]
+        else:
+            assert payload["tool_choice"] == "auto"
+            assert (
+                payload["tools"][0]["function"]["name"] == "create_post_draft"
+            )
+        if tool_choice == "required":
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": '{"draft":{"title":"News"}}',
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 50,
+                        "cost": 0,
+                    },
+                },
+            )
         return httpx.Response(
             200,
             json={
@@ -132,15 +157,14 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
             },
         )
 
-    class Runtime:
-        ai = ModelCredentials(api_key=SecretStr("external-test-key"))
+    runtime = PortalAppSettings.model_construct(
+        ai=ModelCredentials(api_key=SecretStr("external-test-key"))
+    )
 
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(provider)
     ) as client:
-        reply = await OpenRouterClient(
-            client, Runtime(), configuration
-        ).complete(
+        reply = await GroqClient(client, runtime, configuration).complete(
             AgentHistory(
                 messages=[AgentMessage(role="user", content="News")],
                 tool_choice="required",
@@ -155,6 +179,7 @@ async def test_free_tool_reply_uses_zero_price_limits_and_disabled_reasoning(
                 }
             ],
         )
+    assert reply.message.tool_calls is not None
     assert reply.message.tool_calls[0].function.name == "create_post_draft"
     assert reply.cost_usd == "0"
 
@@ -168,8 +193,9 @@ async def test_model_outages_are_retryable_without_exposing_provider_body(
         ModelTemporarilyUnavailable,
     )
 
-    class Runtime:
-        ai = ModelCredentials(api_key=SecretStr("external-test-key"))
+    runtime = PortalAppSettings.model_construct(
+        ai=ModelCredentials(api_key=SecretStr("external-test-key"))
+    )
 
     def provider(request):
         if failure == "timeout":
@@ -187,7 +213,7 @@ async def test_model_outages_are_retryable_without_exposing_provider_body(
         transport=httpx.MockTransport(provider)
     ) as client:
         with pytest.raises(expected) as error:
-            await OpenRouterClient(client, Runtime(), snapshot[0]).complete(
+            await GroqClient(client, runtime, snapshot[0]).complete(
                 AgentHistory(
                     messages=[AgentMessage(role="user", content="Hi")]
                 ),

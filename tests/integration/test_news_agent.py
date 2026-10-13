@@ -10,6 +10,7 @@ from portal_contracts.configuration import SettingScope
 from portal_contracts.enums import BotRole
 from portal_contracts.rick_voice import RICK_NEWS_SYSTEM_PROMPT
 from src.config.providers import task_providers
+from src.modules.automation.agents.app.prompts import NEWS_INSTRUCTIONS
 from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
     LLMReply,
@@ -69,6 +70,11 @@ def test_news_corrects_parallel_model_calls_before_publication(
                 )
             assert history.tool_choice == "required"
             assert history.messages[0].content == RICK_NEWS_SYSTEM_PROMPT
+            assert any(
+                message.role == "system"
+                and message.content == NEWS_INSTRUCTIONS
+                for message in history.messages
+            )
             assert len(history.messages) >= 3
             assert "با یک غر کوتاه" not in str(history.model_dump())
             assert {tool["function"]["name"] for tool in tools} == {
@@ -137,7 +143,7 @@ def test_news_corrects_parallel_model_calls_before_publication(
         snapshot = await portal.snapshot()
         ai = snapshot.configuration.ai.model_dump(mode="json")
         ai.update(
-            mode="openrouter",
+            mode="groq",
             model="external-test-model",
             input_usd_per_million="0",
             output_usd_per_million="0",
