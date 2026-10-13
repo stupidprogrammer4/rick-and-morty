@@ -11,6 +11,7 @@ from portal_contracts.enums import BotRole
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.rick_voice import RICK_NEWS_SYSTEM_PROMPT
 from src.modules.automation.agents.app.context import ToolContext
+from src.modules.automation.agents.app.evidence import calendar_evidence
 from src.modules.automation.agents.app.prompts import (
     MISSION_INSTRUCTIONS,
 )
@@ -164,8 +165,25 @@ class MissionAgentCommands:
                     for tool in tools
                     if tool["function"]["name"] in allowed_tools
                 ]
+            occasion_day = (
+                calendar_evidence(history)
+                if mission.intent == "occasions"
+                else None
+            )
+            if occasion_day is not None and occasion_day.events:
+                tools = [
+                    tool
+                    for tool in tools
+                    if tool["function"]["name"] == "create_occasion_draft"
+                ]
             history.tool_choice = (
-                "required" if mission.intent == "news" and tools else "auto"
+                "required"
+                if tools
+                and (
+                    mission.intent == "news"
+                    or (occasion_day is not None and occasion_day.events)
+                )
+                else "auto"
             )
             # UTF-8 bytes bound token count conservatively for Persian text.
             estimated = len(history.model_dump_json().encode()) + len(

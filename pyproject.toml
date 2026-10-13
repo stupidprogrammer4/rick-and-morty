@@ -20,4 +20,4 @@ venv = ".venv"
 testpaths = ["tests"]
 pythonpath = ["api", "bots", "packages/contracts", "packages/calendar"]
 addopts = "--import-mode=importlib --strict-markers"
-markers = ["integration: requires an isolated MySQL and Redis", "unit: isolated policy and contract tests", "api: native API tests"]
+markers = ["schema_revision: initial schema revision for historical migration tests", "integration: requires an isolated MySQL and Redis", "unit: isolated policy and contract tests", "api: native API tests"]

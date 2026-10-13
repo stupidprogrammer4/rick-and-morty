@@ -428,6 +428,8 @@ def test_native_large_price_report_retains_every_source_in_pages(portal):
     assert next(iter(parents))[1] == "sent"
 
 
+# Check chart rollback before the irreversible provider revision.
+@pytest.mark.schema_revision("20261011_occasion_catalogue")
 def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     portal,
 ):
@@ -450,8 +452,9 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
         "sqlalchemy.url",
         portal.environment["PORTAL_DATABASE_URL"].replace("%", "%%"),
     )
+    config.set_main_option("script_location", portal.migration_scripts)
     command.downgrade(config, "20261003_market_engine")
-    command.upgrade(config, "head")
+    command.upgrade(config, "20261011_occasion_catalogue")
     command.check(config)
 
     assert portal.run(historical()) == before
@@ -486,7 +489,7 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     assert after["message_id"] == before["message_id"]
     assert after["pages"] is not None
     # MySQL may commit empty descendant downgrades before the chart guard.
-    command.upgrade(config, "head")
+    command.upgrade(config, "20261011_occasion_catalogue")
     command.check(config)
 
 

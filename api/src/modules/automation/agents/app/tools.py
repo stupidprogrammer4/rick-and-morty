@@ -12,6 +12,7 @@ from portal_contracts.presentation import PortalPresentation
 from portal_contracts.public_text import validate_public_voice
 from portal_contracts.telegram import ReactionEmoji, ReactionRequest
 from src.modules.automation.agents.app.context import ToolContext
+from src.modules.automation.agents.app.evidence import calendar_evidence
 from src.modules.automation.agents.domain.dtos import (
     AgentHistory,
     AuthorizedMission,
@@ -32,19 +33,6 @@ from src.modules.content.publications.interfaces import ITelegramGateway
 from src.modules.pricing.reports.interfaces import IMarketQuery
 from src.shared.dates import as_utc, utc_now
 from src.shared.errors import conflict, missing
-
-
-def calendar_evidence(history: AgentHistory) -> OccasionDay | None:
-    calls = {
-        call.id
-        for message in history.messages
-        for call in message.tool_calls or []
-        if call.function.name == "get_calendar_occasions"
-    }
-    for message in reversed(history.messages):
-        if message.role == "tool" and message.tool_call_id in calls:
-            return OccasionDay.model_validate_json(message.content or "")
-    return None
 
 
 def occasion_text(day: OccasionDay, draft: OccasionDraft) -> str:

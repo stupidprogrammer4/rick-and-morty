@@ -48,11 +48,7 @@ class GroqClient:
         if self.settings.reasoning_effort is not None:
             payload["reasoning_effort"] = self.settings.reasoning_effort
         required_function = None
-        if (
-            history.tool_choice == "required"
-            and self.settings.tool_choice == "required"
-            and len(tools) == 1
-        ):
+        if history.tool_choice == "required" and len(tools) == 1:
             sole_tool = next(iter(tools))
             required_function = sole_tool["function"]
             payload["temperature"] = 0.2

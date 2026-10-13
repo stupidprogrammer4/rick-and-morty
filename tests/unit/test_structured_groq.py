@@ -13,9 +13,13 @@ from src.modules.automation.agents.infra.groq import GroqClient
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("configured_choice", ["required", "auto"])
 async def test_single_required_tool_uses_schema_and_retains_function_identity(
     snapshot,
+    configured_choice,
 ):
+    snapshot[0].ai.tool_choice = configured_choice
+
     def reply(request):
         body = json.loads(request.content)
         assert "tools" not in body

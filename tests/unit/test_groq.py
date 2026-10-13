@@ -104,7 +104,7 @@ async def test_groq_tool_reply_preserves_choice_and_reasoning(
             assert "tools" not in payload
             assert payload["response_format"]["json_schema"]["strict"]
         else:
-            assert payload["tool_choice"] == "auto"
+            assert payload.get("tool_choice", "auto") == "auto"
             assert (
                 payload["tools"][0]["function"]["name"] == "create_post_draft"
             )
@@ -167,7 +167,7 @@ async def test_groq_tool_reply_preserves_choice_and_reasoning(
         reply = await GroqClient(client, runtime, configuration).complete(
             AgentHistory(
                 messages=[AgentMessage(role="user", content="News")],
-                tool_choice="required",
+                tool_choice=tool_choice,
             ),
             [
                 {

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -81,6 +82,7 @@ class Harness:
         self.environment = environment
         self.processes = []
         self.logs = []
+        self.migration_scripts = "api/migrations"
 
     @asynccontextmanager
     async def request(self):
@@ -175,7 +177,19 @@ class Harness:
 
 
 @pytest.fixture
-def portal(tmp_path, tmp_path_factory, monkeypatch):
+def historical_migration_scripts(tmp_path):
+    """Freeze rollback checks before the irreversible provider revision."""
+    destination = tmp_path / "historical-migrations"
+    shutil.copytree(
+        "api/migrations",
+        destination,
+        ignore=shutil.ignore_patterns("20261013_groq_model.py", "__pycache__"),
+    )
+    return str(destination)
+
+
+@pytest.fixture
+def portal(tmp_path, tmp_path_factory, monkeypatch, request):
     database_url = os.getenv("PORTAL_TEST_DATABASE_URL")
     redis_url = os.getenv("PORTAL_TEST_REDIS_URL")
     if not database_url or not redis_url:
@@ -244,10 +258,18 @@ def portal(tmp_path, tmp_path_factory, monkeypatch):
     sys.modules.pop("src.apps.scheduler", None)
     config = Config("api/alembic.ini")
     config.set_main_option("sqlalchemy.url", owned_url.replace("%", "%%"))
-    command.upgrade(config, "head")
+    schema_revision = request.node.get_closest_marker("schema_revision")
+    if schema_revision:
+        config.set_main_option(
+            "script_location",
+            request.getfixturevalue("historical_migration_scripts"),
+        )
+    target = schema_revision.args[0] if schema_revision else "head"
+    command.upgrade(config, target)
     command.check(config)
     settings = get_settings(PortalAppSettings)
     harness = Harness(settings, runner, config_path, environment)
+    harness.migration_scripts = config.get_main_option("script_location")
 
     async def seed_database():
         async with harness.request() as request:

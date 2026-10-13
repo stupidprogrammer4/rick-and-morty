@@ -15,7 +15,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_retirement_preserves_previous_data_and_refuses_active_jobs(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, historical_migration_scripts
 ):
     database_url = os.getenv("PORTAL_TEST_DATABASE_URL")
     if not database_url:
@@ -37,6 +37,7 @@ def test_retirement_preserves_previous_data_and_refuses_active_jobs(
     get_settings.cache_clear()
     runner = asyncio.Runner()
     config = Config("api/alembic.ini")
+    config.set_main_option("script_location", historical_migration_scripts)
     config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
     async def create_database():
@@ -198,12 +199,13 @@ def test_retirement_preserves_previous_data_and_refuses_active_jobs(
 
     runner.run(create_database())
     try:
+        # Check archive rollback before the irreversible provider revision.
         command.upgrade(config, "20261005_media_exit")
         runner.run(populate())
         with pytest.raises(RuntimeError, match="active downloads"):
-            command.upgrade(config, "head")
+            command.upgrade(config, "20261011_occasion_catalogue")
         runner.run(finish_job())
-        command.upgrade(config, "head")
+        command.upgrade(config, "20261011_occasion_catalogue")
         command.check(config)
         runner.run(verify())
         runner.run(add_conflicting_setting())
@@ -213,7 +215,7 @@ def test_retirement_preserves_previous_data_and_refuses_active_jobs(
         runner.run(remove_conflicting_setting())
         command.downgrade(config, "20261005_media_exit")
         runner.run(verify_restored())
-        command.upgrade(config, "head")
+        command.upgrade(config, "20261011_occasion_catalogue")
         command.check(config)
         runner.run(verify())
     finally:

@@ -12,6 +12,7 @@ from portal_contracts.configuration import SettingScope
 from portal_contracts.enums import BotRole
 from portal_contracts.occasions import OccasionPolicy
 from src.config.providers import task_providers
+from src.modules.automation.agents.app.evidence import calendar_evidence
 from src.modules.automation.agents.app.prompts import OCCASION_INSTRUCTIONS
 from src.modules.automation.agents.domain.dtos import (
     AgentMessage,
@@ -57,10 +58,18 @@ def test_rick_reads_calendar_then_drafts_every_occasion_and_publishes(
 
     class ExternalLLM:
         async def complete(self, history, tools):
-            assert {tool["function"]["name"] for tool in tools} == {
-                "get_calendar_occasions",
-                "create_occasion_draft",
-            }
+            recorded = calendar_evidence(history)
+            expected = (
+                {"create_occasion_draft"}
+                if recorded is not None
+                else {
+                    "get_calendar_occasions",
+                    "create_occasion_draft",
+                }
+            )
+            assert {tool["function"]["name"] for tool in tools} == expected
+            if recorded is not None:
+                assert history.tool_choice == "required"
             assert (
                 history.messages[0].content == OccasionPolicy().system_prompt
             )

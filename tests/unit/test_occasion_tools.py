@@ -13,9 +13,9 @@ from portal_contracts.occasions import (
     OccasionPolicy,
 )
 from portal_contracts.public_text import PublicVoiceError
+from src.modules.automation.agents.app.evidence import calendar_evidence
 from src.modules.automation.agents.app.tools import (
     AgentToolCommands,
-    calendar_evidence,
     occasion_text,
 )
 from src.modules.automation.agents.domain.dtos import (
@@ -317,3 +317,26 @@ async def test_unselected_calendar_day_admits_no_mission(
         ),
     ).tick()
     missions.create_scheduled.assert_not_awaited()
+
+
+@pytest.mark.parametrize("content", ['{"error":"timeout"}', "not json"])
+def test_failed_calendar_result_is_not_drafting_evidence(content):
+    history = AgentHistory(
+        messages=[
+            AgentMessage(
+                role="assistant",
+                tool_calls=[
+                    ToolCall(
+                        id="calendar-failure",
+                        function=ToolFunction(
+                            name="get_calendar_occasions", arguments="{}"
+                        ),
+                    )
+                ],
+            ),
+            AgentMessage(
+                role="tool", tool_call_id="calendar-failure", content=content
+            ),
+        ]
+    )
+    assert calendar_evidence(history) is None
