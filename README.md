@@ -188,3 +188,5 @@ Groq uses `qwen/qwen3.8-27b` with `GROQ_API_KEY` in the private `.env`.
 Free use depends on the account Free Plan and its rate limits; no paid fallback
 is configured. Enable ZDR in Groq Data Controls. Credit balance and aggregate cost
 are not part of completion response bodies; missing cost stays unknown.
+
+News generation bounds article excerpts sent to the model with the validated `ai.model.news_evidence_chars` setting (default 6,000 body characters across the selected articles). Full evidence remains stored, and shortened context is explicitly marked as truncated while retaining its source and evidence ID. This reduces oversized requests on free model tiers without dropping selected articles.

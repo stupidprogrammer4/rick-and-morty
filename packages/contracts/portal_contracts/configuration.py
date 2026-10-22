@@ -73,6 +73,7 @@ class AIModelPolicy(BaseModel):
     max_reactions: int = Field(ge=0, le=5)
     max_input_tokens: int = Field(ge=1000, le=100000)
     max_output_tokens: int = Field(ge=100, le=4000)
+    news_evidence_chars: int = Field(default=6000, ge=1000, le=20000)
     daily_budget_usd: Decimal = Field(gt=0, allow_inf_nan=False)
     maximum_request_usd: Decimal = Field(
         default=Decimal("0"), ge=0, allow_inf_nan=False

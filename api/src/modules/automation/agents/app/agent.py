@@ -11,7 +11,10 @@ from portal_contracts.enums import BotRole
 from portal_contracts.presentation import PortalPresentation
 from portal_contracts.rick_voice import RICK_NEWS_SYSTEM_PROMPT
 from src.modules.automation.agents.app.context import ToolContext
-from src.modules.automation.agents.app.evidence import calendar_evidence
+from src.modules.automation.agents.app.evidence import (
+    calendar_evidence,
+    news_evidence,
+)
 from src.modules.automation.agents.app.prompts import (
     MISSION_INSTRUCTIONS,
 )
@@ -124,10 +127,9 @@ class MissionAgentCommands:
                         role="user",
                         content=json.dumps(
                             {
-                                "untrusted_article_evidence": [
-                                    item.model_dump(mode="json")
-                                    for item in evidence
-                                ]
+                                "untrusted_article_evidence": news_evidence(
+                                    evidence, ai.news_evidence_chars
+                                )
                             },
                             ensure_ascii=False,
                         ),
