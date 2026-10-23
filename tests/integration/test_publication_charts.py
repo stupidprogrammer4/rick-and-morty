@@ -39,6 +39,7 @@ from src.modules.content.publications.infra.tables import (
 from src.modules.content.publications.interfaces import (
     IPublicationChartCommands,
     IPublicationCommands,
+    IPublishedChartPageQuery,
     IPublishedPageQuery,
 )
 from src.modules.pricing.calculator.infra.cache import AssetPriceCache
@@ -47,7 +48,7 @@ from src.modules.pricing.candle.app.helpers import WindowClock
 from src.modules.pricing.candle.domain.windows import AssetPriceWindow
 from src.modules.pricing.candle.infra.cache import AssetWindowCache
 from src.modules.pricing.candle.interfaces import ICandleService
-from src.modules.pricing.charts.domain.models import AssetChartCard
+from src.modules.pricing.charts.domain.models import ChartGallery
 from src.modules.pricing.charts.interfaces import IAssetChartQuery
 from src.modules.pricing.reports.domain.dtos import MarketSnapshot
 from src.modules.pricing.reports.interfaces import (
@@ -127,7 +128,7 @@ async def read_publications(portal):
         )
 
 
-def test_native_scheduler_sends_paginated_prices_and_four_chart_images(portal):
+def test_native_scheduler_sends_paginated_prices_and_one_chart_gallery(portal):
     portal.run(prepare_charts(portal))
     portal.start_workers()
     parents, charts = portal.until(
@@ -135,7 +136,7 @@ def test_native_scheduler_sends_paginated_prices_and_four_chart_images(portal):
         lambda state: (
             len(state[0]) == 1
             and state[0][0][1] == "sent"
-            and len(state[1]) == 4
+            and len(state[1]) == 1
             and all(row[2] == "sent" for row in state[1])
         ),
         timeout=90,
@@ -144,8 +145,8 @@ def test_native_scheduler_sends_paginated_prices_and_four_chart_images(portal):
     pages = PublicationPages.model_validate_json(raw_pages)
     assert len(pages.items) == 8
     assert len(ExternalTelegramHandler.messages) == 1
-    assert len(ExternalTelegramHandler.photos) == 4
-    assert len(ExternalTelegramHandler.photo_attempts) == 4
+    assert len(ExternalTelegramHandler.photos) == 1
+    assert len(ExternalTelegramHandler.photo_attempts) == 1
     page_text = "\n".join(page.text for page in pages.items)
     assert "والکس" in page_text and "#تتر" in page_text
     assert "<a href=" in page_text and "🟢" in page_text and "🔴" in page_text
@@ -157,8 +158,9 @@ def test_native_scheduler_sends_paginated_prices_and_four_chart_images(portal):
         image = Image.open(BytesIO(base64.b64decode(photo["png_base64"])))
         assert image.format == "PNG" and image.size == (1000, 760)
         image.verify()
-    frozen = [AssetChartCard.model_validate_json(row[4]) for row in charts]
-    assert all(card.asset.id == row[1] for card, row in zip(frozen, charts))
+    frozen = ChartGallery.model_validate_json(charts[0][4]).cards
+    assert charts[0][1] is None
+    assert ExternalTelegramHandler.photos[0]["navigation"]["total"] == 4
     assert {card.asset.code.value for card in frozen} == {
         "gold18",
         "silver999",
@@ -204,7 +206,30 @@ def test_native_scheduler_sends_paginated_prices_and_four_chart_images(portal):
 
     frozen_chart_id = next(iter(charts))[0]
     portal.run(pages_and_replay())
-    assert len(ExternalTelegramHandler.photo_attempts) == 4
+    assert len(ExternalTelegramHandler.photo_attempts) == 1
+
+    async def gallery_pages():
+        chart_id, _, _, photo_id, _ = charts[0]
+        async with portal.request() as scope:
+            query = await scope.get(IPublishedChartPageQuery)
+            result = await query.get(
+                chart_id, 3, BotRole.MORTY, -100140001, photo_id
+            )
+            assert result.navigation.page == 3 and result.navigation.total == 4
+            assert result.navigation.chart_id == chart_id
+            image = Image.open(BytesIO(base64.b64decode(result.png_base64)))
+            image.verify()
+            for role, chat, message, page in [
+                (BotRole.RICK, -100140001, photo_id, 0),
+                (BotRole.MORTY, -100140002, photo_id, 0),
+                (BotRole.MORTY, -100140001, photo_id + 1, 0),
+                (BotRole.MORTY, -100140001, photo_id, 4),
+            ]:
+                with pytest.raises(NotFoundException):
+                    await query.get(chart_id, page, role, chat, message)
+
+    portal.run(gallery_pages())
+    assert len(ExternalTelegramHandler.photo_attempts) == 1
 
 
 async def prepare_parent(portal):
@@ -333,7 +358,7 @@ def test_native_chart_schedules_preserve_parent_microseconds(portal):
                 .scalars()
                 .all()
             )
-            assert len(charts) == 4
+            assert len(charts) == 1
             assert parent.scheduled_at.microsecond != 0
             assert all(
                 as_utc(row.scheduled_at) == as_utc(parent.scheduled_at)
@@ -429,7 +454,7 @@ def test_native_large_price_report_retains_every_source_in_pages(portal):
 
 
 # Check chart rollback before the irreversible provider revision.
-@pytest.mark.schema_revision("20261011_occasion_catalogue")
+@pytest.mark.schema_revision("20261023_chart_gallery")
 def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     portal,
 ):
@@ -454,7 +479,7 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     )
     config.set_main_option("script_location", portal.migration_scripts)
     command.downgrade(config, "20261003_market_engine")
-    command.upgrade(config, "20261011_occasion_catalogue")
+    command.upgrade(config, "head")
     command.check(config)
 
     assert portal.run(historical()) == before
@@ -489,7 +514,7 @@ def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     assert after["message_id"] == before["message_id"]
     assert after["pages"] is not None
     # MySQL may commit empty descendant downgrades before the chart guard.
-    command.upgrade(config, "20261011_occasion_catalogue")
+    command.upgrade(config, "head")
     command.check(config)
 
 
@@ -523,14 +548,14 @@ def test_native_independent_chart_scheduler_without_price_mission(portal):
         lambda state: (
             len(state[0]) == 1
             and state[0][0][1] == "sent"
-            and len(state[1]) == 4
+            and len(state[1]) == 1
             and all(row[2] == "sent" for row in state[1])
         ),
         timeout=90,
     )
     assert parents[0][3] is None
     assert len(ExternalTelegramHandler.messages) == 1
-    assert len(ExternalTelegramHandler.photos) == 4
+    assert len(ExternalTelegramHandler.photos) == 1
     assert "نمودارهای بازار" in ExternalTelegramHandler.messages[0]["text"]
 
     async def mission_and_draft():
@@ -547,9 +572,9 @@ def test_native_independent_chart_scheduler_without_price_mission(portal):
             assert not draft.synthetic
 
     portal.run(mission_and_draft())
-    for row in charts:
-        card = AssetChartCard.model_validate_json(row[4])
-        assert card.chart.candles and card.asset.id == row[1]
+    gallery = ChartGallery.model_validate_json(charts[0][4])
+    assert len(gallery.cards) == 4
+    assert all(card.chart.candles for card in gallery.cards)
 
 
 def test_native_separate_chart_cadence_avoids_price_chart_duplicates(portal):
@@ -573,13 +598,13 @@ def test_native_separate_chart_cadence_avoids_price_chart_duplicates(portal):
         lambda state: (
             len(state[0]) == 2
             and all(row[1] == "sent" for row in state[0])
-            and len(state[1]) == 4
+            and len(state[1]) == 1
             and all(row[2] == "sent" for row in state[1])
         ),
         timeout=90,
     )
     assert len(ExternalTelegramHandler.messages) == 2
-    assert len(ExternalTelegramHandler.photos) == 4
+    assert len(ExternalTelegramHandler.photos) == 1
     chart_parent = next(row for row in parents if row[3] is None)
     price_parent = next(row for row in parents if row[3] is not None)
     assert chart_parent[0] != price_parent[0]

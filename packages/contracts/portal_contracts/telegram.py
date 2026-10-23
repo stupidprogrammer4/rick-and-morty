@@ -18,6 +18,7 @@ class ReactionEmoji(StrEnum):
 
 class PublicationNavigation(BaseModel):
     publication_id: int = Field(gt=0)
+    chart_id: int | None = Field(default=None, gt=0)
     page: int = Field(ge=0)
     total: int = Field(ge=1, le=100)
     previous_label: str
@@ -65,6 +66,7 @@ class TelegramPhotoDelivery(BaseModel):
     publication_id: int = Field(gt=0)
     chart_id: int = Field(gt=0)
     reply_to_message_id: int = Field(gt=0)
+    navigation: PublicationNavigation | None = None
     caption: str = Field(max_length=1024)
     png_base64: str = Field(max_length=350000)
 
@@ -101,3 +103,14 @@ class ReactionRequest(BaseModel):
 class TypingRequest(BaseModel):
     role: BotRole
     chat_id: int = Field(gt=0)
+
+
+class PublishedChartPage(BaseModel):
+    caption: str = Field(max_length=1024)
+    png_base64: str = Field(max_length=350000)
+    navigation: PublicationNavigation
+
+    @field_validator("png_base64")
+    @classmethod
+    def valid_png(cls, value: str) -> str:
+        return bounded_png(value)

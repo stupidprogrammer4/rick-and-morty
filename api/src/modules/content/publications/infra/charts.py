@@ -35,6 +35,12 @@ class PublicationChartRepository(MySQLRepository[PublicationChartModel]):
                 },
             )
 
+    async def get(self, id: int) -> PublicationChartModel | None:
+        result = await self.uow.execute(
+            select(self.table).where(col(self.table.id) == id)
+        )
+        return result.scalar_one_or_none()
+
     async def locked(self, id: int) -> PublicationChartModel | None:
         result = await self.uow.execute(
             select(self.table)

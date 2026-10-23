@@ -11,6 +11,7 @@ from portal_contracts.content import (
 from portal_contracts.enums import BotRole
 from portal_contracts.telegram import (
     DeliveryResult,
+    PublishedChartPage,
     ReactionRequest,
     TelegramDelivery,
     TelegramPhotoDelivery,
@@ -69,3 +70,14 @@ class IPublishedPageQuery(Protocol):
         chat_id: int,
         message_id: int,
     ) -> Awaitable[PublishedPage]: ...
+
+
+class IPublishedChartPageQuery(Protocol):
+    def get(
+        self,
+        chart_id: int,
+        page: int,
+        role: BotRole,
+        chat_id: int,
+        message_id: int,
+    ) -> Awaitable[PublishedChartPage]: ...

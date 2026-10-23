@@ -24,6 +24,7 @@ class BackendClient:
         *,
         data: Any = None,
         headers: dict[str, str] | None = None,
+        timeout: float = 6,
     ) -> Any:
         request_headers = {
             "Authorization": "Bearer "
@@ -37,7 +38,7 @@ class BackendClient:
                 self.settings.api_url + "/internal" + path,
                 headers=request_headers,
                 json=data,
-                timeout=6,
+                timeout=timeout,
             )
         except httpx.HTTPError as exc:
             raise BackendUnavailable(

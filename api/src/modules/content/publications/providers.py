@@ -1,5 +1,8 @@
 from dishka import Provider, Scope, provide
 
+from src.modules.content.publications.app.chart_pages import (
+    PublishedChartPageQuery,
+)
 from src.modules.content.publications.app.charts import (
     PublicationChartCommands,
     PublicationChartQuery,
@@ -21,6 +24,7 @@ from src.modules.content.publications.interfaces import (
     IPublicationChartRecovery,
     IPublicationCommands,
     IPublicationRecovery,
+    IPublishedChartPageQuery,
     IPublishedPageQuery,
     ITelegramGateway,
 )
@@ -34,6 +38,9 @@ from src.modules.content.publications.tasks.schedulers.dispatch import (
 
 class PublicationProvider(Provider):
     scope = Scope.REQUEST
+    chart_pages = provide(
+        PublishedChartPageQuery, provides=IPublishedChartPageQuery
+    )
     chart_repo = provide(PublicationChartRepository)
     chart_reader = provide(PublicationChartReader)
     chart_query = provide(

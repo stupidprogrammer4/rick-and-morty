@@ -99,7 +99,7 @@ class PublishedPage(BaseModel):
 class PublicationChartOut(BaseModel):
     id: int
     publication_id: int
-    asset_id: int
+    asset_id: int | None
     status: str
     message_id: int | None
     failure_reason: str | None

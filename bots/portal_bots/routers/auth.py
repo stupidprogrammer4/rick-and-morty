@@ -23,7 +23,9 @@ class PrivateAdminMiddleware(BaseMiddleware):
             and message.chat.type == "channel"
             and user is not None
             and not user.is_bot
-            and re.fullmatch(r"prices:[1-9][0-9]*:[0-9]+", event.data or "")
+            and re.fullmatch(
+                r"(?:prices|charts):[1-9][0-9]*:[0-9]+", event.data or ""
+            )
         ):
             result = await handler(event, data)
             return result

@@ -243,6 +243,9 @@ class BotRuntime:
                     filename=f"asset-chart-{data.chart_id}.png",
                 ),
                 caption=data.caption,
+                reply_markup=(
+                    page_keyboard(data.navigation) if data.navigation else None
+                ),
                 reply_parameters=ReplyParameters(
                     message_id=data.reply_to_message_id
                 ),

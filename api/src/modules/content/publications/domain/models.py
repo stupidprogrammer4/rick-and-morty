@@ -34,7 +34,8 @@ class PublicationModel(PersistenceEntity):
 
 class PublicationChartModel(PersistenceEntity):
     publication_id: int = ForeignKeyField("tbl_publications.id", index=True)
-    asset_id: int = ForeignKeyField("tbl_assets.id")
+    asset_id: int | None = ForeignKeyField("tbl_assets.id", nullable=True)
+    gallery_key: str | None = CharField(16, default=None, nullable=True)
     owner_id: int = BigIntField()
     status: str = CharField(16, default="queued", index=True)
     payload: str = TextField()

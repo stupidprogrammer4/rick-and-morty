@@ -197,3 +197,13 @@ bounded transactions; source configuration, current quote caches and publication
 receipts are preserved. `python -m src.cli.pricing_retention --apply` runs the
 same cleanup manually. Deletion is irreversible; charts can only use retained
 observations.
+
+Morty chart publications use one photo message with previous/next buttons.
+Each page edits the same photo and caption, bound to the recorded bot, chat and
+Telegram receipt. Pages freeze the available closed candles within the 12-hour
+retention window. Global gold is a separate XAU/USD page (USD per troy ounce,
+source prices in cents); it does not require an Iranian cash-dollar quote.
+Empty or unavailable series are omitted, rather than replaced with synthetic
+history. Legacy chart receipts remain readable; uncertain photo sends still
+require explicit resolution. The gallery migration refuses destructive rollback
+while gallery receipts exist.

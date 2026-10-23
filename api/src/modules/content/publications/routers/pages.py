@@ -8,10 +8,12 @@ from portal_contracts.content import (
     PublishedPage,
 )
 from portal_contracts.enums import BotRole
+from portal_contracts.telegram import PublishedChartPage
 from src.config.security import owner_auth, service_auth
 from src.modules.content.publications.interfaces import (
     IPublicationChartCommands,
     IPublicationChartQuery,
+    IPublishedChartPageQuery,
     IPublishedPageQuery,
 )
 
@@ -63,4 +65,20 @@ async def resolve_chart(
     owner_id: int = Depends(owner_auth),
 ):
     result = await commands.resolve(id, owner_id, data)
+    return APIResponse(success=True, data=result)
+
+
+@router.get(
+    "/charts/{id:int}/pages/{page:int}",
+    response_model=APIResponse[PublishedChartPage, None],
+)
+async def get_chart_page(
+    id: int,
+    page: int,
+    role: BotRole,
+    chat_id: int,
+    message_id: int,
+    query: FromDishka[IPublishedChartPageQuery],
+):
+    result = await query.get(id, page, role, chat_id, message_id)
     return APIResponse(success=True, data=result)

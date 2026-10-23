@@ -185,6 +185,14 @@ def historical_migration_scripts(tmp_path):
         destination,
         ignore=shutil.ignore_patterns("20261013_groq_model.py", "__pycache__"),
     )
+    gallery = destination / "versions" / "20261023_chart_gallery.py"
+    if gallery.exists():
+        gallery.write_text(
+            gallery.read_text().replace(
+                'down_revision = "20261013_groq_model"',
+                'down_revision = "20261011_occasion_catalogue"',
+            )
+        )
     return str(destination)
 
 

@@ -8,7 +8,7 @@ from portal_contracts.configuration import BotConfiguration
 class PresentationMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         if isinstance(event, CallbackQuery) and (event.data or "").startswith(
-            "prices:"
+            ("prices:", "charts:")
         ):
             result = await handler(event, data)
             return result

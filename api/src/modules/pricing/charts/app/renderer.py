@@ -11,6 +11,7 @@ from src.modules.pricing.charts.app.series import ChartSeries
 from src.modules.pricing.charts.domain.models import (
     AssetChartCard,
     BrowserImageRequest,
+    GlobalGoldChartCard,
 )
 from src.modules.pricing.charts.infra.browser import (
     BrowserImageRenderer,
@@ -29,23 +30,31 @@ class AssetChartRenderer:
     def template(name: str) -> str:
         return (Path(__file__).parent / "templates" / name).read_text()
 
-    async def render(self, card: AssetChartCard) -> bytes:
+    async def render(
+        self, card: AssetChartCard | GlobalGoldChartCard
+    ) -> bytes:
         document = self.document(card)
         result = await self.browser.render(document)
         return result
 
-    def document(self, card: AssetChartCard) -> BrowserImageRequest:
+    def document(
+        self, card: AssetChartCard | GlobalGoldChartCard
+    ) -> BrowserImageRequest:
         style = card.style
-        code = card.asset.code.value
+        identity = (
+            card.asset if isinstance(card, AssetChartCard) else card.instrument
+        )
+        code = identity.code.value
+        divisor = card.price_divisor
         rows = sorted(card.chart.candles, key=lambda row: row.st_ts)
         aggregated = ChartSeries().candles(card)
         candles = [
             {
                 "time": row.en_ts,
-                "open": row.open / 10,
-                "high": row.high / 10,
-                "low": row.low / 10,
-                "close": row.close / 10,
+                "open": row.open / divisor,
+                "high": row.high / divisor,
+                "low": row.low / divisor,
+                "close": row.close / divisor,
             }
             for row in aggregated.candles
         ]
@@ -54,7 +63,7 @@ class AssetChartRenderer:
         for row in rows:
             if previous is not None and row.st_ts > previous:
                 points.append({"x": previous * 1000 + 1, "y": None})
-            points.append({"x": row.en_ts * 1000, "y": row.close / 10})
+            points.append({"x": row.en_ts * 1000, "y": row.close / divisor})
             previous = row.en_ts
         quote = card.quote
         zone = ZoneInfo(card.timezone)
@@ -66,17 +75,21 @@ class AssetChartRenderer:
             if rows
             else None
         )
-        decimals = int(
-            bool(latest is not None and latest % 10)
-            or any(
-                value % 10
-                for row in rows
-                for value in (row.open, row.high, row.low, row.close)
+        decimals = (
+            2
+            if divisor == 100
+            else int(
+                bool(latest is not None and latest % divisor)
+                or any(
+                    value % divisor
+                    for row in rows
+                    for value in (row.open, row.high, row.low, row.close)
+                )
             )
         )
         logo_name = style.asset_logos.get(code)
         logo = self.assets.logo(logo_name) if logo_name else ""
-        accent = card.asset.primary_color
+        accent = identity.primary_color
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             accent = style.rising
         css = self.template("card.css")
@@ -94,9 +107,13 @@ class AssetChartRenderer:
             "LOGO": logo,
             "SYMBOL": style.asset_display_symbols.get(code, code.upper()),
             "WINDOW": style.window_labels.get(style.window, style.window),
-            "TITLE": style.asset_labels.get(code, card.asset.title),
+            "TITLE": style.asset_labels.get(code, identity.title),
             "PRICE_LABEL": style.price_label,
-            "PRICE": f"{Decimal(latest) / 10:,.1f}".removesuffix(".0")
+            "PRICE": (
+                f"{Decimal(latest) / divisor:,.2f}"
+                if divisor == 100
+                else f"{Decimal(latest) / divisor:,.1f}".removesuffix(".0")
+            )
             if latest is not None
             else "—",
             "UNIT": style.unit_label,
@@ -116,7 +133,7 @@ class AssetChartRenderer:
         data = json.dumps(
             {
                 "candles": candles,
-                "latest": latest / 10 if latest is not None else None,
+                "latest": latest / divisor if latest is not None else None,
                 "line": points,
                 "decimals": decimals,
                 "style": style.model_dump(mode="json"),

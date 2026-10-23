@@ -11,4 +11,5 @@ class IBackendClient(Protocol):
         *,
         data: Any = None,
         headers: dict[str, str] | None = None,
+        timeout: float = 6,
     ) -> Awaitable[Any]: ...

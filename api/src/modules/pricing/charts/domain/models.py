@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,7 @@ from src.modules.pricing.candle.domain.models import (
     CandleChartModel,
     CandleReadModel,
 )
+from src.modules.pricing.symbols.domain.enums import SymbolCode
 
 
 class ChartAsset(AssetBase):
@@ -20,6 +22,7 @@ class ChartQuote(BaseModel):
 
 
 class ChartContent(BaseModel):
+    price_divisor: int = Field(default=10, ge=1, le=1000)
     chart: CandleChartModel
     style: AssetChartPolicy
     timezone: str
@@ -45,3 +48,23 @@ class AssetChartCard(ChartContent):
 
 class AssetChartCardOut(ChartContent):
     asset: AssetMetaModel
+
+
+class GlobalGoldInstrument(BaseModel):
+    code: Literal[SymbolCode.XAU_OUNCE] = SymbolCode.XAU_OUNCE
+    title: str = "اونس جهانی طلا"
+    primary_color: str = "#d4a72c"
+    source_id: int
+
+
+class GlobalGoldChartCard(ChartContent):
+    kind: Literal["global_gold"] = "global_gold"
+    instrument: GlobalGoldInstrument
+    price_divisor: int = Field(default=100, ge=100, le=100)
+
+
+class ChartGallery(BaseModel):
+    kind: Literal["gallery"] = "gallery"
+    cards: list[AssetChartCard | GlobalGoldChartCard] = Field(
+        min_length=1, max_length=10
+    )

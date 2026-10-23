@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from src.modules.pricing.charts.domain.models import (
     AssetChartCard,
     ChartCandleSeries,
+    GlobalGoldChartCard,
 )
 
 
@@ -18,7 +19,9 @@ class ChartSeries:
         seconds = int(offset.total_seconds())
         return (timestamp + seconds) // step, seconds
 
-    def candles(self, card: AssetChartCard) -> ChartCandleSeries:
+    def candles(
+        self, card: AssetChartCard | GlobalGoldChartCard
+    ) -> ChartCandleSeries:
         step = max(
             card.style.candle_interval_seconds, card.chart.timeframe.seconds
         )

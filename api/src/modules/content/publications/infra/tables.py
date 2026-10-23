@@ -41,5 +41,8 @@ class PublicationChartTable(PublicationChartModel, BaseTable, table=True):
     )
     __table_args__ = (
         UniqueConstraint("publication_id", "asset_id"),
+        UniqueConstraint(
+            "publication_id", "gallery_key", name="uq_chart_gallery"
+        ),
         Index("ix_publication_charts_due", "status", "scheduled_at", "id"),
     )

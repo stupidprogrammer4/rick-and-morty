@@ -1,7 +1,11 @@
 from collections.abc import Awaitable
 from typing import Protocol
 
-from src.modules.pricing.charts.domain.models import AssetChartCard
+from src.modules.pricing.candle.domain.models import CandleChartModel
+from src.modules.pricing.charts.domain.models import (
+    AssetChartCard,
+    GlobalGoldChartCard,
+)
 
 
 class IAssetChartQuery(Protocol):
@@ -10,4 +14,16 @@ class IAssetChartQuery(Protocol):
 
 
 class IAssetChartRenderer(Protocol):
-    def render(self, card: AssetChartCard) -> Awaitable[bytes]: ...
+    def render(
+        self, card: AssetChartCard | GlobalGoldChartCard
+    ) -> Awaitable[bytes]: ...
+
+
+class IGlobalGoldChartQuery(Protocol):
+    async def get(self) -> GlobalGoldChartCard | None: ...
+
+
+class IGlobalGoldSeries(Protocol):
+    async def read(
+        self, source_id: int, start: int, end: int
+    ) -> CandleChartModel: ...

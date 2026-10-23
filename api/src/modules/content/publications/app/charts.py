@@ -7,7 +7,10 @@ from papilio.infra.db.transaction import transaction
 from portal_contracts.configuration import PortalConfiguration
 from portal_contracts.content import PublicationChartOut, PublicationResolution
 from portal_contracts.enums import BotRole
-from portal_contracts.telegram import TelegramPhotoDelivery
+from portal_contracts.telegram import (
+    PublicationNavigation,
+    TelegramPhotoDelivery,
+)
 from src.modules.content.publications.app.policy import PublicationPolicy
 from src.modules.content.publications.domain.models import (
     PublicationChartModel,
@@ -19,10 +22,14 @@ from src.modules.content.publications.infra.charts import (
 )
 from src.modules.content.publications.interfaces import ITelegramGateway
 from src.modules.ops.guards.interfaces import IPortalGuard
-from src.modules.pricing.charts.domain.models import AssetChartCard
+from src.modules.pricing.charts.domain.models import (
+    AssetChartCard,
+    ChartGallery,
+)
 from src.modules.pricing.charts.interfaces import (
     IAssetChartQuery,
     IAssetChartRenderer,
+    IGlobalGoldChartQuery,
 )
 from src.shared.dates import as_utc, utc_now
 from src.shared.errors import conflict, missing
@@ -34,6 +41,7 @@ class PublicationChartCommands:
         repo: PublicationChartRepository,
         reader: PublicationChartReader,
         query: IAssetChartQuery,
+        global_gold: IGlobalGoldChartQuery,
         renderer: IAssetChartRenderer,
         settings: PortalConfiguration,
         guard: IPortalGuard,
@@ -42,6 +50,7 @@ class PublicationChartCommands:
         self.repo = repo
         self.reader = reader
         self.query = query
+        self.global_gold = global_gold
         self.renderer = renderer
         self.settings = settings
         self.guard = guard
@@ -51,26 +60,34 @@ class PublicationChartCommands:
     async def schedule(self, publication: PublicationModel) -> None:
         if not self.settings.market.charts.enabled:
             return
-        cards = await self.query.get_all()
-        rows = []
-        for card in cards:
-            payload = card.model_dump_json()
-            if len(payload.encode()) > 60000:
-                raise ValueError("Frozen chart exceeds the storage limit")
-            rows.append(
-                PublicationChartModel(
-                    publication_id=publication.id,
-                    owner_id=publication.owner_id,
-                    asset_id=card.asset.id,
-                    payload=payload,
-                    scheduled_at=publication.scheduled_at,
-                    deadline=publication.deadline
-                    + timedelta(
-                        seconds=self.settings.portal.publication_timeout
-                    ),
-                )
+        # Both readers share the request-scoped MySQL unit of work.
+        assets = await self.query.get_all()
+        global_gold = await self.global_gold.get()
+        cards = [card for card in assets if card.chart.candles]
+        gallery = (
+            ChartGallery(
+                cards=[*cards, *([global_gold] if global_gold else [])]
             )
-        await self.repo.create_all(rows)
+            if cards or global_gold
+            else None
+        )
+        if gallery is None:
+            return
+        payload = gallery.model_dump_json()
+        if len(payload.encode()) > 60000:
+            raise ValueError("Frozen chart gallery exceeds the storage limit")
+        await self.repo.create(
+            PublicationChartModel(
+                publication_id=publication.id,
+                owner_id=publication.owner_id,
+                asset_id=None,
+                gallery_key="charts",
+                payload=payload,
+                scheduled_at=publication.scheduled_at,
+                deadline=publication.deadline
+                + timedelta(seconds=self.settings.portal.publication_timeout),
+            )
+        )
 
     async def dispatch(self, chart_id: int) -> None:
         async with transaction():
@@ -101,7 +118,23 @@ class PublicationChartCommands:
                 row.failure_reason = "publishing_channel_changed"
                 await self.repo.save(row)
                 return
-            card = AssetChartCard.model_validate_json(row.payload)
+            gallery = (
+                ChartGallery.model_validate_json(row.payload)
+                if row.gallery_key == "charts"
+                else None
+            )
+            card = (
+                gallery.cards[0]
+                if gallery
+                else AssetChartCard.model_validate_json(row.payload)
+            )
+            navigation = (
+                gallery_navigation(
+                    row.publication_id, chart_id, 0, len(gallery.cards)
+                )
+                if gallery
+                else None
+            )
             row.status = "rendering"
             row.lease_expires_at = now + timedelta(seconds=60)
             await self.repo.save(row)
@@ -138,6 +171,7 @@ class PublicationChartCommands:
                 chart_id=chart_id,
                 reply_to_message_id=parent.message_id,
                 caption=card.caption,
+                navigation=navigation,
                 png_base64=base64.b64encode(image).decode("ascii"),
             )
         if self.settings.portal.dry_run:
@@ -227,3 +261,17 @@ class PublicationChartQuery:
             PublicationChartOut.model_validate(row, from_attributes=True)
             for row in rows
         ]
+
+
+def gallery_navigation(
+    publication_id: int, chart_id: int, page: int, total: int
+) -> PublicationNavigation:
+    return PublicationNavigation(
+        publication_id=publication_id,
+        chart_id=chart_id,
+        page=page,
+        total=total,
+        previous_label="قبلی ◀️",
+        next_label="▶️ بعدی",
+        page_label="{page} / {total}",
+    )

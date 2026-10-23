@@ -37,7 +37,7 @@ class AssetChartQuery:
 
     def window(self) -> ParamDTO:
         now = utc_now()
-        span = ChartType(self.settings.market.charts.window).span
+        span = min(43200, ChartType(self.settings.market.charts.window).span)
         return ParamDTO(
             from_datetime=now - timedelta(seconds=span), to_datetime=now
         )
@@ -48,7 +48,13 @@ class AssetChartQuery:
         chart: CandleChartModel,
         price: AssetPriceModel | None,
     ) -> AssetChartCard:
-        style = self.settings.market.charts
+        style = self.settings.market.charts.model_copy(
+            update={
+                "window": "daily",
+                "window_labels": {"daily": "۱۲ ساعت اخیر"},
+                "footer": "داده‌های ثبت‌شده · ۱۲ ساعت اخیر",
+            }
+        )
         symbol = style.asset_symbols.get(asset.code.value)
         decoration = self.presentation.asset_styles.get(symbol or "")
         title = (
