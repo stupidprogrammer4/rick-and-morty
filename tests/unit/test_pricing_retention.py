@@ -16,12 +16,12 @@ from src.modules.pricing.retention.tasks.schedulers.prune import (
 
 
 @pytest.mark.parametrize("microsecond, expected_offset", [(0, 0), (1, 1)])
-def test_cutoff_is_exactly_one_day_with_fractional_expiry(
+def test_cutoff_is_exactly_twelve_hours_with_fractional_expiry(
     monkeypatch, microsecond, expected_offset
 ):
     now = datetime(2026, 10, 6, 12, microsecond=microsecond, tzinfo=UTC)
     monkeypatch.setattr(maintenance, "utc_now", lambda: now)
-    assert history_cutoff() == (int(now.timestamp()) - 86400 + expected_offset)
+    assert history_cutoff() == (int(now.timestamp()) - 43200 + expected_offset)
 
 
 def test_cleanup_targets_only_the_six_pricing_time_series():

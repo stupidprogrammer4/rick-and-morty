@@ -190,3 +190,10 @@ is configured. Enable ZDR in Groq Data Controls. Credit balance and aggregate co
 are not part of completion response bodies; missing cost stays unknown.
 
 News generation bounds article excerpts sent to the model with the validated `ai.model.news_evidence_chars` setting (default 6,000 body characters across the selected articles). Full evidence remains stored, and shortened context is explicitly marked as truncated while retaining its source and evidence ID. This reduces oversized requests on free model tiers without dropping selected articles.
+
+Pricing time-series history (aggregate/source tickers, bubbles and candles) is
+retained for 12 hours. The native scheduler prunes expired rows every minute in
+bounded transactions; source configuration, current quote caches and publication
+receipts are preserved. `python -m src.cli.pricing_retention --apply` runs the
+same cleanup manually. Deletion is irreversible; charts can only use retained
+observations.

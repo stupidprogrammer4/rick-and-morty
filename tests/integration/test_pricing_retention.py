@@ -28,7 +28,7 @@ pytestmark = pytest.mark.integration
 
 
 async def seed_history(portal, now):
-    cutoff = int(now.timestamp()) - 86400
+    cutoff = int(now.timestamp()) - 43200
     async with portal.request() as scope:
         uow = await scope.get(MySQLUnitOfWork)
         asset = (await uow.execute(select(AssetTable))).scalars().first()

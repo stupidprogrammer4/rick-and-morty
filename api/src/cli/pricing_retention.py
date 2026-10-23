@@ -1,4 +1,4 @@
-"""Report or apply the same 24-hour cleanup used by the minute scheduler."""
+"""Report or apply the same 12-hour cleanup used by the minute scheduler."""
 
 import argparse
 import asyncio

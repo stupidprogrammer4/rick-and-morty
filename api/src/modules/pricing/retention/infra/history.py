@@ -34,7 +34,7 @@ HISTORY_TARGETS = (
     HistoryTarget(SourcePriceTickerTable, "timestamp"),
     HistoryTarget(BubbleTickerTable, "timestamp"),
     HistoryTarget(SourceBubbleTickerTable, "timestamp"),
-    # Start time excludes aggregates containing observations older than 24h.
+    # Use start time so a candle cannot retain expired observations.
     HistoryTarget(CandleTable, "st_ts"),
     HistoryTarget(SourceCandleTable, "st_ts"),
 )

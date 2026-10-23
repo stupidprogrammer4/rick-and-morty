@@ -1,4 +1,4 @@
-"""Keep at most one day's historical prices using short cleanup batches."""
+"""Keep twelve hours of pricing history using short cleanup batches."""
 
 from math import ceil
 
@@ -8,7 +8,7 @@ from src.modules.pricing.retention.infra.history import (
 )
 from src.shared.dates import utc_now
 
-HISTORY_RETENTION_SECONDS = 24 * 60 * 60
+HISTORY_RETENTION_SECONDS = 12 * 60 * 60
 CLEANUP_INTERVAL_SECONDS = 60
 
 
