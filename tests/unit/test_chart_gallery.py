@@ -77,3 +77,33 @@ async def test_public_chart_navigation_bypasses_private_admin_settings():
     )
     assert await PresentationMiddleware()(handler, callback, {}) == "ok"
     assert handler.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_expired_chart_click_is_acknowledged_without_backend_work():
+    from aiogram.exceptions import TelegramBadRequest
+    from aiogram.methods import AnswerCallbackQuery
+
+    bot = AsyncMock(
+        side_effect=TelegramBadRequest(
+            method=AnswerCallbackQuery(callback_query_id="expired"),
+            message=(
+                "query is too old and response timeout expired "
+                "or query ID is invalid"
+            ),
+        )
+    )
+    callback = CallbackQuery(
+        id="expired",
+        from_user={"id": 555, "is_bot": False, "first_name": "Reader"},
+        chat_instance="channel",
+        data="charts:44:1",
+        message=Message(
+            message_id=99,
+            date=datetime.now(UTC),
+            chat=Chat(id=-100123, type="channel"),
+        ),
+    ).as_(bot)
+    backend = SimpleNamespace(request=AsyncMock())
+    await chart_page(callback, backend, BotRole.MORTY, 123)
+    backend.request.assert_not_awaited()

@@ -60,7 +60,15 @@ async def chart_page(
     if not isinstance(callback.message, Message) or callback.data is None:
         await callback.answer()
         return
-    await callback.answer("در حال بارگذاری نمودار…")
+    try:
+        await callback.answer("در حال بارگذاری نمودار…")
+    except TelegramBadRequest as exc:
+        if (
+            "query is too old" in exc.message
+            or "query ID is invalid" in exc.message
+        ):
+            return
+        raise
     _, chart, index = callback.data.split(":")
     message = callback.message
     raw = await backend.request(
