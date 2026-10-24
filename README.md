@@ -209,7 +209,8 @@ require explicit resolution. The gallery migration refuses destructive rollback
 while gallery receipts exist.
 
 Chart pages are rendered before the gallery is sent, then cached for 12 hours
-in the application's Redis namespace. Named asset buttons allow direct jumps. Cache identity includes the frozen data,
+in the application's Redis namespace, with at most 64 cached images. Named
+asset buttons allow direct jumps. Cache identity includes the frozen data,
 layout and renderer script; API and worker processes share it. Navigation still
 validates the recorded bot/chat/message on every request. Both panels use the
 packaged TradingView renderer with matching precision and timezone. An expired
@@ -221,3 +222,16 @@ hours independently of hourly price reports, respecting existing quiet hours.
 Full galleries have a 256 KiB application bound and a MySQL MEDIUMTEXT column,
 so four full 12-hour series do not fail at the old TEXT ceiling. Migration
 rollback refuses to truncate an existing gallery that exceeds TEXT capacity.
+
+Verification on 2026-10-24: 236 unit tests passed (one skipped), and 12 native
+MySQL/Redis integration tests passed, including concurrent price/chart delivery,
+prepared-page reuse, full 12-hour payload persistence and shared cache eviction.
+Production application release `90eac91f07a0c6023d08a5b6b338f857f29dafd6` sent
+a fresh price report and one four-page gold/silver/USDT/XAU gallery successfully.
+Edits of that same Telegram photo took 2.227 seconds initially, then
+0.391/0.378/0.210 seconds; these are measured samples, not latency guarantees.
+No OOM or restart was recorded after rollout. Publication receipt transitions
+now acquire the publishing guard before row/index locks, preventing the
+reproduced conflict with concurrent daily-budget reservations. An uncertain
+Telegram send is still never automatically replayed. The current TGJU cash-USD
+quote is stale and remains excluded; USDT is not substituted for cash USD.
