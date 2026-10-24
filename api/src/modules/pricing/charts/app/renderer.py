@@ -1,3 +1,5 @@
+import asyncio
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -17,13 +19,21 @@ from src.modules.pricing.charts.infra.browser import (
     BrowserImageRenderer,
     ChartAssets,
 )
+from src.modules.pricing.charts.interfaces import IChartImageCache
 from src.shared.dates import as_utc
 
 
 class AssetChartRenderer:
-    def __init__(self, browser: BrowserImageRenderer, assets: ChartAssets):
+    def __init__(
+        self,
+        browser: BrowserImageRenderer,
+        assets: ChartAssets,
+        cache: IChartImageCache | None = None,
+    ):
         self.browser = browser
         self.assets = assets
+        self.cache = cache
+        self.capacity = asyncio.Lock()
 
     @staticmethod
     @lru_cache(maxsize=3)
@@ -34,8 +44,19 @@ class AssetChartRenderer:
         self, card: AssetChartCard | GlobalGoldChartCard
     ) -> bytes:
         document = self.document(card)
-        result = await self.browser.render(document)
-        return result
+        if self.cache is None:
+            return await self.browser.render(document)
+        key = hashlib.sha256(document.model_dump_json().encode()).hexdigest()
+        image = await self.cache.get(key)
+        if image is not None:
+            return image
+        # Coalesce concurrent local misses without launching more browsers.
+        async with self.capacity:
+            image = await self.cache.get(key)
+            if image is None:
+                image = await self.browser.render(document)
+                await self.cache.put(key, image)
+            return image
 
     def document(
         self, card: AssetChartCard | GlobalGoldChartCard

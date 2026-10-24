@@ -25,19 +25,26 @@
     }
     chart.timeScale().fitContent();
     const lineBox = document.getElementById('line');
-    const line = new ApexCharts(lineBox, {
-        chart:{type:'area',width:'100%',height:lineBox.clientHeight,fontFamily:'Vazirmatn',foreColor:style.foreground,background:style.panel_background || style.background,animations:{enabled:false},toolbar:{show:false},zoom:{enabled:false},parentHeightOffset:0},
-        series:[{name:style.line_label,data:data.line}],
-        colors:[style.rising],stroke:{width:2.5,curve:'straight'},
-        fill:{type:'gradient',gradient:{shade:'dark',opacityFrom:.24,opacityTo:.02,stops:[0,100]}},
-        dataLabels:{enabled:false},markers:{size:data.candles.length<4?4:0},
-        grid:{borderColor:style.foreground+'12',strokeDashArray:3,padding:{top:0,right:8,bottom:0,left:32}},
-        xaxis:{type:'datetime',labels:{datetimeUTC:false,formatter:(_value,timestamp)=>stamp(timestamp),style:{fontSize:'10px'}},axisBorder:{show:false},axisTicks:{show:false},tooltip:{enabled:false}},
-        yaxis:{opposite:true,forceNiceScale:false,labels:{formatter:money,style:{fontSize:'11px'}}},
-        tooltip:{enabled:false},legend:{show:false},
-        noData:{text:style.empty_label},
+    const line = LightweightCharts.createChart(lineBox, {
+        width:lineBox.clientWidth, height:lineBox.clientHeight,
+        layout:{background:{type:'solid',color:style.panel_background || style.background},textColor:style.foreground,fontFamily:'Vazirmatn',fontSize:11},
+        grid:{vertLines:{color:style.foreground+'0c'},horzLines:{color:style.foreground+'12'}},
+        rightPriceScale:{borderVisible:false,scaleMargins:{top:.2,bottom:.2}},
+        timeScale:{borderVisible:false,timeVisible:true,secondsVisible:false,tickMarkFormatter:time=>stamp(time*1000)},
+        localization:{priceFormatter:money,timeFormatter:time=>stamp(time*1000)},
+        handleScroll:false,handleScale:false,
     });
-    await line.render();
+    const trend = line.addSeries(LightweightCharts.AreaSeries, {
+        lineColor:style.rising,topColor:style.rising+'38',bottomColor:style.rising+'04',
+        lineWidth:2,lastValueVisible:false,priceLineVisible:false,
+        priceFormat:{type:'price',precision:data.decimals,minMove:10**(-data.decimals)},
+        pointMarkersVisible:data.line.filter(point=>point.y!==null).length<4,
+    });
+    trend.setData(data.line.map(point=>point.y===null?{time:point.x/1000}:{time:point.x/1000,value:point.y}));
+    line.timeScale().fitContent();
+    if (!data.line.some(point=>point.y!==null)) {
+        document.getElementById('empty-line').style.display='flex';
+    }
     if (!data.candles.length) {
         document.getElementById('empty-ohlc').style.display='flex';
     }

@@ -8,9 +8,11 @@ from src.modules.pricing.charts.infra.browser import (
     ChartAssets,
 )
 from src.modules.pricing.charts.infra.global_gold import GlobalGoldSeries
+from src.modules.pricing.charts.infra.images import ChartImageCache
 from src.modules.pricing.charts.interfaces import (
     IAssetChartQuery,
     IAssetChartRenderer,
+    IChartImageCache,
     IGlobalGoldChartQuery,
     IGlobalGoldSeries,
 )
@@ -23,4 +25,15 @@ class ChartProvider(Provider):
     queries = provide(AssetChartQuery, provides=IAssetChartQuery)
     assets = provide(ChartAssets, scope=Scope.APP)
     browser = provide(BrowserImageRenderer, scope=Scope.APP)
-    renderer = provide(AssetChartRenderer, provides=IAssetChartRenderer)
+    images = provide(
+        ChartImageCache, provides=IChartImageCache, scope=Scope.APP
+    )
+
+    @provide(scope=Scope.APP)
+    def renderer(
+        self,
+        browser: BrowserImageRenderer,
+        assets: ChartAssets,
+        cache: IChartImageCache,
+    ) -> IAssetChartRenderer:
+        return AssetChartRenderer(browser, assets, cache)

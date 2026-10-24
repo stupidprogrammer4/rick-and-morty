@@ -196,6 +196,7 @@ class PublicationCommands:
             )
         if self.settings.portal.dry_run:
             async with transaction():
+                await self.guard.lock("publishing")
                 row = await self.repo.get(publication_id, lock=True)
                 if row is not None:
                     row.status = "dry_run"
@@ -204,6 +205,7 @@ class PublicationCommands:
             return
         result = await self.gateway.send(delivery)
         async with transaction():
+            await self.guard.lock("publishing")
             row = await self.repo.get(publication_id, lock=True)
             if row is None or row.status != "sending":
                 return

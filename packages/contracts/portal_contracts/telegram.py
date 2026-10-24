@@ -24,11 +24,16 @@ class PublicationNavigation(BaseModel):
     previous_label: str
     next_label: str
     page_label: str
+    page_titles: list[str] = Field(default_factory=list, max_length=10)
 
     @model_validator(mode="after")
     def page_exists(self):
         if self.page >= self.total:
             raise ValueError("Page is outside the publication")
+        if self.page_titles and len(self.page_titles) != self.total:
+            raise ValueError("Page titles must match the gallery")
+        if any(not title or len(title) > 64 for title in self.page_titles):
+            raise ValueError("Invalid gallery title")
         return self
 
 

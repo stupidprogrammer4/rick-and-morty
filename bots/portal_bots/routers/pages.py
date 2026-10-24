@@ -29,6 +29,7 @@ async def page(
     if not isinstance(callback.message, Message) or callback.data is None:
         await callback.answer()
         return
+    await callback.answer()
     _, publication, index = callback.data.split(":")
     message = callback.message
     raw = await backend.request(
@@ -47,7 +48,6 @@ async def page(
     except TelegramBadRequest as exc:
         if "message is not modified" not in exc.message:
             raise
-    await callback.answer()
 
 
 @router.callback_query(F.data.regexp(r"^charts:[1-9][0-9]*:[0-9]+$"))

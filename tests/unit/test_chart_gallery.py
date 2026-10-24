@@ -107,3 +107,18 @@ async def test_expired_chart_click_is_acknowledged_without_backend_work():
     backend = SimpleNamespace(request=AsyncMock())
     await chart_page(callback, backend, BotRole.MORTY, 123)
     backend.request.assert_not_awaited()
+
+
+def test_chart_tabs_jump_directly_to_named_pages():
+    from portal_bots.app.pages import page_keyboard
+
+    navigation = gallery_navigation(12, 44, 1, 3)
+    navigation.page_titles = ["طلا", "نقره", "اونس جهانی"]
+    keyboard = page_keyboard(navigation)
+    tabs = [button for row in keyboard.inline_keyboard[1:] for button in row]
+    assert [button.text for button in tabs] == ["طلا", "✓ نقره", "اونس جهانی"]
+    assert [button.callback_data for button in tabs] == [
+        "charts:44:0",
+        "charts:44:1",
+        "charts:44:2",
+    ]

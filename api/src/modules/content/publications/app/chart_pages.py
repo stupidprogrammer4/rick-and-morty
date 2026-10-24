@@ -54,6 +54,6 @@ class PublishedChartPageQuery:
             caption=card.caption,
             png_base64=base64.b64encode(image).decode("ascii"),
             navigation=gallery_navigation(
-                parent.id, chart_id, page, len(gallery.cards)
+                parent.id, chart_id, page, len(gallery.cards), gallery
             ),
         )

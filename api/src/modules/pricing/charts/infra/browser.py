@@ -65,9 +65,6 @@ class BrowserImageRenderer:
                     await page.add_script_tag(
                         content=self.assets.text("lightweight-charts.js")
                     )
-                    await page.add_script_tag(
-                        content=self.assets.text("apexcharts.js")
-                    )
                     await page.add_script_tag(content=request.script)
                     await page.wait_for_function("window.chartReady === true")
                     await page.evaluate("document.fonts.ready")

@@ -6,9 +6,10 @@ from sqlalchemy import (
     DateTime,
     ForeignKeyConstraint,
     Index,
+    Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.mysql import DATETIME
+from sqlalchemy.dialects.mysql import DATETIME, MEDIUMTEXT
 from sqlmodel import Field
 
 from src.modules.content.publications.domain.models import (
@@ -18,7 +19,7 @@ from src.modules.content.publications.domain.models import (
 
 
 class PublicationTable(PublicationModel, BaseTable, table=True):
-    scheduled_at: datetime = Field(
+    scheduled_at: datetime = Field(  # pyright: ignore[reportGeneralTypeIssues]
         sa_column=Column(
             DateTime(timezone=True).with_variant(DATETIME(fsp=6), "mysql"),
             nullable=False,
@@ -33,7 +34,12 @@ class PublicationTable(PublicationModel, BaseTable, table=True):
 
 
 class PublicationChartTable(PublicationChartModel, BaseTable, table=True):
-    scheduled_at: datetime = Field(
+    payload: str = Field(  # pyright: ignore[reportGeneralTypeIssues]
+        sa_column=Column(
+            Text().with_variant(MEDIUMTEXT(), "mysql"), nullable=False
+        )
+    )
+    scheduled_at: datetime = Field(  # pyright: ignore[reportGeneralTypeIssues]
         sa_column=Column(
             DateTime(timezone=True).with_variant(DATETIME(fsp=6), "mysql"),
             nullable=False,

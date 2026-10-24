@@ -100,7 +100,7 @@ initial `api/seeds/defaults.json` creates missing records; restarting or seeding
 overwrites administrator changes. Credentials and transport belong in private
 environment variables; `config.yml` contains framework and infrastructure setup.
 
-Recurring prices, charts and news have independent one-, three- and two-hour
+Recurring prices, charts and news have independent one-, two- and two-hour
 intervals anchored at 10:00 Tehran time. After seeding,
 `python -m src.cli.content_schedule` activates this cadence for an existing
 channel and administrator, preserves content settings, disables quiet hours
@@ -207,3 +207,17 @@ Empty or unavailable series are omitted, rather than replaced with synthetic
 history. Legacy chart receipts remain readable; uncertain photo sends still
 require explicit resolution. The gallery migration refuses destructive rollback
 while gallery receipts exist.
+
+Chart pages are rendered before the gallery is sent, then cached for 12 hours
+in the application's Redis namespace. Named asset buttons allow direct jumps. Cache identity includes the frozen data,
+layout and renderer script; API and worker processes share it. Navigation still
+validates the recorded bot/chat/message on every request. Both panels use the
+packaged TradingView renderer with matching precision and timezone. An expired
+image can be rebuilt from its durable snapshot. The cadence CLI enables each
+asset's calculation timer as well as the publication schedule; enabling source
+crawling alone does not create asset candles. Production charts run every two
+hours independently of hourly price reports, respecting existing quiet hours.
+
+Full galleries have a 256 KiB application bound and a MySQL MEDIUMTEXT column,
+so four full 12-hour series do not fail at the old TEXT ceiling. Migration
+rollback refuses to truncate an existing gallery that exceeds TEXT capacity.

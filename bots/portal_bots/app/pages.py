@@ -34,4 +34,16 @@ def page_keyboard(navigation: PublicationNavigation) -> InlineKeyboardMarkup:
                 callback_data=f"{prefix}:{page + 1}",
             )
         )
-    return InlineKeyboardMarkup(inline_keyboard=[buttons])
+    rows = [buttons]
+    if navigation.chart_id and navigation.page_titles:
+        tabs = [
+            InlineKeyboardButton(
+                text=("✓ " if index == page else "") + title,
+                callback_data=f"{prefix}:{index}",
+            )
+            for index, title in enumerate(navigation.page_titles)
+        ]
+        rows.extend(
+            tabs[index : index + 2] for index in range(0, len(tabs), 2)
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)

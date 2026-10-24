@@ -74,7 +74,7 @@ class PublicationChartCommands:
         if gallery is None:
             return
         payload = gallery.model_dump_json()
-        if len(payload.encode()) > 60000:
+        if len(payload.encode()) > 256 * 1024:
             raise ValueError("Frozen chart gallery exceeds the storage limit")
         await self.repo.create(
             PublicationChartModel(
@@ -130,18 +130,29 @@ class PublicationChartCommands:
             )
             navigation = (
                 gallery_navigation(
-                    row.publication_id, chart_id, 0, len(gallery.cards)
+                    row.publication_id,
+                    chart_id,
+                    0,
+                    len(gallery.cards),
+                    gallery,
                 )
                 if gallery
                 else None
             )
             row.status = "rendering"
-            row.lease_expires_at = now + timedelta(seconds=60)
+            row.lease_expires_at = now + timedelta(
+                seconds=35 * len(gallery.cards) + 30 if gallery else 60
+            )
             await self.repo.save(row)
         try:
             image = await self.renderer.render(card)
+            # Prepare immutable pages before publishing navigation buttons.
+            if gallery:
+                for next_card in gallery.cards[1:]:
+                    await self.renderer.render(next_card)
         except Exception:
             async with transaction():
+                await self.guard.lock("publishing")
                 row = await self.repo.locked(chart_id)
                 if row is not None and row.status == "rendering":
                     row.status = "failed"
@@ -176,6 +187,7 @@ class PublicationChartCommands:
             )
         if self.settings.portal.dry_run:
             async with transaction():
+                await self.guard.lock("publishing")
                 row = await self.repo.locked(chart_id)
                 if row is not None:
                     row.status = "dry_run"
@@ -183,6 +195,7 @@ class PublicationChartCommands:
             return
         result = await self.gateway.send_photo(delivery)
         async with transaction():
+            await self.guard.lock("publishing")
             row = await self.repo.locked(chart_id)
             if row is None or row.status != "sending":
                 return
@@ -229,15 +242,20 @@ class PublicationChartCommands:
 
 class PublicationChartRecovery:
     def __init__(
-        self, repo: PublicationChartRepository, reader: PublicationChartReader
+        self,
+        repo: PublicationChartRepository,
+        reader: PublicationChartReader,
+        guard: IPortalGuard,
     ):
         self.repo = repo
         self.reader = reader
+        self.guard = guard
 
     async def enqueue_pending(self) -> None:
         from src.modules.content.publications.tasks.schedulers import dispatch
 
         async with transaction():
+            await self.guard.lock("publishing")
             now = utc_now()
             await self.repo.recover(now)
             ids = await self.reader.due(now, 100)
@@ -264,7 +282,11 @@ class PublicationChartQuery:
 
 
 def gallery_navigation(
-    publication_id: int, chart_id: int, page: int, total: int
+    publication_id: int,
+    chart_id: int,
+    page: int,
+    total: int,
+    gallery: ChartGallery | None = None,
 ) -> PublicationNavigation:
     return PublicationNavigation(
         publication_id=publication_id,
@@ -274,4 +296,14 @@ def gallery_navigation(
         previous_label="قبلی ◀️",
         next_label="▶️ بعدی",
         page_label="{page} / {total}",
+        page_titles=[
+            (
+                card.asset.title
+                if isinstance(card, AssetChartCard)
+                else card.instrument.title
+            )[:64]
+            for card in gallery.cards
+        ]
+        if gallery
+        else [],
     )

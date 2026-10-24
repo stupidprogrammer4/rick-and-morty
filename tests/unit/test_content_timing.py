@@ -85,7 +85,7 @@ def test_requested_cadence_preserves_user_content_and_has_capacity(
         == automation.news.lookback_seconds
         == 7200
     )
-    assert automation.charts.interval_seconds == 10800
+    assert automation.charts.interval_seconds == 7200
     assert automation.news.prompt == current.automation.news.prompt
     assert all(
         rule.enabled

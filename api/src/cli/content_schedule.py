@@ -24,6 +24,9 @@ from src.modules.ops.settings.interfaces import (
     IConfigurationQueries,
     ISettingValueService,
 )
+from src.modules.pricing.assets.domain.dtos import AssetConfigUpdate
+from src.modules.pricing.assets.interfaces import IAssetConfigService
+from src.modules.pricing.calculator.interfaces import IReconcileSchedules
 from src.shared.dates import utc_now
 
 
@@ -48,7 +51,7 @@ def cadence_values(
     for name, interval in (
         ("prices", 3600),
         ("news", 7200),
-        ("charts", 10800),
+        ("charts", 7200),
     ):
         automation[name].update(
             enabled=True, interval_seconds=interval, starts_at=anchor
@@ -120,10 +123,16 @@ async def apply(owner_id: int | None) -> None:
                             value=value, revision=record.revision
                         ),
                     )
+                configs = await request.get(IAssetConfigService)
+                for config in await configs.get_all():
+                    await configs.update(
+                        config.asset_id, AssetConfigUpdate(scheduler_on=True)
+                    )
+            await (await request.get(IReconcileSchedules)).execute()
     finally:
         await container.close()
     print(
-        "Cadence saved (Asia/Tehran): prices 1h, charts 3h, news 2h; "
+        "Cadence saved (Asia/Tehran): prices 1h, charts 2h, news 2h; "
         "occasions prepare 10:00, randomized publication 15:00–18:00."
     )
 

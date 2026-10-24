@@ -3,6 +3,7 @@ import base64
 import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from alembic import command
@@ -49,7 +50,11 @@ from src.modules.pricing.candle.domain.windows import AssetPriceWindow
 from src.modules.pricing.candle.infra.cache import AssetWindowCache
 from src.modules.pricing.candle.interfaces import ICandleService
 from src.modules.pricing.charts.domain.models import ChartGallery
-from src.modules.pricing.charts.interfaces import IAssetChartQuery
+from src.modules.pricing.charts.infra.browser import BrowserImageRenderer
+from src.modules.pricing.charts.interfaces import (
+    IAssetChartQuery,
+    IAssetChartRenderer,
+)
 from src.modules.pricing.reports.domain.dtos import MarketSnapshot
 from src.modules.pricing.reports.interfaces import (
     IMarketQuery,
@@ -204,6 +209,21 @@ def test_native_scheduler_sends_paginated_prices_and_one_chart_gallery(portal):
             commands = await scope.get(IPublicationChartCommands)
             await commands.dispatch(frozen_chart_id)
 
+    async def assert_all_pages_prepared():
+        # A new request/process can reuse every page before a user clicks it.
+        async with portal.request() as scope:
+            renderer = await scope.get(IAssetChartRenderer)
+            with patch.object(
+                BrowserImageRenderer,
+                "render",
+                AsyncMock(
+                    side_effect=AssertionError("Unexpected browser launch")
+                ),
+            ):
+                for card in frozen:
+                    assert (await renderer.render(card)).startswith(b"\x89PNG")
+
+    portal.run(assert_all_pages_prepared())
     frozen_chart_id = next(iter(charts))[0]
     portal.run(pages_and_replay())
     assert len(ExternalTelegramHandler.photo_attempts) == 1
@@ -454,7 +474,7 @@ def test_native_large_price_report_retains_every_source_in_pages(portal):
 
 
 # Check chart rollback before the irreversible provider revision.
-@pytest.mark.schema_revision("20261023_chart_gallery")
+@pytest.mark.schema_revision("20261024_chart_payload")
 def test_chart_migration_preserves_existing_publication_and_blocks_data_loss(
     portal,
 ):
@@ -612,3 +632,63 @@ def test_native_separate_chart_cadence_avoids_price_chart_duplicates(portal):
         photo["publication_id"] == chart_parent[0]
         for photo in ExternalTelegramHandler.photos
     )
+
+
+def test_native_full_twelve_hour_gallery_preserves_all_observations(portal):
+    from src.modules.content.publications.infra.charts import (
+        PublicationChartRepository,
+    )
+
+    portal.run(prepare_parent(portal))
+    _, charts = portal.run(read_publications(portal))
+    chart_id = charts[0][0]
+
+    async def save_full_history():
+        async with portal.request() as scope:
+            repo = await scope.get(PublicationChartRepository)
+            async with transaction():
+                row = await repo.locked(chart_id)
+                gallery = ChartGallery.model_validate_json(row.payload)
+                for card in gallery.cards:
+                    last = card.chart.candles[-1]
+                    card.chart.candles = [
+                        last.model_copy(
+                            update={
+                                "st_ts": last.st_ts - offset * 300,
+                                "en_ts": last.en_ts - offset * 300,
+                            }
+                        )
+                        for offset in reversed(range(144))
+                    ]
+                row.payload = gallery.model_dump_json()
+                assert 65535 < len(row.payload.encode()) < 256 * 1024
+                await repo.save(row)
+        async with portal.request() as scope:
+            row = await (await scope.get(PublicationChartRepository)).get(
+                chart_id
+            )
+            restored = ChartGallery.model_validate_json(row.payload)
+            assert [len(card.chart.candles) for card in restored.cards] == [
+                144
+            ] * 4
+
+    portal.run(save_full_history())
+
+
+def test_native_chart_image_cache_has_a_shared_storage_bound(portal):
+    from src.modules.pricing.charts.interfaces import IChartImageCache
+
+    async def cache_pages():
+        async with portal.request() as scope:
+            cache = await scope.get(IChartImageCache)
+            for index in range(65):
+                await cache.put(
+                    str(index), b"\x89PNG\r\n\x1a\n" + bytes([index])
+                )
+        async with portal.request() as scope:
+            cache = await scope.get(IChartImageCache)
+            assert await cache.get("0") is None
+            assert await cache.get("1") is not None
+            assert await cache.get("64") == b"\x89PNG\r\n\x1a\n\x40"
+
+    portal.run(cache_pages())
