@@ -252,3 +252,13 @@ not interpreted automatically as either an outage or a market closure. Existing
 published charts remain historical snapshots; newly collected candles feed the
 next scheduled chart gallery. Dependency pins and the 12-hour retention policy
 are unchanged.
+
+Production verification: backend API/worker/scheduler release
+`5e4c43fe632164fd1a531c684d9464b358be6962` was checked on 2026-10-25.
+Eight domestic gold sources were selected while a cash-USD input about 14.7 hours
+old was rejected against the configured 90-second limit. Consecutive live gold
+prices changed, and MySQL recorded a changed close in the next five-minute candle.
+The global-gold card correctly explained the unchanged upstream series. API and
+Telegram gateway health checks passed; processes had no OOM or restart. Verification
+included 245 passing unit tests (one optional live test skipped), native MySQL/Redis
+calculation and source-report checks, and native scheduled chart delivery tests.
