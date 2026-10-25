@@ -200,6 +200,8 @@ class CalculatorService:
         consulted: set[SourceSwitch] = set()
         for row in order:
             rows = markets.get(row.switch, ())
+            if row.switch is SourceSwitch.GLOBAL_MARKET and usd_price <= 0:
+                continue
             consulted.add(row.switch)
             if row.switch is SourceSwitch.IRAN_MARKET:
                 result = self.iran.calculate(asset, rows, verdicts)

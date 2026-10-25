@@ -91,6 +91,7 @@ def test_stale_cash_dollar_falls_back_to_domestic_gold_without_restamping():
     ]
     local = quote(5, CurrencyType.RIAL, 257_000_000, now)
     world = quote(17, CurrencyType.USD, 399690, now)
+    verdicts = []
     result = app._priced(
         asset,
         order,
@@ -100,10 +101,11 @@ def test_stale_cash_dollar_falls_back_to_domestic_gold_without_restamping():
         },
         None,
         app._usd_price(old),
-        [],
+        verdicts,
         old.priced_at,
     )
     assert result.price == local.price
+    assert not next(r for r in verdicts if r.source_id == 17).is_selected
     assert result.priced_at == local.priced_at
     fresh = price(now - timedelta(minutes=5))
     result = app._priced(
