@@ -49,7 +49,11 @@ from src.modules.pricing.candle.app.helpers import WindowClock
 from src.modules.pricing.candle.domain.windows import AssetPriceWindow
 from src.modules.pricing.candle.infra.cache import AssetWindowCache
 from src.modules.pricing.candle.interfaces import ICandleService
-from src.modules.pricing.charts.domain.models import ChartGallery
+from src.modules.pricing.charts.domain.models import (
+    AssetChartCard,
+    ChartGallery,
+    GlobalGoldChartCard,
+)
 from src.modules.pricing.charts.infra.browser import BrowserImageRenderer
 from src.modules.pricing.charts.interfaces import (
     IAssetChartQuery,
@@ -593,7 +597,13 @@ def test_native_independent_chart_scheduler_without_price_mission(portal):
 
     portal.run(mission_and_draft())
     gallery = ChartGallery.model_validate_json(charts[0][4])
-    assert len(gallery.cards) == 4
+    # A five-minute source candle may close before this asynchronous task.
+    # Four asset pages are mandatory; the independently available XAU page
+    # is valid too and must not turn this into a wall-clock-dependent test.
+    assert {
+        c.asset.id for c in gallery.cards if isinstance(c, AssetChartCard)
+    } == {1, 2, 3, 4}
+    assert sum(isinstance(c, GlobalGoldChartCard) for c in gallery.cards) <= 1
     assert all(card.chart.candles for card in gallery.cards)
 
 
