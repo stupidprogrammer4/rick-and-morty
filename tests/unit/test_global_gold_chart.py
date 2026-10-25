@@ -101,3 +101,56 @@ async def test_global_gold_uses_fresh_raw_usd_source_without_cash_usd(
     quote.priced_at -= timedelta(days=1)
     assert await query.get() is None
     series.read.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_unchanged_global_gold_is_explained_in_chart(snapshot):
+    now = datetime.now(UTC)
+    reader = SimpleNamespace(
+        get_many_by_symbols=AsyncMock(
+            return_value={
+                SymbolCode.XAU_OUNCE: [
+                    SimpleNamespace(
+                        source_id=17,
+                        currency=CurrencyType.USD,
+                        price=399690,
+                        is_closed=False,
+                        priced_at=now,
+                    )
+                ]
+            }
+        )
+    )
+    sources = SimpleNamespace(
+        get_all=AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    id=17,
+                    is_active=True,
+                    title="Gold",
+                    website_url="https://gold.example/",
+                )
+            ]
+        )
+    )
+    chart = history()
+    chart.candles = [
+        CandleReadModel(
+            st_ts=i * 300,
+            en_ts=(i + 1) * 300,
+            open=399690,
+            high=399690,
+            low=399690,
+            close=399690,
+        )
+        for i in range(3)
+    ]
+    card = await GlobalGoldChartQuery(
+        reader,
+        sources,
+        SimpleNamespace(read=AsyncMock(return_value=chart)),
+        snapshot[0],
+    ).get()
+    assert "بدون تغییر" in card.caption
+    assert "بدون تغییر" in card.style.footer
+    assert card.style.recorded_label == "آخرین دریافت از منبع"

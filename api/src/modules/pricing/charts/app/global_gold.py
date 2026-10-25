@@ -66,12 +66,21 @@ class GlobalGoldChartQuery:
         if not chart.candles:
             return None
         source = sources[quote.source_id]
+        unchanged = (
+            len(chart.candles) >= 2
+            and len({(c.low, c.high) for c in chart.candles}) == 1
+            and all(c.low == c.high for c in chart.candles)
+        )
+        status = (
+            "قیمت منبع در این بازه بدون تغییر بوده است" if unchanged else ""
+        )
         style = self.settings.market.charts.model_copy(
             update={
                 "window": "daily",
                 "unit_label": "USD / troy oz",
+                "recorded_label": "آخرین دریافت از منبع",
                 "caption": "اونس جهانی طلا؛ دلار به‌ازای هر اونس تروا",
-                "footer": "کندل‌های بسته‌شدهٔ ثبت‌شده · ۱۲ ساعت اخیر",
+                "footer": status or "کندل‌های بسته‌شدهٔ ثبت‌شده · ۱۲ ساعت اخیر",
                 "candle_interval_seconds": 300,
                 "asset_display_symbols": {"xau_ounce": "XAU / USD"},
                 "asset_labels": {"xau_ounce": "اونس جهانی طلا"},
@@ -91,5 +100,7 @@ class GlobalGoldChartQuery:
             + escape(source.title)
             + "\n"
             + escape(source.website_url)
+            + ("\n⏸ " + status if status else "")
+            + "\nزمان نمایش‌داده‌شده، زمان دریافت قیمت از منبع است."
             + "\n📊 TradingView Lightweight Charts™ · © TradingView, Inc.",
         )

@@ -186,3 +186,28 @@ def test_naive_source_time_needs_configured_timezone():
         .total_seconds()
         == 0
     )
+
+
+def test_gold_api_clock_is_fetch_time_not_exchange_trade_time():
+    from datetime import UTC
+
+    from src.modules.pricing.engine.app.crawlers.global_market import (
+        GoldApiXauFetcher,
+    )
+    from src.modules.pricing.engine.app.helpers.quotes import (
+        GlobalMarketPriceHelper,
+    )
+    from src.modules.pricing.sources.domain.enums import SourceCode
+
+    quotes = GoldApiXauFetcher(None)._parse(
+        httpx.Response(
+            200,
+            json={"price": 3996.899902, "updatedAt": "2026-10-25T06:40:08Z"},
+        )
+    )
+    rows = GlobalMarketPriceHelper().build(
+        {SymbolCode.XAU_OUNCE: 4}, {SourceCode.GOLD_API: 17}, quotes
+    )
+    assert rows[0].price == 399690
+    assert rows[0].priced_at == datetime(2026, 10, 25, 6, 40, 8, tzinfo=UTC)
+    assert rows[0].timestamp_kind == "fetched"

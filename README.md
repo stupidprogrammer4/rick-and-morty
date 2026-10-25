@@ -235,3 +235,20 @@ now acquire the publishing guard before row/index locks, preventing the
 reproduced conflict with concurrent daily-budget reservations. An uncertain
 Telegram send is still never automatically replayed. The current TGJU cash-USD
 quote is stale and remains excluded; USDT is not substituted for cash USD.
+
+### Market quote freshness correction (2026-10-25)
+
+Gold parity calculations now reject cash-USD inputs older than the configured
+engine quote-age limit, as well as future-dated inputs, in both single-asset and
+bulk calculation. The existing market order then falls through to available
+domestic sources. A valid parity quote retains the older of its metal and FX
+input timestamps; a fresh metal response cannot refresh an old dollar rate.
+
+Gold API documents `updatedAt` as the time it fetched its source, rather than an
+exchange trade timestamp ([provider documentation](https://gold-api.com/llms.txt)).
+Its readings are therefore labelled `fetched`. Global-gold chart cards label this
+time explicitly and explain an unchanged observed series. An unchanged price is
+not interpreted automatically as either an outage or a market closure. Existing
+published charts remain historical snapshots; newly collected candles feed the
+next scheduled chart gallery. Dependency pins and the 12-hour retention policy
+are unchanged.

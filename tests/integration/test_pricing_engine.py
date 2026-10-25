@@ -685,7 +685,7 @@ def test_native_source_report_preserves_rates_units_and_accepted_sources(
             assert rows["gold", "per_troy_ounce", "gold_api"].currency == "USD"
             assert (
                 rows["gold", "per_troy_ounce", "gold_api"].timestamp_kind
-                == "source"
+                == "fetched"
             )
             assert rows["usdt", "per_usdt", "wallex"].buy_amount == 1_999_000
             assert rows["usdt", "per_usdt", "wallex"].sell_amount == 2_001_000

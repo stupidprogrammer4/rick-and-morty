@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 from typing import Mapping, Sequence
 
 from papilio.core import resources as framework_resources
@@ -47,6 +48,7 @@ from src.modules.pricing.sources.domain.enums import (
 from src.modules.pricing.sources.domain.models import (
     SourceBubbleModel,
 )
+from src.shared.dates import as_utc, utc_now
 
 
 class BubbleCalculatorService:
@@ -162,6 +164,13 @@ class CalculatorService:
         self.iran = IranMarketCalculator(policy)
         self.supplier = SupplierCalculator(policy)
         self.world = GlobalMarketCalculator(policy)
+        self.max_quote_age_seconds = policy.max_quote_age_seconds
+
+    def _usd_price(self, dollar: AssetPriceModel | None) -> int:
+        if dollar is None:
+            return 0
+        age = (utc_now() - as_utc(dollar.priced_at)).total_seconds()
+        return dollar.price if 0 <= age <= self.max_quote_age_seconds else 0
 
     def _priced(
         self,
@@ -171,6 +180,7 @@ class CalculatorService:
         bubble: AssetBubbleModel | None,
         usd_price: int,
         verdicts: list[PricedSourceModel] | None = None,
+        usd_priced_at: datetime | None = None,
     ) -> AssetPriceModel | None:
         """
         Desc: Walk an asset's markets and take the first price it gets.
@@ -199,6 +209,14 @@ class CalculatorService:
                 result = self.world.calculate(
                     usd_price, bubble, asset, rows, verdicts
                 )
+                if result is not None and usd_priced_at is not None:
+                    result = result.model_copy(
+                        update={
+                            "priced_at": min(
+                                as_utc(result.priced_at), as_utc(usd_priced_at)
+                            )
+                        }
+                    )
             if result is not None:
                 break
         if verdicts is not None:
@@ -241,7 +259,7 @@ class CalculatorService:
         readings = await self.readings.get_many_by_symbols(codes)
         bubble = await self.bubbles.get(asset.code)
         dollar = await self.prices.get(AssetCode.USD)
-        usd_price = 0 if dollar is None else dollar.price
+        usd_price = self._usd_price(dollar)
 
         markets: dict[SourceSwitch, list[PricedSourceModel]] = defaultdict(
             list
@@ -254,7 +272,13 @@ class CalculatorService:
 
         verdicts: list[PricedSourceModel] = []
         result = self._priced(
-            asset, order, markets, bubble, usd_price, verdicts
+            asset,
+            order,
+            markets,
+            bubble,
+            usd_price,
+            verdicts,
+            dollar.priced_at if dollar is not None else None,
         )
         await self.selection.record(
             {symbol.id: symbol.symbol for symbol in symbols}, verdicts
@@ -304,7 +328,7 @@ class CalculatorService:
         readings = await self.readings.get_all()
         bubbles = await self.bubbles.get_all()
         dollar = await self.prices.get(AssetCode.USD)
-        usd_price = 0 if dollar is None else dollar.price
+        usd_price = self._usd_price(dollar)
 
         ordered: dict[int, list[SwitchOrderContext]] = defaultdict(list)
         for row in orders:
@@ -332,6 +356,7 @@ class CalculatorService:
                 bubbles.get(asset.code),
                 usd_price,
                 verdicts,
+                dollar.priced_at if dollar is not None else None,
             )
             if result is not None:
                 priced[asset.code] = result
